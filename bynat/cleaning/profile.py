@@ -1,5 +1,11 @@
 """
 DataFrame data quality profiling helpers and report data structures.
+
+This module provides non-mutating data quality profiling for pandas DataFrames
+and ``BaseData`` objects. It inspects missing values, duplicate rows, column data
+types, cardinality, and type-specific descriptive statistics, returning a
+structured :class:`ProfileReport` (or ``dict`` / ``pandas.DataFrame`` /
+``BaseData``) suitable for programmatic inspection.
 """
 
 import datetime
@@ -22,7 +28,36 @@ __all__ = [
 
 
 def _clean_scalar(val: Any) -> Any:
-    """Convert numpy scalars and floating NaN/inf to native Python types or None."""
+    """
+    Normalize a scalar or container value into a native, JSON-safe Python primitive.
+
+    Converts NumPy scalars, pandas timestamps/timedeltas, floating-point ``NaN``
+    or infinity values, and nested containers into standard Python types
+    (``int``, ``float``, ``bool``, ``str``, ``list``, ``dict``, or ``None``) so
+    that all profile metrics and statistics have a stable, serializable contract.
+
+    Notes:
+        - Container types (``set``, ``list``, ``tuple``, ``dict``, ``np.ndarray``)
+          are cleaned recursively before ``pd.isna`` is checked to avoid
+          ambiguous truth-value errors on array-like objects.
+        - ``bool`` and ``np.bool_`` are checked before ``int`` because ``bool``
+          is a subclass of ``int`` in Python.
+        - ``datetime.timedelta``, ``pd.Timedelta``, and ``np.timedelta64`` are
+          checked before ``np.integer`` because ``np.timedelta64`` inherits from
+          ``np.generic`` / integer hierarchies in NumPy, and are formatted as
+          ISO-8601 duration strings.
+        - ``pd.Timestamp``, ``np.datetime64``, and ``datetime.date`` values are
+          converted to ISO-8601 strings.
+        - Floating-point ``NaN``, ``+inf``, and ``-inf`` are normalized to ``None``.
+
+    Args:
+        val (Any): The raw value or container extracted from a pandas Series or
+            DataFrame aggregation.
+
+    Returns:
+        Any: A native Python primitive (``None``, ``bool``, ``int``, ``float``,
+        ``str``) or a recursively cleaned ``list`` or ``dict``.
+    """
     if val is None:
         return None
     if isinstance(val, set):
@@ -62,11 +97,25 @@ def _clean_scalar(val: Any) -> Any:
 
 def _detect_column_kind(series: pd.Series) -> tuple[str, str]:
     """
-    Classify a series into a broad kind and a fine-grained inferred type.
+    Classify a pandas Series into a broad analytical kind and a fine-grained inferred type.
+
+    Inspects both the declared pandas ``dtype`` and the non-null values (via
+    ``pandas.api.types.infer_dtype``) to determine how the column should be
+    summarized. When a column contains only missing values (or belongs to an
+    empty DataFrame), classification falls back to the declared dtype, or
+    ``('other', 'empty')`` if the dtype is generic ``object``.
+
+    Args:
+        series (pd.Series): The column Series to classify.
 
     Returns:
-        tuple[str, str]: (kind, inferred_type), where kind is one of
-        'numeric', 'categorical', 'boolean', 'datetime', or 'other'.
+        tuple[str, str]: A 2-tuple ``(kind, inferred_type)`` where:
+            - ``kind`` (str): Broad analytical category, always one of
+              ``'numeric'``, ``'categorical'``, ``'boolean'``, ``'datetime'``,
+              or ``'other'``.
+            - ``inferred_type`` (str): Fine-grained type label from pandas
+              (e.g., ``'integer'``, ``'floating'``, ``'string'``, ``'boolean'``,
+              ``'datetime64'``, ``'mixed'``, or ``'empty'``).
     """
     non_null = series.dropna()
     if non_null.empty:
@@ -117,7 +166,39 @@ def _detect_column_kind(series: pd.Series) -> tuple[str, str]:
 
 
 def _compute_numeric_stats(series: pd.Series) -> dict[str, Any]:
-    """Compute descriptive statistics for a numeric column."""
+    """
+    Compute descriptive statistics for a numeric column.
+
+    Calculates central tendency, dispersion, quartiles, zero-value prevalence,
+    and 1.5*IQR outlier counts over all non-null numeric values in ``series``.
+
+    Notes:
+        - ``std`` requires at least 2 non-null numeric observations; otherwise
+          it is ``None``.
+        - ``outliers_count`` uses the standard Tukey 1.5*IQR rule
+          (``< q25 - 1.5 * iqr`` or ``> q75 + 1.5 * iqr``) and requires at least
+          5 non-null numeric values; otherwise it is ``None``.
+        - When the column has no valid numeric values, summary statistics default
+          to ``None`` while ``zeros_count`` is ``0`` and ``zeros_proportion`` is
+          ``0.0``.
+
+    Args:
+        series (pd.Series): A Series classified with ``kind == 'numeric'``.
+
+    Returns:
+        dict[str, Any]: Dictionary with keys:
+            - ``min`` (int | float | None): Minimum non-null value.
+            - ``max`` (int | float | None): Maximum non-null value.
+            - ``mean`` (float | None): Arithmetic mean of non-null values.
+            - ``std`` (float | None): Sample standard deviation (``ddof=1``).
+            - ``median`` (float | None): 50th percentile (median).
+            - ``q25`` (float | None): 25th percentile (first quartile).
+            - ``q75`` (float | None): 75th percentile (third quartile).
+            - ``iqr`` (float | None): Interquartile range (``q75 - q25``).
+            - ``zeros_count`` (int): Number of non-null values equal to zero.
+            - ``zeros_proportion`` (float): Fraction of non-null values equal to zero.
+            - ``outliers_count`` (int | None): Count of values outside 1.5*IQR bounds.
+    """
     non_null = series.dropna()
     empty_stats: dict[str, Any] = {
         "min": None,
@@ -189,7 +270,32 @@ def _compute_numeric_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def _compute_categorical_stats(series: pd.Series) -> dict[str, Any]:
-    """Compute descriptive statistics for a categorical or string column."""
+    """
+    Compute descriptive statistics for a categorical or string column.
+
+    Determines the most frequent value (mode), its frequency and proportion
+    among non-null values, and character length statistics when all non-null
+    values are strings.
+
+    Notes:
+        - If the column contains unhashable objects, values are normalized
+          through :func:`._common._dedupe_key` before counting frequencies.
+        - Character length metrics (``min_length``, ``max_length``,
+          ``mean_length``) are computed only when every non-null value is a
+          ``str``; for non-string categoricals they are ``None``.
+
+    Args:
+        series (pd.Series): A Series classified with ``kind == 'categorical'``.
+
+    Returns:
+        dict[str, Any]: Dictionary with keys:
+            - ``top`` (Any | None): Most frequent non-null value.
+            - ``top_frequency`` (int | None): Occurrence count of ``top``.
+            - ``top_proportion`` (float | None): ``top_frequency / count``.
+            - ``min_length`` (int | None): Minimum string character length.
+            - ``max_length`` (int | None): Maximum string character length.
+            - ``mean_length`` (float | None): Mean string character length.
+    """
     non_null = series.dropna()
     if non_null.empty:
         return {
@@ -238,7 +344,22 @@ def _compute_categorical_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def _compute_boolean_stats(series: pd.Series) -> dict[str, Any]:
-    """Compute descriptive statistics for a boolean column."""
+    """
+    Compute descriptive statistics for a boolean column.
+
+    Counts the number of ``True`` and ``False`` values and calculates the
+    proportion of non-null values that are ``True``.
+
+    Args:
+        series (pd.Series): A Series classified with ``kind == 'boolean'``.
+
+    Returns:
+        dict[str, Any]: Dictionary with keys:
+            - ``true_count`` (int): Number of non-null ``True`` values.
+            - ``false_count`` (int): Number of non-null ``False`` values.
+            - ``true_proportion`` (float | None): ``true_count / count``, or
+              ``None`` if the column has no non-null values.
+    """
     non_null = series.dropna()
     if non_null.empty:
         return {
@@ -260,7 +381,22 @@ def _compute_boolean_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def _compute_datetime_stats(series: pd.Series) -> dict[str, Any]:
-    """Compute descriptive statistics for a datetime column."""
+    """
+    Compute descriptive statistics for a datetime or date column.
+
+    Identifies the earliest and latest timestamps (formatted as ISO-8601 strings)
+    and computes the time span between them in fractional days.
+
+    Args:
+        series (pd.Series): A Series classified with ``kind == 'datetime'``.
+
+    Returns:
+        dict[str, Any]: Dictionary with keys:
+            - ``min`` (str | None): Earliest timestamp as an ISO-8601 string.
+            - ``max`` (str | None): Latest timestamp as an ISO-8601 string.
+            - ``range_days`` (float | None): Total span ``(max - min)`` in days,
+              or ``None`` if the column contains no valid timestamps.
+    """
     non_null = series.dropna()
     if non_null.empty:
         return {
@@ -296,7 +432,24 @@ def _compute_datetime_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def _compute_other_stats(series: pd.Series) -> dict[str, Any]:
-    """Compute descriptive statistics for mixed, object, or other column types."""
+    """
+    Compute descriptive statistics for mixed-type, object, or untyped empty columns.
+
+    Finds the most frequent non-null value and its frequency/proportion, using
+    :func:`._common._dedupe_key` as a fallback when elements are unhashable
+    (such as ``list``, ``dict``, or ``set`` cells).
+
+    Args:
+        series (pd.Series): A Series classified with ``kind == 'other'``.
+
+    Returns:
+        dict[str, Any]: Dictionary with keys:
+            - ``top`` (Any | None): Most frequent non-null value (cleaned via
+              :func:`_clean_scalar`).
+            - ``top_frequency`` (int | None): Occurrence count of ``top``.
+            - ``top_proportion`` (float | None): ``top_frequency / count``, or
+              ``None`` when empty.
+    """
     non_null = series.dropna()
     if non_null.empty:
         return {
@@ -327,7 +480,19 @@ def _compute_other_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def _compute_distinct_count(series: pd.Series) -> int:
-    """Compute the number of distinct non-null values safely."""
+    """
+    Count the number of unique non-null values in a Series.
+
+    Uses ``series.nunique(dropna=True)`` for hashable elements and falls back
+    to :func:`._common._dedupe_key` when the Series contains unhashable objects
+    such as lists, dictionaries, sets, or NumPy arrays.
+
+    Args:
+        series (pd.Series): The column Series whose distinct values should be counted.
+
+    Returns:
+        int: Number of unique non-null values (``0`` if all values are missing).
+    """
     non_null = series.dropna()
     if non_null.empty:
         return 0
@@ -339,10 +504,19 @@ def _compute_distinct_count(series: pd.Series) -> int:
 
 def _compute_duplicate_rows(df: pd.DataFrame) -> int:
     """
-    Count duplicate rows using keep='first' semantics.
+    Count duplicate rows in a DataFrame using ``keep='first'`` semantics.
 
-    The first occurrence of each unique row is preserved; all subsequent
-    identical rows are counted as duplicates.
+    The first occurrence of each unique row is treated as canonical and not
+    counted; every subsequent identical row is counted as a duplicate. If the
+    DataFrame contains unhashable cell values (e.g., ``list`` or ``dict``),
+    cells are normalized via :func:`._common._dedupe_key` before checking for
+    duplicates.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to inspect for duplicate rows.
+
+    Returns:
+        int: Total number of duplicate rows (``0`` for empty or zero-column DataFrames).
     """
     if df.empty or len(df.columns) == 0:
         return 0
@@ -356,19 +530,30 @@ def _compute_duplicate_rows(df: pd.DataFrame) -> int:
 @dataclass
 class DatasetProfile(Mapping[str, Any]):
     """
-    Summary metrics for the entire DataFrame.
+    Dataset-level data quality summary metrics for a profiled DataFrame.
+
+    Implements the :class:`collections.abc.Mapping` protocol so fields can be
+    accessed both as attributes (``dataset.row_count``) and by key
+    (``dataset['row_count']``).
 
     Attributes:
-        row_count (int): Total number of rows.
+        row_count (int): Total number of rows in the profiled DataFrame.
         column_count (int): Total number of profiled columns.
-        total_cells (int): Total number of data cells (row_count * column_count).
-        missing_count (int): Total number of missing cells across all columns.
-        missing_proportion (float): Proportion of cells that are missing (0.0 to 1.0).
-        duplicate_rows (int): Number of duplicate rows using keep='first' semantics.
-        duplicate_proportion (float): Proportion of rows that are duplicates (0.0 to 1.0).
-        empty_column_count (int): Number of columns containing zero non-null values.
-        memory_bytes (int): Estimated in-memory size of the DataFrame in bytes.
-        dtype_counts (dict[str, int]): Count of columns grouped by their dtype string.
+        total_cells (int): Total number of cells (``row_count * column_count``).
+        missing_count (int): Total count of missing (``NaN`` / ``None`` / ``NA``)
+            cells across all profiled columns.
+        missing_proportion (float): Fraction of total cells that are missing
+            (``missing_count / total_cells``, or ``0.0`` when ``total_cells == 0``).
+        duplicate_rows (int): Number of duplicate rows using ``keep='first'``
+            semantics (first occurrence kept, subsequent identical rows counted).
+        duplicate_proportion (float): Fraction of rows that are duplicates
+            (``duplicate_rows / row_count``, or ``0.0`` when ``row_count == 0``).
+        empty_column_count (int): Number of profiled columns where all values
+            are missing (``count == 0``).
+        memory_bytes (int): Estimated memory footprint of the profiled columns
+            in bytes (via ``df.memory_usage(deep=True).sum()``).
+        dtype_counts (dict[str, int]): Mapping from pandas dtype string
+            (e.g., ``'int64'``, ``'object'``) to the number of columns with that dtype.
     """
 
     row_count: int
@@ -383,41 +568,93 @@ class DatasetProfile(Mapping[str, Any]):
     dtype_counts: dict[str, int]
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert the dataset profile to a primitive Python dictionary."""
+        """
+        Convert the dataset profile into a plain Python dictionary.
+
+        Returns:
+            dict[str, Any]: Dictionary containing all :class:`DatasetProfile`
+            attributes mapped to native Python types.
+        """
         return asdict(self)
 
     def __getitem__(self, item: str) -> Any:
+        """
+        Retrieve a dataset metric by its field name.
+
+        Args:
+            item (str): Name of the :class:`DatasetProfile` attribute.
+
+        Returns:
+            Any: The value of the requested attribute.
+
+        Raises:
+            KeyError: If ``item`` is not a valid attribute name.
+        """
         try:
             return getattr(self, item)
         except AttributeError:
             raise KeyError(item) from None
 
     def __iter__(self) -> Iterator[str]:
+        """
+        Iterate over the field names of the dataset profile.
+
+        Returns:
+            Iterator[str]: An iterator yielding each attribute name in declaration order.
+        """
         return iter(asdict(self))
 
     def __len__(self) -> int:
+        """
+        Return the number of fields in the dataset profile.
+
+        Returns:
+            int: Total number of :class:`DatasetProfile` attributes (10).
+        """
         return len(asdict(self))
 
 
 @dataclass
 class ColumnProfile(Mapping[str, Any]):
     """
-    Quality metrics and descriptive statistics for a single column.
+    Data quality metrics and descriptive statistics for a single DataFrame column.
+
+    Implements the :class:`collections.abc.Mapping` protocol so fields can be
+    accessed both as attributes (``col_profile.missing_count``) and by key
+    (``col_profile['missing_count']``).
 
     Attributes:
-        name (Any): Column identifier/name.
-        dtype (str): Pandas data type as a string (e.g. 'int64', 'object').
-        inferred_type (str): Fine-grained detected type (e.g. 'integer', 'string').
-        kind (str): Broad type classification: 'numeric', 'categorical',
-            'boolean', 'datetime', or 'other'.
-        count (int): Count of non-null values.
-        missing_count (int): Count of missing (null/NaN/NA) values.
-        missing_proportion (float): Proportion of column values that are missing.
-        distinct_count (int): Number of distinct non-null values.
-        distinct_proportion (float): Proportion of non-null values that are distinct.
-        is_unique (bool): True if all non-null values are distinct and count > 0.
-        stats (dict[str, Any]): Type-specific descriptive statistics, with None
-            representing inapplicable or unavailable values.
+        name (Any): The column name/label in the DataFrame.
+        dtype (str): String representation of the pandas dtype (e.g., ``'int64'``,
+            ``'Float64'``, ``'object'``, ``'datetime64[ns]'``).
+        inferred_type (str): Fine-grained type inferred from non-null values by
+            ``pandas.api.types.infer_dtype`` (e.g., ``'integer'``, ``'floating'``,
+            ``'string'``, ``'boolean'``, ``'datetime64'``, ``'mixed'``, ``'empty'``).
+        kind (str): Broad analytical category used to select descriptive
+            statistics. Always one of ``'numeric'``, ``'categorical'``,
+            ``'boolean'``, ``'datetime'``, or ``'other'``.
+        count (int): Number of non-null values in the column.
+        missing_count (int): Number of missing (``NaN`` / ``None`` / ``NA``)
+            values in the column.
+        missing_proportion (float): Fraction of column rows that are missing
+            (``missing_count / row_count``, or ``0.0`` when ``row_count == 0``).
+        distinct_count (int): Number of unique non-null values in the column.
+        distinct_proportion (float): Fraction of non-null values that are unique
+            (``distinct_count / count``, or ``0.0`` when ``count == 0``).
+        is_unique (bool): ``True`` if and only if ``count > 0`` and every
+            non-null value in the column is distinct (``distinct_count == count``).
+        stats (dict[str, Any]): Kind-specific descriptive statistics dictionary.
+            Unavailable or inapplicable metrics are represented as ``None``:
+            - When ``kind == 'numeric'``: ``min``, ``max``, ``mean``, ``std``,
+              ``median``, ``q25``, ``q75``, ``iqr``, ``zeros_count``,
+              ``zeros_proportion``, ``outliers_count``.
+            - When ``kind == 'categorical'``: ``top``, ``top_frequency``,
+              ``top_proportion``, ``min_length``, ``max_length``, ``mean_length``.
+            - When ``kind == 'boolean'``: ``true_count``, ``false_count``,
+              ``true_proportion``.
+            - When ``kind == 'datetime'``: ``min``, ``max``, ``range_days``.
+            - When ``kind == 'other'``: ``top``, ``top_frequency``,
+              ``top_proportion``.
     """
 
     name: Any
@@ -433,35 +670,73 @@ class ColumnProfile(Mapping[str, Any]):
     stats: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert the column profile to a primitive Python dictionary."""
+        """
+        Convert the column profile into a plain Python dictionary.
+
+        Returns:
+            dict[str, Any]: Dictionary containing all :class:`ColumnProfile`
+            attributes and nested ``stats`` mapped to native Python types.
+        """
         return asdict(self)
 
     def __getitem__(self, item: str) -> Any:
+        """
+        Retrieve a column profile field by its attribute name.
+
+        Args:
+            item (str): Name of the :class:`ColumnProfile` attribute.
+
+        Returns:
+            Any: The value of the requested attribute.
+
+        Raises:
+            KeyError: If ``item`` is not a valid attribute name.
+        """
         try:
             return getattr(self, item)
         except AttributeError:
             raise KeyError(item) from None
 
     def __iter__(self) -> Iterator[str]:
+        """
+        Iterate over the field names of the column profile.
+
+        Returns:
+            Iterator[str]: An iterator yielding each attribute name in declaration order.
+        """
         return iter(asdict(self))
 
     def __len__(self) -> int:
+        """
+        Return the number of fields in the column profile.
+
+        Returns:
+            int: Total number of :class:`ColumnProfile` attributes (11).
+        """
         return len(asdict(self))
 
 
 @dataclass
 class ProfileReport(Mapping[str, Any]):
     """
-    Comprehensive data quality report for a DataFrame.
+    Complete data quality report for a DataFrame.
 
-    Supports attribute access (`report.dataset`, `report.columns`), dictionary
-    access (`report['dataset']`, `report['columns']`), and programmatic conversions
-    via `.to_dict()` and `.to_dataframe()`.
+    Combines dataset-wide summary metrics (:attr:`dataset`) and per-column
+    profiles (:attr:`columns` and :attr:`column_list`). Implements the
+    :class:`collections.abc.Mapping` protocol with keys ``'dataset'`` and
+    ``'columns'``, and provides :meth:`to_dict` and :meth:`to_dataframe` for
+    programmatic consumption.
 
     Attributes:
-        dataset (DatasetProfile): Aggregate metrics for the whole DataFrame.
-        columns (dict[Any, ColumnProfile]): Mapping from column name to ColumnProfile.
-        column_list (list[ColumnProfile]): Ordered list of column profiles.
+        dataset (DatasetProfile): Aggregate quality metrics for the entire
+            profiled DataFrame.
+        columns (dict[Any, ColumnProfile]): Mapping from each column name to its
+            corresponding :class:`ColumnProfile`. If duplicate column names exist,
+            this dictionary holds the last occurrence while :attr:`column_list`
+            preserves every column by position.
+        column_list (list[ColumnProfile]): Positional list of
+            :class:`ColumnProfile` objects in the exact order the columns appear
+            in the profiled DataFrame.
     """
 
     dataset: DatasetProfile
@@ -469,7 +744,15 @@ class ProfileReport(Mapping[str, Any]):
     column_list: list[ColumnProfile] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert the entire profile report to a primitive Python dictionary."""
+        """
+        Serialize the full profile report to a nested dictionary of Python primitives.
+
+        Returns:
+            dict[str, Any]: A dictionary with two top-level keys:
+                - ``'dataset'`` (dict[str, Any]): Output of ``self.dataset.to_dict()``.
+                - ``'columns'`` (dict[Any, dict[str, Any]]): Mapping of column
+                  names to ``col_profile.to_dict()``.
+        """
         return {
             "dataset": self.dataset.to_dict(),
             "columns": {k: v.to_dict() for k, v in self.columns.items()},
@@ -477,10 +760,18 @@ class ProfileReport(Mapping[str, Any]):
 
     def to_dataframe(self) -> pd.DataFrame:
         """
-        Convert column profiles into a tabular pandas DataFrame summary.
+        Convert per-column quality profiles into a tabular ``pandas.DataFrame``.
 
-        Each row corresponds to one profiled column with standard quality
-        metrics and flattened statistics columns prefixed with `stat_`.
+        Each row in the returned DataFrame represents one profiled column from
+        :attr:`column_list` (preserving duplicate column names if present).
+        Standard column metrics appear as top-level columns (``column``,
+        ``dtype``, ``inferred_type``, ``kind``, ``count``, ``missing_count``,
+        ``missing_proportion``, ``distinct_count``, ``distinct_proportion``,
+        ``is_unique``), and entries from ``col.stats`` are flattened with a
+        ``stat_`` prefix (e.g., ``stat_mean``, ``stat_iqr``, ``stat_top``).
+
+        Returns:
+            pd.DataFrame: A summary DataFrame with one row per profiled column.
         """
         rows: list[dict[str, Any]] = []
         for col in self.column_list:
@@ -502,6 +793,18 @@ class ProfileReport(Mapping[str, Any]):
         return pd.DataFrame(rows)
 
     def __getitem__(self, key: str) -> Any:
+        """
+        Retrieve a top-level section of the report by key (``'dataset'`` or ``'columns'``).
+
+        Args:
+            key (str): Section name, either ``'dataset'`` or ``'columns'``.
+
+        Returns:
+            DatasetProfile | dict[Any, ColumnProfile]: The requested report section.
+
+        Raises:
+            KeyError: If ``key`` is neither ``'dataset'`` nor ``'columns'``.
+        """
         if key == "dataset":
             return self.dataset
         if key == "columns":
@@ -509,13 +812,32 @@ class ProfileReport(Mapping[str, Any]):
         raise KeyError(key)
 
     def __iter__(self) -> Iterator[str]:
+        """
+        Iterate over the top-level mapping keys of the report.
+
+        Returns:
+            Iterator[str]: Yields ``'dataset'`` and ``'columns'``.
+        """
         yield "dataset"
         yield "columns"
 
     def __len__(self) -> int:
+        """
+        Return the number of top-level sections in the report mapping.
+
+        Returns:
+            int: Always ``2`` (``'dataset'`` and ``'columns'``).
+        """
         return 2
 
     def __repr__(self) -> str:
+        """
+        Return a concise human-readable summary string of the profile report.
+
+        Returns:
+            str: Summary displaying row count, column count, missing cell count
+            and percentage, and duplicate row count.
+        """
         return (
             f"ProfileReport(rows={self.dataset.row_count}, "
             f"columns={self.dataset.column_count}, "
@@ -532,29 +854,68 @@ def profile(
     """
     Generate a structured, non-mutating data quality profile report for a DataFrame.
 
-    Parameters:
-        df (pd.DataFrame): The DataFrame to profile. The input DataFrame is never
-            mutated.
-        *columns: Optional specific column name(s) to profile. Can be passed as
-            multiple arguments or a single sequence of column names. When omitted,
-            all columns in the DataFrame are profiled.
-        output_type: The format of the returned report. Options:
-            - None (default) or ProfileReport: returns a structured ProfileReport
-              object supporting attribute access, mapping access, and programmatic
-              conversion via `.to_dict()` and `.to_dataframe()`.
-            - dict: returns a pure Python dictionary of primitive types.
-            - pandas.DataFrame: returns a tabular summary DataFrame with one row
-              per profiled column.
-            - BaseData subclass: returns the summary DataFrame wrapped in that
-              subclass.
+    Computes dataset-wide metrics (row count, column count, total cells, missing
+    cell count and proportion, duplicate row count and proportion using
+    ``keep='first'`` semantics, empty column count, memory usage, and dtype
+    distribution) alongside per-column profiles (declared dtype, inferred type,
+    analytical kind, non-null count, missing count/proportion, distinct
+    count/proportion, uniqueness flag, and kind-specific descriptive statistics).
+
+    Notes:
+        - This function never mutates the input DataFrame ``df``.
+        - Duplicate rows are counted using ``keep='first'`` semantics: the first
+          occurrence of a unique row is not counted, and each subsequent identical
+          row is counted as a duplicate.
+        - Columns containing unhashable values (e.g., ``list``, ``dict``, ``set``)
+          are handled safely via deterministic key normalization.
+        - Unavailable or inapplicable statistics (such as ``std`` for a single
+          observation or ``outliers_count`` when ``count < 5``) are represented
+          as ``None``.
+
+    Args:
+        df (pd.DataFrame): The DataFrame (or ``BaseData`` instance) to profile.
+        *columns: Optional column name(s) to restrict profiling to a subset of
+            columns. Can be passed as positional arguments
+            (``profile(df, 'col1', 'col2')``) or as a single collection
+            (``profile(df, ['col1', 'col2'])``). When omitted, all columns in
+            ``df`` are profiled.
+        output_type (type | None, optional): Desired return type for the report:
+            - ``None`` (default) or :class:`ProfileReport`: returns a
+              :class:`ProfileReport` instance.
+            - ``dict``: returns ``report.to_dict()`` (nested Python ``dict``).
+            - ``pandas.DataFrame``: returns ``report.to_dataframe()`` (one row
+              per profiled column).
+            - :class:`~bynat.cleaning.base.BaseData` (or subclass): returns the
+              summary DataFrame wrapped in that ``BaseData`` class.
 
     Returns:
-        ProfileReport | dict | pd.DataFrame: The data quality report in the
-        requested format.
+        ProfileReport | dict[str, Any] | pd.DataFrame | BaseData: The generated
+        data quality report in the requested ``output_type``.
 
     Raises:
-        KeyError: If any specified column name is not present in the DataFrame.
-        TypeError: If an unsupported output_type is specified.
+        TypeError: If ``df`` is not a ``pandas.DataFrame`` or if ``output_type``
+            is not one of the supported types.
+        KeyError: If any column specified in ``*columns`` does not exist in ``df``.
+
+    Example:
+    ```
+        import bynat
+        import pandas as pd
+
+        df = pd.DataFrame({
+            "age": [25, 30, None, 40, 30],
+            "city": ["Cairo", "Alex", "Cairo", "Giza", "Alex"],
+        })
+
+        # Via pandas accessor
+        report = df.bynat.profile()
+        print(report.dataset.missing_count)
+        print(report.columns["age"].stats["median"])
+
+        # Export as a summary DataFrame or dictionary
+        summary_df = df.bynat.profile(output_type=pd.DataFrame)
+        summary_dict = df.bynat.profile("age", output_type=dict)
+    ```
     """
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected a pandas DataFrame, got {type(df).__name__}")

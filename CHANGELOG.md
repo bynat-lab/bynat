@@ -1,16 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.6.5
 
-This release introduces the DataFrame data quality profiling API (`DQ-01`), providing non-mutating profiling reports with dataset-level metrics, per-column quality summaries, kind detection, and descriptive statistics across pandas data types.
+This release introduces the DataFrame data quality profiling API (`DQ-01`), providing non-mutating profiling reports with dataset-level metrics, per-column quality summaries, kind detection, and descriptive statistics across pandas data types. It also introduces static typing preservation and editor hover support (`DX-01`), providing PEP 484 stub files, PEP 561 packaging marker, docstring synchronization tooling, and formal project branding.
 
 ### Added
 
-- Data quality profiling API: `bynat.profile(df, *columns, output_type=None)`, `bynat.cleaning.profile`, `df.bynat.profile(*columns, output_type=None)`, and `BaseData.profile(*columns, output_type=None)` generate structured data quality reports without mutating the input DataFrame.
-- Data structures: `ProfileReport`, `DatasetProfile`, and `ColumnProfile` in `bynat.cleaning.profile` (re-exported in `bynat` and `bynat.cleaning`).
+- Data quality profiling API: `bynat.profile(df, *columns, output_type=None)`, `df.bynat.profile(*columns, output_type=None)`, and `BaseData.profile(*columns, output_type=None)` generate structured data quality reports without mutating the input DataFrame.
+- Profiling data structures: `ProfileReport`, `DatasetProfile`, and `ColumnProfile` in `bynat.cleaning.profile` (with `ProfileReport` and `profile` re-exported at top-level `bynat`).
 - Multiple report output formats via `output_type`: `None` or `ProfileReport` (interactive object with attribute and dict access), `dict` (pure JSON-serializable primitives), `pandas.DataFrame` (one summary row per profiled column with `stat_` prefixes), or any `BaseData` subclass.
 - Column kind detection across broad kinds (`numeric`, `categorical`, `boolean`, `datetime`, `other`) with type-specific statistics, missing value analysis via `isna()`, duplicate row detection with `keep="first"` semantics supporting unhashable nested cells (lists/dicts), sample standard deviation, and IQR-based outlier counts.
 - Programmatic conversions: `report.to_dict()` for JSON serialization and `report.to_dataframe()` for tabular quality summaries.
+- Brand assets: project logos and iconography in `assets/Full Logo/` and `assets/Icon/`, and formal trademark guidelines in `TRADEMARKS.md`.
+- Documentation drift regression test: `tests/test_doc_drift.py` ensuring docstrings and accessor stubs remain synchronized with implementation functions.
+
+### Changed
+
+- Scoped `bynat.cleaning` exports exclusively to the public class-based API (`BaseData`, `CsvFile`, `JsonFile`). Top-level convenience functions (`read_csv`, `read_json`, `profile`, `ProfileReport`) and the accessor (`BynatAccessor`) remain accessible from the root `bynat` package.
 
 ### Fixed
 

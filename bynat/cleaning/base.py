@@ -9,7 +9,7 @@ accessor do not, and `JsonFile` / `CsvFile` load data directly from disk.
 
 import os
 from collections.abc import Callable, Iterable
-from typing import Any, Self
+from typing import Any, Self, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -38,9 +38,12 @@ from .enrich.providers import Geocoder, RateSource, Translator
 
 __all__ = ['BaseData', 'JsonFile', 'CsvFile']
 
-def _shares_doc(func: Callable) -> Callable[[Callable], Callable]:
+F = TypeVar('F', bound=Callable[..., Any])
+
+
+def _shares_doc(func: Callable[..., Any]) -> Callable[[F], F]:
     """Reuse a shared implementation's docstring on a `BaseData` method."""
-    def decorate(method: Callable) -> Callable:
+    def decorate(method: F) -> F:
         method.__doc__ = (func.__doc__ or "").rstrip()
 
         return method

@@ -15,7 +15,7 @@
 </p>
 
 <div align="center">
-  Python <code>&gt;=3.11</code> &nbsp;·&nbsp; MIT license &nbsp;·&nbsp; version <code>0.6.0</code>
+  Python <code>&gt;=3.11</code> &nbsp;·&nbsp; MIT license &nbsp;·&nbsp; version <code>0.6.5</code>
 
   [Overview](#what-is-bynat) ·
   [Installation](#installation) ·
@@ -38,6 +38,7 @@
 
 - **Tidy columns:** rename, drop, reorder, move, and reshape columns, and split list values into separate columns.
 - **Work with text:** extract keywords, truncate text at a delimiter, and categorize rows by reference keywords.
+- **Profile data quality:** check completeness, duplicate rows, column types, and per-type statistics without changing your data.
 - **Handle outliers and gaps:** find outliers and fill missing values by comparing each row with similar rows (grouped by a hierarchy of columns).
 - **Enrich data:** translate values, geocode missing coordinates, convert amounts to USD, and extract entities with spaCy.
 - **Read and write files:** load CSV and JSON files, and save data to JSON or a SQL database.
@@ -55,7 +56,7 @@ New here? [Install bynat](#installation), then go to the [Quick start](#quick-st
 
 ### Project status
 
-`0.6.0` is the version declared in `pyproject.toml`. See [CHANGELOG.md](CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](./docs/ROADMAP.md) for planned work.
+`0.6.5` is the version declared in `pyproject.toml`. See [CHANGELOG.md](CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](./docs/ROADMAP.md) for planned work.
 
 ---
 
@@ -164,7 +165,7 @@ The accessor is always called `bynat` (`df.bynat...`), whatever alias you give t
 
 ```python
 import bynat                          # registers the df.bynat accessor
-from bynat import read_csv, read_json
+from bynat import ProfileReport, profile, read_csv, read_json
 from bynat.caching import CacheManager, shared_cache_manager
 from bynat.cleaning import BaseData, CsvFile, JsonFile
 from bynat.cleaning.enrich import Geocoder, RateSource, Translator
@@ -174,12 +175,12 @@ What each module provides:
 
 | Module | Public objects |
 | --- | --- |
-| `bynat` | `read_json`, `read_csv`, `BynatAccessor` |
+| `bynat` | `read_json`, `read_csv`, `BynatAccessor`, `profile`, `ProfileReport` |
 | `bynat.caching` | `CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR` |
-| `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile`, plus `BynatAccessor`, `read_json`, `read_csv` |
+| `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile`, `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile`, plus `BynatAccessor`, `read_json`, `read_csv` |
 | `bynat.cleaning.enrich` | Provider protocols `Translator`, `Geocoder`, `RateSource`, and their defaults `GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource` |
 
-> **Import submodules explicitly.** The top-level `bynat` namespace exposes only `read_json`, `read_csv`, and `BynatAccessor`. Import the class API from `bynat.cleaning` and the cache API from `bynat.caching`.
+> **Import submodules explicitly.** The top-level `bynat` namespace exposes only `read_json`, `read_csv`, `BynatAccessor`, `profile`, and `ProfileReport`. Import the class API from `bynat.cleaning` and the cache API from `bynat.caching`.
 
 ### Class-based API and accessor: key differences
 
@@ -245,6 +246,14 @@ labeled = records.bynat.extract_keywords(
 )
 ```
 
+**Profile a DataFrame.** This also uses `records` from the quick start. See [Data profiling](#data-profiling) for the full report:
+
+```python
+report = records.bynat.profile()
+print(report)
+# ProfileReport(rows=2, columns=3, missing=0 (0.0%), duplicate_rows=0)
+```
+
 **Read and write files.** The loader helpers return plain DataFrames:
 
 ```python
@@ -259,6 +268,189 @@ from_csv.bynat.save_to_json("output.json", orient="records")
 ### How the cleaning code is organized
 
 Each function in the `columns`, `text`, `stats`, `enrich`, and `io` modules takes a DataFrame as its first argument and returns a new one by default. The classes and the accessor are thin layers over these functions. See the [module layout](#module-layout).
+
+---
+
+## Data profiling
+
+Profiling gives you a quick quality check of a table before you clean or model it. A profile reports completeness, duplicate rows, memory use, column types, and statistics for each column. It only reads your data. The input DataFrame, its index, and its column names are left unchanged.
+
+```python
+import bynat
+import pandas as pd
+
+df = pd.DataFrame({
+    "customer_id": [1001, 1002, 1003, 1004, 1004],
+    "name": ["Alice", "Bob", "Charlie", "David", "David"],
+    "age": [28.0, 34.0, None, 45.0, 45.0],
+    "active": [True, True, False, True, True],
+    "joined": pd.to_datetime(["2021-01-15", "2022-03-20", "2023-05-12", "2024-07-01", "2024-07-01"]),
+})
+
+report = df.bynat.profile()
+print(report)
+# ProfileReport(rows=5, columns=5, missing=1 (4.0%), duplicate_rows=1)
+
+report.dataset.duplicate_rows        # 1
+report.columns["age"].kind           # "numeric"
+report.columns["age"].missing_count  # 1
+report.columns["age"].stats["mean"]  # 38.0
+```
+
+### Ways to call it
+
+All four forms return the same report:
+
+| Form | Call |
+| --- | --- |
+| pandas accessor | `df.bynat.profile(*columns, output_type=None)` |
+| Class-based API | `BaseData(df).profile(*columns, output_type=None)` |
+| Top-level function | `bynat.profile(df, *columns, output_type=None)` |
+| Cleaning function | `bynat.cleaning.profile(df, *columns, output_type=None)` |
+
+Passing something other than a `pandas.DataFrame` to the function forms raises a `TypeError`.
+
+### Choosing columns
+
+By default, every column is profiled. To profile only some columns, pass their names as separate arguments or as one list, tuple, or set. A set works, but its order is arbitrary.
+
+```python
+df.bynat.profile()                    # all columns
+df.bynat.profile("age", "name")       # names as arguments
+df.bynat.profile(["age", "name"])     # names as one list
+```
+
+A name that is not in the DataFrame raises a `KeyError`.
+
+### Output types
+
+Use `output_type` to choose what you get back:
+
+| `output_type` | Returns | Use it for |
+| --- | --- | --- |
+| `None` (default) or `ProfileReport` | `ProfileReport` | Working with the report in Python. |
+| `dict` | `dict` | Logging or sending the report as JSON. |
+| `pandas.DataFrame` | `pandas.DataFrame` | A table with one row per profiled column. |
+| A `BaseData` subclass | An object of that class | The same table, wrapped in your class. |
+
+Any other value raises a `TypeError`.
+
+```python
+import json
+import pandas as pd
+from bynat.cleaning import BaseData, profile
+
+report = profile(df)                              # ProfileReport
+as_dict = profile(df, output_type=dict)           # plain dictionary
+summary = profile(df, output_type=pd.DataFrame)   # one row per column
+wrapped = profile(df, output_type=BaseData)       # table as BaseData
+
+json_text = json.dumps(as_dict, indent=2)
+```
+
+### Working with a report
+
+A `ProfileReport` has two parts: `report.dataset` (a `DatasetProfile`) and `report.columns` (a dictionary of `ColumnProfile` objects keyed by column name). You can read them as attributes or like a dictionary:
+
+```python
+report.dataset.row_count
+report["dataset"]["row_count"]
+report.columns["age"].missing_proportion
+```
+
+- `report.column_list` is the same set of `ColumnProfile` objects as an ordered list. Use it if your DataFrame has repeated column names, because `report.columns` holds one entry per name.
+- `report.to_dict()` returns the dataset and column profiles as plain Python values.
+- `report.to_dataframe()` returns one row per column. Column statistics become columns with a `stat_` prefix, such as `stat_mean`. A statistic that does not apply to a column's kind is left empty (`NaN`) in that row.
+
+For example, to list columns with missing values or candidate keys:
+
+```python
+with_missing = [c.name for c in report.column_list if c.missing_count > 0]
+candidate_keys = [c.name for c in report.column_list if c.is_unique and c.missing_count == 0]
+
+table = report.to_dataframe()
+table[["column", "kind", "missing_proportion", "distinct_count", "stat_mean"]]
+```
+
+`report.to_dict()` and `profile(..., output_type=dict)` use only plain Python values, with dates written as ISO 8601 strings. They work with `json.dumps` as long as your column names are plain strings or numbers.
+
+### What a report contains
+
+#### Dataset fields
+
+`report.dataset` is a `DatasetProfile`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `row_count` | `int` | Number of rows. |
+| `column_count` | `int` | Number of profiled columns. |
+| `total_cells` | `int` | `row_count * column_count`. |
+| `missing_count` | `int` | Number of missing cells. |
+| `missing_proportion` | `float` | Missing cells divided by `total_cells`. |
+| `duplicate_rows` | `int` | Number of repeated rows. The first copy of a row is not counted. |
+| `duplicate_proportion` | `float` | `duplicate_rows` divided by `row_count`. |
+| `empty_column_count` | `int` | Number of columns with no non-null values. |
+| `memory_bytes` | `int` | Memory use in bytes, from `memory_usage(deep=True)` (includes the index). `0` for an empty frame. |
+| `dtype_counts` | `dict[str, int]` | Number of columns for each pandas dtype name. |
+
+#### Column fields
+
+Each entry in `report.columns` is a `ColumnProfile`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | any | The column name. |
+| `dtype` | `str` | The pandas dtype name. |
+| `inferred_type` | `str` | The more specific type pandas infers from the values, such as `integer` or `string`. |
+| `kind` | `str` | The broad group: `numeric`, `categorical`, `boolean`, `datetime`, or `other`. |
+| `count` | `int` | Number of non-null values. |
+| `missing_count` | `int` | Number of missing values. |
+| `missing_proportion` | `float` | Missing values divided by the row count. |
+| `distinct_count` | `int` | Number of different non-null values. |
+| `distinct_proportion` | `float` | `distinct_count` divided by `count`. |
+| `is_unique` | `bool` | `True` when there is at least one non-null value and all of them are different. |
+| `stats` | `dict` | Statistics that depend on `kind`. See below. |
+
+#### Statistics by kind
+
+Every column of the same `kind` has the same keys in `stats`. A value that cannot be computed is `None`, not `NaN`.
+
+| Kind | Keys in `stats` |
+| --- | --- |
+| `numeric` | `min`, `max`, `mean`, `std`, `median`, `q25`, `q75`, `iqr`, `zeros_count`, `zeros_proportion`, `outliers_count` |
+| `categorical` | `top`, `top_frequency`, `top_proportion`, `min_length`, `max_length`, `mean_length` |
+| `boolean` | `true_count`, `false_count`, `true_proportion` |
+| `datetime` | `min`, `max`, `range_days` |
+| `other` | `top`, `top_frequency`, `top_proportion` |
+
+Notes on these statistics:
+
+- **Numeric:** `std` is the sample standard deviation and needs at least 2 non-null values. `outliers_count` counts values below `q25 - 1.5 * iqr` or above `q75 + 1.5 * iqr`, and needs at least 5 non-null values. When there are no non-null values, `zeros_count` is `0`, `zeros_proportion` is `0.0`, and the other statistics are `None`.
+- **Categorical and other:** `top` is the most frequent value, with its count in `top_frequency` and its share of non-null values in `top_proportion`. These are `None` when there are no non-null values.
+- **Categorical lengths:** `min_length`, `max_length`, and `mean_length` are set only when every non-null value is a string. Otherwise they are `None`.
+- **Boolean:** `true_count` and `false_count` are `0` when there are no non-null values, and `true_proportion` is `None`.
+- **Datetime:** `min` and `max` are ISO 8601 strings. `range_days` is the time between them in days, including fractions.
+
+### How columns are classified
+
+bynat assigns each column a `kind`:
+
+| Kind | Columns |
+| --- | --- |
+| `boolean` | Boolean dtypes, including pandas `boolean`, and columns whose values are all booleans. |
+| `datetime` | Datetime dtypes, both naive and timezone-aware, and columns of date or datetime objects. |
+| `numeric` | Numeric dtypes, including pandas `Int64` and `Float64`, and columns of integers, floats, or decimals. |
+| `categorical` | pandas `Categorical`, the `string` dtype, and columns whose non-null values are all strings. |
+| `other` | Everything else, such as mixed types, arbitrary Python objects, and timedeltas. |
+
+Empty and all-null columns do not raise errors. When a column has no non-null values, its `kind` follows its dtype. An all-null `object` column becomes `other`.
+
+### How values are counted
+
+- **Missing values** are found with pandas `isna()`, so `None`, `NaN`, `NaT`, and `pd.NA` all count.
+- **Duplicate rows** are counted across the profiled columns, keeping the first copy of each row. Cells that hold lists or dicts are compared by value. An empty DataFrame, or one with no columns, has `0` duplicates.
+- **Distinct values** exclude nulls. Unhashable values, such as lists and dicts, are compared by value.
+- **Proportions** at the dataset and column level, and `zeros_proportion`, are `0.0` when the denominator is zero. `top_proportion` and `true_proportion` are `None` when there are no non-null values.
 
 ---
 
@@ -473,7 +665,7 @@ The accessor and the supported classes expose the same cleaning methods.
 
 - Accessor methods take no `inplace` argument.
 - Class methods accept `inplace` where in-place operation is meaningful.
-- `get_hierarchical_stats` returns statistics and has no in-place mode.
+- `get_hierarchical_stats` and `profile` return statistics or reports and have no in-place mode.
 
 > **Always use the method's return value.** Most methods skip missing source or target columns with a logged warning and return an unchanged copy. Invalid arguments that would otherwise give silently wrong results raise instead: an unknown `strategy`, an empty `file_path`, invalid `save_to_sql` connection settings, or an unusable `extract_entities_nlp` configuration.
 
@@ -483,6 +675,7 @@ Methods are grouped by the kind of job they do:
 - [Text and language](#text-and-language)
 - [Enrichment](#enrichment)
 - [Outliers, missing values, and statistics](#outliers-missing-values-and-statistics)
+- [Data profiling](#data-profiling-1)
 - [Saving data](#saving-data)
 - [Cache and object helpers](#cache-and-object-helpers)
 
@@ -571,6 +764,12 @@ For `handle_outliers`, `drop_outliers`, and `fill_missing`, passing `get_hierarc
 - With `inplace=True`, the operation changes the original object and returns `stats` directly.
 - The outlier methods use the default hierarchical `median` statistic. `fill_missing` uses its requested `strategy`.
 
+### Data profiling
+
+| Method | Parameters | Purpose |
+| --- | --- | --- |
+| `profile` | `*columns`, keyword-only `output_type=None` | Returns a read-only data quality report for all columns or the ones you name. See [Data profiling](#data-profiling) for the report structure and `output_type` values. |
+
 ### Saving data
 
 | Method | Parameters | Purpose |
@@ -603,6 +802,7 @@ Use this table to find where things live if you want to read the source or impor
 | `bynat.cleaning.columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
 | `bynat.cleaning.text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |
 | `bynat.cleaning.stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `get_hierarchical_stats` |
+| `bynat.cleaning.profile` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
 | `bynat.cleaning.enrich` | Adding information from outside the table | `translate`, `geocode`, `currency`, `nlp`, the shared cached-lookup `engine`, and `providers` |
 | `bynat.cleaning.io` | Reading and writing | `save_to_json`, `save_to_sql`, `read_json`, `read_csv` |
 | `bynat.cleaning.accessor` | The `df.bynat` entry point | The `df.bynat` accessor |
@@ -681,7 +881,7 @@ CI runs the suite on Ubuntu and Windows with Python 3.11 and 3.13, plus Ruff, my
 
 ### Type checking
 
-Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager and the cleaning helper modules (`_common`, `accessor`, `columns`, `text`, `stats`, `io`, `enrich`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
+Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager and the cleaning helper modules (`_common`, `accessor`, `columns`, `text`, `stats`, `io`, `profile`, `enrich`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
 
 To bring a module into scope:
 

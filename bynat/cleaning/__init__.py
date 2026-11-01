@@ -1,3 +1,3 @@
-from .accessor import BynatAccessor
-from .base import *
-from .io import read_csv, read_json
+from .base import BaseData, CsvFile, JsonFile
+
+__all__ = ['BaseData', 'CsvFile', 'JsonFile']

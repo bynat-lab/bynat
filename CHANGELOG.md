@@ -12,6 +12,14 @@ This release introduces the DataFrame data quality profiling API (`DQ-01`), prov
 - Column kind detection across broad kinds (`numeric`, `categorical`, `boolean`, `datetime`, `other`) with type-specific statistics, missing value analysis via `isna()`, duplicate row detection with `keep="first"` semantics supporting unhashable nested cells (lists/dicts), sample standard deviation, and IQR-based outlier counts.
 - Programmatic conversions: `report.to_dict()` for JSON serialization and `report.to_dataframe()` for tabular quality summaries.
 
+### Fixed
+
+- Preserve method signatures, parameter names, defaults, and return types in static type checkers (Pyright, Pylance, mypy) for `BaseData` methods decorated with `_shares_doc`.
+- Generate `bynat/cleaning/accessor.pyi` so static type checkers and IDEs can inspect `BynatAccessor` methods with full parameter signatures, return types, and docstrings on hover.
+- Make docstrings statically visible in `BaseData` via `tools/sync_docs.py` using implementation functions as the single source of truth, backed by automated drift tests.
+- Ship PEP 561 `py.typed` marker and `.pyi` stubs in the built package distribution.
+- Ensure compatibility shims `bynat.cleaning.Cleaning` and `bynat.caching.Caching` re-export all module members for static analysis.
+
 ## 0.6.0
 
 This release moves the cleaning API to a `df.bynat` pandas accessor, splits the implementation into focused modules, routes every external-service method through one cached-lookup engine with injectable providers, and speeds up keyword extraction, outlier detection, and external calls. Review the **Breaking changes** and **Deprecated** sections before upgrading.

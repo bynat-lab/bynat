@@ -56,6 +56,10 @@ Changelog = "https://github.com/abdallahabukhalil/bynat/blob/main/CHANGELOG.md"
 [tool.setuptools.packages.find]
 include = ["bynat*"]
 
+[tool.setuptools.package-data]
+bynat = ["py.typed"]
+"bynat.cleaning" = ["*.pyi"]
+
 [tool.ruff]
 target-version = "py311"
 

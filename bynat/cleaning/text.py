@@ -234,7 +234,7 @@ def extract_keywords(
 
                 extract_patterns.append(compiled)
 
-            per_text = _first_regex_matches(unique_texts, extract_patterns).to_numpy()
+            per_text: np.ndarray = _first_regex_matches(unique_texts, extract_patterns).to_numpy()
 
         else:
             titles = [word.title() for word in cleaned_keywords]

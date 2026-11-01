@@ -41,7 +41,7 @@ class CacheManager:
         column name or another logical cache bucket.
     """
 
-    def __init__(self, cache_dir: str | PathLike | None = None):
+    def __init__(self, cache_dir: str | PathLike | None = None) -> None:
         """
         Initialize the cache manager and resolve its storage directory.
 

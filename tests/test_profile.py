@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 
 import bynat
-from bynat.cleaning import (
-    BaseData,
+from bynat.cleaning import BaseData
+from bynat.cleaning.profile import (
     ColumnProfile,
     DatasetProfile,
     ProfileReport,
@@ -89,7 +89,7 @@ EXPECTED_STATS_KEYS_BY_KIND: dict[str, set[str]] = {
 def test_public_entry_points():
     df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
 
-    # Standalone from bynat.cleaning
+    # Standalone from bynat.cleaning.profile
     rep1 = profile(df)
     assert isinstance(rep1, ProfileReport)
 

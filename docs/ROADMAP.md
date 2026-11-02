@@ -89,13 +89,17 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** integrate the existing library under `bynat.analytics`, preserving its current behavior and defining clear public API and output contracts. Keep analytics logic independent of application-specific integrations such as Power BI.
 - **Done when:** the analytics functionality is accessible through the documented package API, existing behavior is preserved, and tests cover public interfaces and output contracts.
 
-### Milestone 8 (`0.8.0`): data quality
+#### `STATS-02`: Safer hierarchical imputation fallbacks (P1, S)
+- **Problem:** `fill_missing` can rely on statistics from groups with very few observations, potentially producing unreliable imputations. Additionally, when hierarchy levels are exhausted, remaining missing values stay unfilled, and disabling hierarchical grouping provides no column-wide imputation.
+- **Plan:** Add `min_samples` to control the minimum number of non-null observations required for a group to provide an imputation statistic, falling through to coarser hierarchy levels when the threshold is not met. Add `fallback_global` to optionally use the column-wide statistic after exhausting the hierarchy. Support global imputation when `hierarchy_cols=None` and `fallback_global=True`. Preserve backward compatibility through defaults.
+- **Done when:** Both parameters are implemented and validated, hierarchical fallback behavior is covered by comprehensive tests, existing `fill_missing` behavior remains unchanged by default, and documentation explains the new options and clarifies that unresolved missing values remain `NaN` by default.
 
-#### `DQ-01`: DataFrame quality profiling (P1, M)
-- **Status:** done (0.6.5).
-- **Problem:** users need a structured way to assess data quality before cleaning or analysis without manually combining checks for missing values, duplicates, column types, and descriptive statistics.
-- **Plan:** add a profiling API that produces a structured report covering missing values, duplicate rows, column types, and relevant descriptive statistics. Keep profiling non-mutating and make its output suitable for programmatic use.
-- **Done when:** the report has a documented, stable structure, covers supported data types and edge cases, and tests verify its results without modifying the input.
+#### `STATS-02`: Reference-based missing value imputation (P1, M)
+- **Problem:** `fill_missing` calculates imputation statistics from the same DataFrame being transformed, making it difficult to reuse learned statistics across separate datasets, particularly in Train/Test workflows. Users must manually calculate and transfer statistics, increasing implementation complexity and the risk of inconsistent imputation or data leakage.
+- **Plan:** Introduce `fill_missing_from` to impute missing values using statistics calculated exclusively from a separate reference DataFrame. Support optional `match_cols` mapping to handle different column names between datasets, while preserving existing imputation strategies, hierarchical behavior, mutation conventions, and public API contracts.
+- **Done when:** The new method is available through the documented public API, supports basic and hierarchical reference-based imputation, validates reference datasets and column mappings, preserves reference data and target DataFrame integrity, and includes comprehensive tests, type annotations, IDE documentation, and practical README examples.
+
+### Milestone 8 (`0.8.0`): data quality
 
 #### `DQ-02`: declarative DataFrame quality checks (P1, M)
 - **Problem:** users need to define and evaluate data quality requirements consistently instead of implementing ad hoc validation logic for every dataset.

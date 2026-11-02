@@ -89,7 +89,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** integrate the existing library under `bynat.analytics`, preserving its current behavior and defining clear public API and output contracts. Keep analytics logic independent of application-specific integrations such as Power BI.
 - **Done when:** the analytics functionality is accessible through the documented package API, existing behavior is preserved, and tests cover public interfaces and output contracts.
 
-#### `STATS-02`: Safer hierarchical imputation fallbacks (P1, S)
+#### `STATS-01`: Safer hierarchical imputation fallbacks (P1, S)
 - **Problem:** `fill_missing` can rely on statistics from groups with very few observations, potentially producing unreliable imputations. Additionally, when hierarchy levels are exhausted, remaining missing values stay unfilled, and disabling hierarchical grouping provides no column-wide imputation.
 - **Plan:** Add `min_samples` to control the minimum number of non-null observations required for a group to provide an imputation statistic, falling through to coarser hierarchy levels when the threshold is not met. Add `fallback_global` to optionally use the column-wide statistic after exhausting the hierarchy. Support global imputation when `hierarchy_cols=None` and `fallback_global=True`. Preserve backward compatibility through defaults.
 - **Done when:** Both parameters are implemented and validated, hierarchical fallback behavior is covered by comprehensive tests, existing `fill_missing` behavior remains unchanged by default, and documentation explains the new options and clarifies that unresolved missing values remain `NaN` by default.

@@ -9,7 +9,8 @@ import pytest
 
 import bynat
 from bynat.caching import CacheManager
-from bynat.cleaning import BaseData, BynatAccessor, CsvFile, JsonFile
+from bynat.cleaning import BaseData, CsvFile, JsonFile
+from bynat.cleaning.accessor import BynatAccessor
 
 
 class _Translator:

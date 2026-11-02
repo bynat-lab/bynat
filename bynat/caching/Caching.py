@@ -3,6 +3,7 @@
 import sys
 
 from bynat.caching import manager as _manager
+from bynat.caching.manager import *  # noqa: F403
 
 # Alias the module so attribute access and monkeypatching reach the real code.
 sys.modules[__name__] = _manager

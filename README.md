@@ -754,6 +754,7 @@ Translation, geocoding, currency conversion, and NLP. See [Enrichment with exter
 | `handle_outliers` | `*target_cols`, keyword-only `hierarchy_cols`, `min_samples=5`, `get_hierarchical_stats=False` | Replaces hierarchical-IQR outliers with `NaN`, relaxing the grouping hierarchy step by step. |
 | `drop_outliers` | `*target_cols`, keyword-only `hierarchy_cols`, `min_samples=5`, `get_hierarchical_stats=False` | Drops rows that contain hierarchical-IQR outliers. Rows are dropped by position, so duplicated index labels are safe. |
 | `fill_missing` | `*target_cols`, `strategy="median"`, `hierarchy_cols=None`, `min_samples=1`, `fallback_global=False`, `get_hierarchical_stats=False` | Fills missing values step by step through a grouping hierarchy, using `median`, `mean`, `mode`, or the alias `mod`. |
+| `fill_missing_from` | `dataset`, `*target_cols`, `match_cols=None`, `targets=None`, `strategy="median"`, `hierarchy_cols=None`, `min_samples=1`, `fallback_global=False`, `get_hierarchical_stats=False` | Imputes missing values using statistics calculated exclusively from a reference DataFrame. |
 | `get_hierarchical_stats` | `*target_cols`, `strategy="median"`, `hierarchy_cols=None`, `output_type=None` | Returns one statistic row per group, hierarchy level, target, and strategy. See [Hierarchical statistics](#hierarchical-statistics) for the output schema and `output_type` values. |
 
 #### Hierarchical missing value imputation
@@ -763,9 +764,64 @@ Translation, geocoding, currency conversion, and NLP. See [Enrichment with exter
 - Calling `fill_missing` with `hierarchy_cols=None` and `fallback_global=True` performs plain column-wide imputation.
 - Unfilled values remain `NaN` by default.
 
+#### Reference-based missing value imputation (`fill_missing_from`)
+
+In machine learning and analytical pipelines involving Train/Test splits, computing imputation statistics from the evaluation or test dataset causes data leakage. `fill_missing_from` calculates statistics exclusively from a separate reference DataFrame (`dataset`, such as training data) and applies them to the target DataFrame (`test_df`):
+
+- **Statistical leakage prevention**: Target DataFrame values are never read when calculating group or column-wide statistics. Outliers, missingness, or distributions in the test dataset have zero influence on the learned statistics.
+- **Reference immutability**: The reference `dataset` is never mutated or altered.
+- **Hierarchical fallbacks**: If a peer group is absent or has fewer than `min_samples` observations in the reference dataset, rows progressively fall through to coarser hierarchy levels, and finally to `fallback_global`.
+- **Column name mapping (`match_cols`)**: When reference and target DataFrames use different schemas, pass a dictionary mapping `{target_col: reference_col}`. This mapping applies seamlessly to both target columns and hierarchical grouping columns.
+
+```python
+import pandas as pd
+
+# Training data (reference dataset)
+train_df = pd.DataFrame({
+    "country": ["EG", "EG", "US", "US"],
+    "title": ["dev", "dev", "mgr", "mgr"],
+    "salary": [10.0, 14.0, 70.0, 90.0],
+})
+
+# Testing data (target to impute)
+test_df = pd.DataFrame({
+    "country": ["EG", "US", "DE"],
+    "title": ["dev", "mgr", "dev"],
+    "salary": [None, None, None],
+})
+
+# 1. Impute test data using training statistics (zero test-set leakage)
+imputed_test = test_df.bynat.fill_missing_from(
+    train_df,
+    "salary",
+    strategy="median",
+    hierarchy_cols=["country", "title"],
+    fallback_global=True,
+)
+# EG/dev -> 12.0 (from train EG/dev)
+# US/mgr -> 80.0 (from train US/mgr)
+# DE/dev -> 42.0 (DE not in train -> falls through hierarchy to global train median)
+
+# 2. Schema mapping with match_cols ({target_col: reference_col})
+train_schema = pd.DataFrame({
+    "nation": ["EG", "US"],
+    "wage": [12.0, 80.0],
+})
+test_schema = pd.DataFrame({
+    "country": ["EG", "US"],
+    "salary": [None, None],
+})
+imputed = test_schema.bynat.fill_missing_from(
+    train_schema,
+    "salary",
+    match_cols={"salary": "wage", "country": "nation"},
+    hierarchy_cols=["country"],
+)
+```
+
 #### Returning statistics from cleaning methods
 
-For `handle_outliers`, `drop_outliers`, and `fill_missing`, passing `get_hierarchical_stats=True` reuses `get_hierarchical_stats()`. The statistics are computed from the original data, before the operation changes any values or rows.
+For `handle_outliers`, `drop_outliers`, `fill_missing`, and `fill_missing_from`, passing `get_hierarchical_stats=True` reuses `get_hierarchical_stats()`. The statistics are computed from the original data, before the operation changes any values or rows.
 
 - The return value is `(result, stats)`.
 - With `inplace=True`, the operation changes the original object and returns `stats` directly.
@@ -808,7 +864,7 @@ Use this table to find where things live if you want to read the source or impor
 | `bynat.caching.manager` | Remembering results | `CacheManager` and `shared_cache_manager` |
 | `bynat.cleaning.columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
 | `bynat.cleaning.text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |
-| `bynat.cleaning.stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `get_hierarchical_stats` |
+| `bynat.cleaning.stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
 | `bynat.cleaning.profile` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
 | `bynat.cleaning.enrich` | Adding information from outside the table | `translate`, `geocode`, `currency`, `nlp`, the shared cached-lookup `engine`, and `providers` |
 | `bynat.cleaning.io` | Reading and writing | `save_to_json`, `save_to_sql`, `read_json`, `read_csv` |

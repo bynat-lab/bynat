@@ -38,6 +38,7 @@ EARLY_EXITS = {
     "handle_outliers": lambda frame: frame.handle_outliers("id", hierarchy_cols=[]),
     "drop_outliers": lambda frame: frame.drop_outliers("id", hierarchy_cols=[]),
     "fill_missing": lambda frame: frame.fill_missing("missing"),
+    "fill_missing_from": lambda frame: frame.fill_missing_from(frame, "missing"),
     "categorize_by_reference": lambda frame: frame.categorize_by_reference("missing", target_col="c", reference={}),
     "extract_entities_nlp": lambda frame: frame.extract_entities_nlp(
         "missing", lexicon_source={"skills": ["python"]}, skills="skills"
@@ -94,6 +95,7 @@ def test_inplace_true_still_mutates_and_returns_none(tmp_path):
             True,
         ),
         (lambda frame: frame.fill_missing("v", hierarchy_cols="g", inplace=True), False, False),
+        (lambda frame: frame.fill_missing_from(frame, "v", hierarchy_cols="g", inplace=True), False, False),
         (lambda frame: frame.rename_all_DOTS(inplace=True), False, False),
     ],
 )

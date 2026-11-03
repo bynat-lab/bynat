@@ -542,7 +542,7 @@ class BynatAccessor:
         """
         ...
 
-    def fill_missing(self, *target_cols: Any, strategy: str='median', hierarchy_cols: list | str | None=None, get_hierarchical_stats: bool=False) -> Any:
+    def fill_missing(self, *target_cols: Any, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
         """
         Impute missing values by progressively relaxing a grouping hierarchy.
 
@@ -552,6 +552,10 @@ class BynatAccessor:
             last grouping column one level at a time until no grouping columns
             remain or the column is fully imputed.
 
+            Unfilled values remain `NaN` by default unless `fallback_global=True`
+            is set, in which case any remaining `NaN` values after exhausting the
+            hierarchy are filled using the column-wide statistic.
+
         Args:
             *target_cols: Columns whose missing values should be filled.
             strategy (str): Aggregation strategy to use. Supported values are
@@ -559,6 +563,14 @@ class BynatAccessor:
             hierarchy_cols (list | str, optional): Grouping columns that define
                 the imputation hierarchy. A single string is treated as a
                 one-item list.
+            min_samples (int): Minimum number of non-null observations required
+                for a group to supply an imputation statistic. Groups with fewer
+                observations fall through to coarser hierarchy levels. Defaults
+                to 1.
+            fallback_global (bool): If True, fill remaining missing values using
+                the column-wide statistic after the hierarchy is exhausted, or
+                perform column-wide imputation when `hierarchy_cols=None`.
+                Defaults to False.
             get_hierarchical_stats (bool): If True, also return the existing
                 hierarchical statistics computed from the original data before
                 imputation. The requested `strategy` is used. Defaults to

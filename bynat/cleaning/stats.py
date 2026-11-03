@@ -222,6 +222,8 @@ def fill_missing(
     *target_cols: Any,
     strategy: str = 'median',
     hierarchy_cols: list | str | None = None,
+    min_samples: int = 1,
+    fallback_global: bool = False,
     get_hierarchical_stats: bool = False
 ) -> Any:
     """
@@ -233,6 +235,10 @@ def fill_missing(
         last grouping column one level at a time until no grouping columns
         remain or the column is fully imputed.
 
+        Unfilled values remain `NaN` by default unless `fallback_global=True`
+        is set, in which case any remaining `NaN` values after exhausting the
+        hierarchy are filled using the column-wide statistic.
+
     Args:
         *target_cols: Columns whose missing values should be filled.
         strategy (str): Aggregation strategy to use. Supported values are
@@ -240,6 +246,14 @@ def fill_missing(
         hierarchy_cols (list | str, optional): Grouping columns that define
             the imputation hierarchy. A single string is treated as a
             one-item list.
+        min_samples (int): Minimum number of non-null observations required
+            for a group to supply an imputation statistic. Groups with fewer
+            observations fall through to coarser hierarchy levels. Defaults
+            to 1.
+        fallback_global (bool): If True, fill remaining missing values using
+            the column-wide statistic after the hierarchy is exhausted, or
+            perform column-wide imputation when `hierarchy_cols=None`.
+            Defaults to False.
         get_hierarchical_stats (bool): If True, also return the existing
             hierarchical statistics computed from the original data before
             imputation. The requested `strategy` is used. Defaults to
@@ -259,6 +273,9 @@ def fill_missing(
         )
     ```
     """
+    if not isinstance(min_samples, int) or isinstance(min_samples, bool) or min_samples < 1:
+        raise ValueError("min_samples must be an integer greater than or equal to 1.")
+
     result = df.copy()
 
     valid_cols = [col for col in target_cols if col in result.columns]
@@ -279,6 +296,8 @@ def fill_missing(
         raise ValueError(
             f"Invalid strategy '{strategy}'. Use 'median', 'mean', or 'mode'."
         )
+    if strategy == 'mod':
+        strategy = 'mode'
 
     if isinstance(hierarchy_cols, str):
         hierarchy_cols = [hierarchy_cols]
@@ -304,13 +323,15 @@ def fill_missing(
 
         while len(current_group) > 0 and result[col].isna().sum() > 0:
             if strategy in ['median', 'mean']:
-                fill_vals = result.groupby(current_group, dropna = False)[col].transform(strategy)
-
+                grouped = df.groupby(current_group, dropna = False)[col]
+                counts = grouped.transform('count')
+                fill_vals = grouped.transform(strategy)
+                fill_vals = fill_vals.where(counts >= min_samples, np.nan)
                 result[col] = result[col].fillna(fill_vals)
 
             else:
                 counts = (
-                    result[result[col].notna()]
+                    df[df[col].notna()]
                     .groupby(current_group + [col], dropna = False)
                     .size()
                     .reset_index(name = '_count')
@@ -320,14 +341,49 @@ def fill_missing(
                     current_group.pop()
                     continue
 
-                counts = counts.sort_values(current_group + ['_count'], ascending = [True] * len(current_group) + [False])
+                counts = counts.sort_values(
+                    current_group + ['_count'],
+                    ascending = [True] * len(current_group) + [False],
+                )
 
-                modes_df = counts.drop_duplicates(subset = current_group).rename(columns = {col: '_mode_val'})
+                group_totals = counts.groupby(current_group)['_count'].transform('sum')
+                valid_counts = counts[group_totals >= min_samples]
 
-                temp_df = _left_merge_aligned(result, modes_df[current_group + ['_mode_val']], current_group)
+                if valid_counts.empty:
+                    current_group.pop()
+                    continue
+
+                modes_df = valid_counts.drop_duplicates(subset = current_group).rename(
+                    columns = {col: '_mode_val'}
+                )
+
+                temp_df = _left_merge_aligned(
+                    result, modes_df[current_group + ['_mode_val']], current_group
+                )
                 result[col] = result[col].fillna(temp_df['_mode_val'])
 
             current_group.pop()
+
+        if fallback_global and result[col].isna().sum() > 0:
+            if strategy in ['median', 'mean']:
+                global_val = df[col].median() if strategy == 'median' else df[col].mean()
+                if pd.notna(global_val):
+                    result[col] = result[col].fillna(global_val)
+            else:
+                non_null = df.loc[df[col].notna(), [col]]
+                if not non_null.empty:
+                    counts = (
+                        non_null.groupby([col], dropna = False)
+                        .size()
+                        .reset_index(name = '_count')
+                    )
+                    counts = counts.sort_values(
+                        ['_count'],
+                        ascending = [False],
+                        kind = 'mergesort',
+                    )
+                    global_val = counts.iloc[0][col]
+                    result[col] = result[col].fillna(global_val)
 
     if get_hierarchical_stats:
         return result, hierarchical_stats

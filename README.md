@@ -753,8 +753,15 @@ Translation, geocoding, currency conversion, and NLP. See [Enrichment with exter
 | --- | --- | --- |
 | `handle_outliers` | `*target_cols`, keyword-only `hierarchy_cols`, `min_samples=5`, `get_hierarchical_stats=False` | Replaces hierarchical-IQR outliers with `NaN`, relaxing the grouping hierarchy step by step. |
 | `drop_outliers` | `*target_cols`, keyword-only `hierarchy_cols`, `min_samples=5`, `get_hierarchical_stats=False` | Drops rows that contain hierarchical-IQR outliers. Rows are dropped by position, so duplicated index labels are safe. |
-| `fill_missing` | `*target_cols`, `strategy="median"`, `hierarchy_cols=None`, `get_hierarchical_stats=False` | Fills missing values step by step through a grouping hierarchy, using `median`, `mean`, `mode`, or the alias `mod`. |
+| `fill_missing` | `*target_cols`, `strategy="median"`, `hierarchy_cols=None`, `min_samples=1`, `fallback_global=False`, `get_hierarchical_stats=False` | Fills missing values step by step through a grouping hierarchy, using `median`, `mean`, `mode`, or the alias `mod`. |
 | `get_hierarchical_stats` | `*target_cols`, `strategy="median"`, `hierarchy_cols=None`, `output_type=None` | Returns one statistic row per group, hierarchy level, target, and strategy. See [Hierarchical statistics](#hierarchical-statistics) for the output schema and `output_type` values. |
+
+#### Hierarchical missing value imputation
+
+- `min_samples=1`: a group only supplies an imputation statistic if it has at least this many non-null observations; otherwise missing rows fall through to the next (coarser) hierarchy level.
+- `fallback_global=False`: when `True`, any missing values that remain after the hierarchy is exhausted are filled using the column-wide statistic (same strategy).
+- Calling `fill_missing` with `hierarchy_cols=None` and `fallback_global=True` performs plain column-wide imputation.
+- Unfilled values remain `NaN` by default.
 
 #### Returning statistics from cleaning methods
 

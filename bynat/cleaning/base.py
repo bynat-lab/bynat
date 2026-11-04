@@ -1032,6 +1032,8 @@ class BaseData(pd.DataFrame):
         *target_cols,
         strategy: str = 'median',
         hierarchy_cols: list | str | None = None,
+        min_samples: int = 1,
+        fallback_global: bool = False,
         inplace: bool = False,
         get_hierarchical_stats: bool = False
     ) -> Self | tuple[Self, Self] | None:
@@ -1044,6 +1046,10 @@ class BaseData(pd.DataFrame):
             last grouping column one level at a time until no grouping columns
             remain or the column is fully imputed.
 
+            Unfilled values remain `NaN` by default unless `fallback_global=True`
+            is set, in which case any remaining `NaN` values after exhausting the
+            hierarchy are filled using the column-wide statistic.
+
         Args:
             *target_cols: Columns whose missing values should be filled.
             strategy (str): Aggregation strategy to use. Supported values are
@@ -1051,6 +1057,14 @@ class BaseData(pd.DataFrame):
             hierarchy_cols (list | str, optional): Grouping columns that define
                 the imputation hierarchy. A single string is treated as a
                 one-item list.
+            min_samples (int): Minimum number of non-null observations required
+                for a group to supply an imputation statistic. Groups with fewer
+                observations fall through to coarser hierarchy levels. Defaults
+                to 1.
+            fallback_global (bool): If True, fill remaining missing values using
+                the column-wide statistic after the hierarchy is exhausted, or
+                perform column-wide imputation when `hierarchy_cols=None`.
+                Defaults to False.
             get_hierarchical_stats (bool): If True, also return the existing
                 hierarchical statistics computed from the original data before
                 imputation. The requested `strategy` is used. Defaults to
@@ -1075,10 +1089,127 @@ class BaseData(pd.DataFrame):
             *target_cols,
             strategy = strategy,
             hierarchy_cols = hierarchy_cols,
+            min_samples = min_samples,
+            fallback_global = fallback_global,
             get_hierarchical_stats = get_hierarchical_stats,
         )
         return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
+
+
+    @_shares_doc(stats.fill_missing_from)
+    def fill_missing_from(
+        self,
+        dataset: Any,
+        *target_cols: Any,
+        match_cols: dict[str, str] | None = None,
+        targets: Any = None,
+        strategy: str = 'median',
+        hierarchy_cols: list | str | None = None,
+        min_samples: int = 1,
+        fallback_global: bool = False,
+        inplace: bool = False,
+        get_hierarchical_stats: bool = False,
+    ) -> Self | tuple[Self, Self] | None:
+        """
+        Impute missing values using statistics calculated from a reference dataset.
+
+        Statistics are computed exclusively from `dataset` to avoid statistical
+        leakage from `df`, making this suitable for train/test workflows. The
+        reference dataset is never modified, and the target DataFrame's index,
+        row order, and un-imputed values are preserved.
+
+        Notes:
+            Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
+            When `hierarchy_cols` are specified, imputation evaluates the most
+            specific grouping level first, then progressively drops grouping columns
+            until the column is fully imputed or the hierarchy is exhausted.
+
+            Groups in `dataset` with fewer than `min_samples` non-null observations
+            do not supply an imputation statistic, falling through to coarser levels.
+            If a group exists in `df` but has no matching rows (or insufficient samples)
+            in `dataset`, it falls through to coarser levels.
+
+            Unfilled values remain `NaN` by default unless `fallback_global=True` is
+            specified, in which case any remaining `NaN` values after exhausting the
+            hierarchy are filled using the reference dataset's column-wide statistic.
+            When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
+            imputation is performed using reference statistics.
+
+        Args:
+            dataset (pd.DataFrame | BaseData): Reference dataset used to compute
+                imputation statistics. Must not be empty and is never modified.
+            *target_cols: Columns in `df` whose missing values should be filled.
+                May also be supplied via the `targets` keyword argument.
+            match_cols (dict[str, str] | None, optional): Mapping of column names
+                from target `df` to reference `dataset` in the format
+                `{target_col: reference_col}`. Applied to both target columns
+                and hierarchy columns. When omitted, identical column names are used.
+                Defaults to None.
+            targets (Any, optional): Alternative way to specify target columns
+                (e.g., a single column name or iterable of column names). Defaults to None.
+            strategy (str): Aggregation strategy to use. Supported values are
+                `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+            hierarchy_cols (list | str, optional): Grouping columns that define
+                the imputation hierarchy in `df`. A single string is treated as a
+                one-item list.
+            min_samples (int): Minimum number of non-null observations required
+                in `dataset` for a reference group to supply an imputation
+                statistic. Defaults to 1.
+            fallback_global (bool): If True, fill remaining missing values using
+                the column-wide reference statistic after the hierarchy is
+                exhausted, or perform column-wide imputation when `hierarchy_cols=None`.
+                Defaults to False.
+            get_hierarchical_stats (bool): If True, also return the hierarchical
+                statistics computed from `dataset`. Defaults to False.
+
+        Returns:
+            A new imputed dataframe, or `(imputed_dataframe, statistics)` when
+            `get_hierarchical_stats=True`.
+
+        Raises:
+            ValueError: If `dataset` is missing or empty, contains duplicate column
+                names, if `df` contains duplicate column names, if specified
+                columns are missing from either dataset, if target and hierarchy
+                columns overlap, or if `min_samples < 1`.
+            TypeError: If `dataset` is not a DataFrame, if `match_cols` is not a
+                dict or contains non-string keys/values, or if columns have
+                incompatible data types for numeric strategies.
+
+        Examples:
+        ```
+            # Impute test data using median statistics from train data
+            test_imputed = test_df.bynat.fill_missing_from(
+                train_df,
+                "salary",
+                strategy="median",
+                hierarchy_cols=["country", "title"],
+                fallback_global=True,
+            )
+
+            # Impute when schemas use different column names
+            test_imputed = test_df.bynat.fill_missing_from(
+                train_df,
+                "salary",
+                match_cols={"salary": "wage", "country": "nation"},
+                strategy="mean",
+                hierarchy_cols=["country"],
+            )
+        ```
+        """
+        outcome = stats.fill_missing_from(
+            self,
+            dataset,
+            *target_cols,
+            match_cols = match_cols,
+            targets = targets,
+            strategy = strategy,
+            hierarchy_cols = hierarchy_cols,
+            min_samples = min_samples,
+            fallback_global = fallback_global,
+            get_hierarchical_stats = get_hierarchical_stats,
+        )
+        return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
     @_shares_doc(stats.get_hierarchical_stats)
     def get_hierarchical_stats(

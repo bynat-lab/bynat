@@ -39,15 +39,48 @@ def test_runtime_inspect_signature_and_help_preserved():
     base_sig = inspect.signature(BaseData.fill_missing)
     assert "strategy" in base_sig.parameters
     assert "hierarchy_cols" in base_sig.parameters
+    assert "min_samples" in base_sig.parameters
+    assert "fallback_global" in base_sig.parameters
     assert BaseData.fill_missing.__doc__ is not None
     assert "Impute missing values by progressively relaxing" in BaseData.fill_missing.__doc__
 
     # Accessor runtime inspection
     class_sig = inspect.signature(BynatAccessor.fill_missing)
-    assert list(class_sig.parameters.keys()) == ["self", "target_cols", "strategy", "hierarchy_cols", "get_hierarchical_stats"]
+    assert list(class_sig.parameters.keys()) == [
+        "self", "target_cols", "strategy", "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+    ]
 
     bound_sig = inspect.signature(df.bynat.fill_missing)
-    assert list(bound_sig.parameters.keys()) == ["target_cols", "strategy", "hierarchy_cols", "get_hierarchical_stats"]
+    assert list(bound_sig.parameters.keys()) == [
+        "target_cols", "strategy", "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+    ]
     assert "cache_manager" not in inspect.signature(df.bynat.convert_to_usd).parameters
     assert df.bynat.convert_to_usd.__doc__ == currency.convert_to_usd.__doc__
     assert df.bynat.fill_missing.__doc__ == stats.fill_missing.__doc__
+
+    # fill_missing_from runtime inspection
+    base_from_sig = inspect.signature(BaseData.fill_missing_from)
+    assert "dataset" in base_from_sig.parameters
+    assert "match_cols" in base_from_sig.parameters
+    assert "targets" in base_from_sig.parameters
+    assert "strategy" in base_from_sig.parameters
+    assert "hierarchy_cols" in base_from_sig.parameters
+    assert "min_samples" in base_from_sig.parameters
+    assert "fallback_global" in base_from_sig.parameters
+    assert "inplace" in base_from_sig.parameters
+    assert "get_hierarchical_stats" in base_from_sig.parameters
+    assert BaseData.fill_missing_from.__doc__ is not None
+    assert "Impute missing values using statistics calculated from a reference dataset" in BaseData.fill_missing_from.__doc__
+
+    class_from_sig = inspect.signature(BynatAccessor.fill_missing_from)
+    assert list(class_from_sig.parameters.keys()) == [
+        "self", "dataset", "target_cols", "match_cols", "targets", "strategy",
+        "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+    ]
+
+    bound_from_sig = inspect.signature(df.bynat.fill_missing_from)
+    assert list(bound_from_sig.parameters.keys()) == [
+        "dataset", "target_cols", "match_cols", "targets", "strategy",
+        "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+    ]
+    assert df.bynat.fill_missing_from.__doc__ == stats.fill_missing_from.__doc__

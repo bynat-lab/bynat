@@ -59,6 +59,8 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 | 0.6.0 | `QA-01` mypy for the cache manager and the cleaning helpers, CI job; supported class wrappers remain a separate gradual-typing boundary | `pyproject.toml`, `.github/workflows/test.yml` |
 | 0.6.5 | `DQ-01` DataFrame quality profiling API producing non-mutating structured reports (`ProfileReport`, `DatasetProfile`, `ColumnProfile`) with dataset metrics, per-kind statistics, and DataFrame/dict conversion | `bynat/cleaning/profile.py`, `tests/test_profile.py` |
 | 0.6.5 | `DX-01` static typing preservation and editor hover support: generic `_shares_doc` decorator preserving signatures, literal `BaseData` docstrings, PEP 484 stub (`bynat/cleaning/accessor.pyi`), PEP 561 marker (`bynat/py.typed`), and docstring synchronizer | `bynat/cleaning/`, `tools/sync_docs.py`, `tests/test_doc_drift.py` |
+| Unreleased | `STATS-01` safer hierarchical imputation fallbacks: `min_samples` group threshold and `fallback_global` column-wide fallback in `fill_missing` | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `tests/test_cleaning.py` |
+| Unreleased | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/test_fill_missing_from.py` |
 
 ### Public API policy
 
@@ -88,16 +90,6 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Problem:** the existing analytics library is separate from `bynat`, so its functionality is not yet available through the package's public API.
 - **Plan:** integrate the existing library under `bynat.analytics`, preserving its current behavior and defining clear public API and output contracts. Keep analytics logic independent of application-specific integrations such as Power BI.
 - **Done when:** the analytics functionality is accessible through the documented package API, existing behavior is preserved, and tests cover public interfaces and output contracts.
-
-#### `STATS-01`: Safer hierarchical imputation fallbacks (P1, S)
-- **Problem:** `fill_missing` can rely on statistics from groups with very few observations, potentially producing unreliable imputations. Additionally, when hierarchy levels are exhausted, remaining missing values stay unfilled, and disabling hierarchical grouping provides no column-wide imputation.
-- **Plan:** Add `min_samples` to control the minimum number of non-null observations required for a group to provide an imputation statistic, falling through to coarser hierarchy levels when the threshold is not met. Add `fallback_global` to optionally use the column-wide statistic after exhausting the hierarchy. Support global imputation when `hierarchy_cols=None` and `fallback_global=True`. Preserve backward compatibility through defaults.
-- **Done when:** Both parameters are implemented and validated, hierarchical fallback behavior is covered by comprehensive tests, existing `fill_missing` behavior remains unchanged by default, and documentation explains the new options and clarifies that unresolved missing values remain `NaN` by default.
-
-#### `STATS-02`: Reference-based missing value imputation (P1, M)
-- **Problem:** `fill_missing` calculates imputation statistics from the same DataFrame being transformed, making it difficult to reuse learned statistics across separate datasets, particularly in Train/Test workflows. Users must manually calculate and transfer statistics, increasing implementation complexity and the risk of inconsistent imputation or data leakage.
-- **Plan:** Introduce `fill_missing_from` to impute missing values using statistics calculated exclusively from a separate reference DataFrame. Support optional `match_cols` mapping to handle different column names between datasets, while preserving existing imputation strategies, hierarchical behavior, mutation conventions, and public API contracts.
-- **Done when:** The new method is available through the documented public API, supports basic and hierarchical reference-based imputation, validates reference datasets and column mappings, preserves reference data and target DataFrame integrity, and includes comprehensive tests, type annotations, IDE documentation, and practical README examples.
 
 ### Milestone 8 (`0.8.0`): data quality
 

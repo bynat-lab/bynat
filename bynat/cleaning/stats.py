@@ -222,6 +222,8 @@ def fill_missing(
     *target_cols: Any,
     strategy: str = 'median',
     hierarchy_cols: list | str | None = None,
+    min_samples: int = 1,
+    fallback_global: bool = False,
     get_hierarchical_stats: bool = False
 ) -> Any:
     """
@@ -233,6 +235,10 @@ def fill_missing(
         last grouping column one level at a time until no grouping columns
         remain or the column is fully imputed.
 
+        Unfilled values remain `NaN` by default unless `fallback_global=True`
+        is set, in which case any remaining `NaN` values after exhausting the
+        hierarchy are filled using the column-wide statistic.
+
     Args:
         *target_cols: Columns whose missing values should be filled.
         strategy (str): Aggregation strategy to use. Supported values are
@@ -240,6 +246,14 @@ def fill_missing(
         hierarchy_cols (list | str, optional): Grouping columns that define
             the imputation hierarchy. A single string is treated as a
             one-item list.
+        min_samples (int): Minimum number of non-null observations required
+            for a group to supply an imputation statistic. Groups with fewer
+            observations fall through to coarser hierarchy levels. Defaults
+            to 1.
+        fallback_global (bool): If True, fill remaining missing values using
+            the column-wide statistic after the hierarchy is exhausted, or
+            perform column-wide imputation when `hierarchy_cols=None`.
+            Defaults to False.
         get_hierarchical_stats (bool): If True, also return the existing
             hierarchical statistics computed from the original data before
             imputation. The requested `strategy` is used. Defaults to
@@ -259,6 +273,9 @@ def fill_missing(
         )
     ```
     """
+    if not isinstance(min_samples, int) or isinstance(min_samples, bool) or min_samples < 1:
+        raise ValueError("min_samples must be an integer greater than or equal to 1.")
+
     result = df.copy()
 
     valid_cols = [col for col in target_cols if col in result.columns]
@@ -279,6 +296,8 @@ def fill_missing(
         raise ValueError(
             f"Invalid strategy '{strategy}'. Use 'median', 'mean', or 'mode'."
         )
+    if strategy == 'mod':
+        strategy = 'mode'
 
     if isinstance(hierarchy_cols, str):
         hierarchy_cols = [hierarchy_cols]
@@ -304,13 +323,15 @@ def fill_missing(
 
         while len(current_group) > 0 and result[col].isna().sum() > 0:
             if strategy in ['median', 'mean']:
-                fill_vals = result.groupby(current_group, dropna = False)[col].transform(strategy)
-
+                grouped = df.groupby(current_group, dropna = False)[col]
+                group_counts = grouped.transform('count')
+                fill_vals = grouped.transform(strategy)
+                fill_vals = fill_vals.where(group_counts >= min_samples, np.nan)
                 result[col] = result[col].fillna(fill_vals)
 
             else:
                 counts = (
-                    result[result[col].notna()]
+                    df[df[col].notna()]
                     .groupby(current_group + [col], dropna = False)
                     .size()
                     .reset_index(name = '_count')
@@ -320,14 +341,366 @@ def fill_missing(
                     current_group.pop()
                     continue
 
-                counts = counts.sort_values(current_group + ['_count'], ascending = [True] * len(current_group) + [False])
+                counts = counts.sort_values(
+                    current_group + ['_count'],
+                    ascending = [True] * len(current_group) + [False],
+                )
 
-                modes_df = counts.drop_duplicates(subset = current_group).rename(columns = {col: '_mode_val'})
+                group_totals = counts.groupby(current_group)['_count'].transform('sum')
+                valid_counts = counts[group_totals >= min_samples]
 
-                temp_df = _left_merge_aligned(result, modes_df[current_group + ['_mode_val']], current_group)
+                if valid_counts.empty:
+                    current_group.pop()
+                    continue
+
+                modes_df = valid_counts.drop_duplicates(subset = current_group).rename(
+                    columns = {col: '_mode_val'}
+                )
+
+                temp_df = _left_merge_aligned(
+                    result, modes_df[current_group + ['_mode_val']], current_group
+                )
                 result[col] = result[col].fillna(temp_df['_mode_val'])
 
             current_group.pop()
+
+        if fallback_global and result[col].isna().sum() > 0:
+            if strategy in ['median', 'mean']:
+                global_val = df[col].median() if strategy == 'median' else df[col].mean()
+                if pd.notna(global_val):
+                    result[col] = result[col].fillna(global_val)
+            else:
+                non_null = df.loc[df[col].notna(), [col]]
+                if not non_null.empty:
+                    counts = (
+                        non_null.groupby([col], dropna = False)
+                        .size()
+                        .reset_index(name = '_count')
+                    )
+                    counts = counts.sort_values(
+                        ['_count'],
+                        ascending = [False],
+                        kind = 'mergesort',
+                    )
+                    global_val = counts.iloc[0][col]
+                    result[col] = result[col].fillna(global_val)
+
+    if get_hierarchical_stats:
+        return result, hierarchical_stats
+    return result
+
+
+def fill_missing_from(
+    df: FrameT,
+    dataset: Any,
+    *target_cols: Any,
+    match_cols: dict[str, str] | None = None,
+    targets: Any = None,
+    strategy: str = 'median',
+    hierarchy_cols: list | str | None = None,
+    min_samples: int = 1,
+    fallback_global: bool = False,
+    get_hierarchical_stats: bool = False,
+) -> Any:
+    """
+    Impute missing values using statistics calculated from a reference dataset.
+
+    Statistics are computed exclusively from `dataset` to avoid statistical
+    leakage from `df`, making this suitable for train/test workflows. The
+    reference dataset is never modified, and the target DataFrame's index,
+    row order, and un-imputed values are preserved.
+
+    Notes:
+        Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
+        When `hierarchy_cols` are specified, imputation evaluates the most
+        specific grouping level first, then progressively drops grouping columns
+        until the column is fully imputed or the hierarchy is exhausted.
+
+        Groups in `dataset` with fewer than `min_samples` non-null observations
+        do not supply an imputation statistic, falling through to coarser levels.
+        If a group exists in `df` but has no matching rows (or insufficient samples)
+        in `dataset`, it falls through to coarser levels.
+
+        Unfilled values remain `NaN` by default unless `fallback_global=True` is
+        specified, in which case any remaining `NaN` values after exhausting the
+        hierarchy are filled using the reference dataset's column-wide statistic.
+        When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
+        imputation is performed using reference statistics.
+
+    Args:
+        dataset (pd.DataFrame | BaseData): Reference dataset used to compute
+            imputation statistics. Must not be empty and is never modified.
+        *target_cols: Columns in `df` whose missing values should be filled.
+            May also be supplied via the `targets` keyword argument.
+        match_cols (dict[str, str] | None, optional): Mapping of column names
+            from target `df` to reference `dataset` in the format
+            `{target_col: reference_col}`. Applied to both target columns
+            and hierarchy columns. When omitted, identical column names are used.
+            Defaults to None.
+        targets (Any, optional): Alternative way to specify target columns
+            (e.g., a single column name or iterable of column names). Defaults to None.
+        strategy (str): Aggregation strategy to use. Supported values are
+            `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+        hierarchy_cols (list | str, optional): Grouping columns that define
+            the imputation hierarchy in `df`. A single string is treated as a
+            one-item list.
+        min_samples (int): Minimum number of non-null observations required
+            in `dataset` for a reference group to supply an imputation
+            statistic. Defaults to 1.
+        fallback_global (bool): If True, fill remaining missing values using
+            the column-wide reference statistic after the hierarchy is
+            exhausted, or perform column-wide imputation when `hierarchy_cols=None`.
+            Defaults to False.
+        get_hierarchical_stats (bool): If True, also return the hierarchical
+            statistics computed from `dataset`. Defaults to False.
+
+    Returns:
+        A new imputed dataframe, or `(imputed_dataframe, statistics)` when
+        `get_hierarchical_stats=True`.
+
+    Raises:
+        ValueError: If `dataset` is missing or empty, contains duplicate column
+            names, if `df` contains duplicate column names, if specified
+            columns are missing from either dataset, if target and hierarchy
+            columns overlap, or if `min_samples < 1`.
+        TypeError: If `dataset` is not a DataFrame, if `match_cols` is not a
+            dict or contains non-string keys/values, or if columns have
+            incompatible data types for numeric strategies.
+
+    Examples:
+    ```
+        # Impute test data using median statistics from train data
+        test_imputed = test_df.bynat.fill_missing_from(
+            train_df,
+            "salary",
+            strategy="median",
+            hierarchy_cols=["country", "title"],
+            fallback_global=True,
+        )
+
+        # Impute when schemas use different column names
+        test_imputed = test_df.bynat.fill_missing_from(
+            train_df,
+            "salary",
+            match_cols={"salary": "wage", "country": "nation"},
+            strategy="mean",
+            hierarchy_cols=["country"],
+        )
+    ```
+    """
+    if dataset is None:
+        raise ValueError("Reference dataset is required and cannot be None.")
+    if not isinstance(dataset, pd.DataFrame):
+        raise TypeError(
+            f"Reference dataset must be a pandas DataFrame or BaseData instance, got {type(dataset).__name__}."
+        )
+    if dataset.empty:
+        raise ValueError("Reference dataset cannot be empty.")
+    if len(dataset.columns) != len(set(dataset.columns)):
+        raise ValueError("Reference dataset contains duplicate column names.")
+
+    if len(df.columns) != len(set(df.columns)):
+        raise ValueError("Target dataframe contains duplicate column names.")
+
+    if match_cols is not None:
+        if not isinstance(match_cols, dict):
+            raise TypeError("match_cols must be a dictionary of {target_col: ref_col} or None.")
+        for tgt_col, ref_col in match_cols.items():
+            if not isinstance(tgt_col, str) or not isinstance(ref_col, str):
+                raise TypeError("match_cols keys and values must be strings representing column names.")
+            if not tgt_col.strip() or not ref_col.strip():
+                raise ValueError("match_cols keys and values cannot be empty strings.")
+            if tgt_col not in df.columns:
+                raise ValueError(
+                    f"Target column '{tgt_col}' specified in match_cols does not exist in target dataframe."
+                )
+            if ref_col not in dataset.columns:
+                raise ValueError(
+                    f"Reference column '{ref_col}' specified in match_cols does not exist in reference dataset."
+                )
+
+    strategy = str(strategy).lower()
+    if strategy not in ['median', 'mean', 'mode', 'mod']:
+        raise ValueError(
+            f"Invalid strategy '{strategy}'. Use 'median', 'mean', or 'mode'."
+        )
+    if strategy == 'mod':
+        strategy = 'mode'
+
+    if not isinstance(min_samples, int) or isinstance(min_samples, bool) or min_samples < 1:
+        raise ValueError("min_samples must be an integer greater than or equal to 1.")
+
+    resolved_targets: list[Any] = []
+    for col in target_cols:
+        if isinstance(col, (list, tuple, set)):
+            resolved_targets.extend(col)
+        else:
+            resolved_targets.append(col)
+    if targets is not None:
+        if isinstance(targets, str):
+            resolved_targets.append(targets)
+        elif isinstance(targets, Iterable):
+            resolved_targets.extend(targets)
+        else:
+            resolved_targets.append(targets)
+    resolved_targets = list(dict.fromkeys(resolved_targets))
+
+    result = df.copy()
+
+    if not resolved_targets:
+        logger.warning("No valid target columns found for imputation.")
+        if get_hierarchical_stats:
+            stats_df = pd.DataFrame(columns=_HIERARCHICAL_STATS_COLUMNS)
+            return result, stats_df
+        return result
+
+    valid_cols = [col for col in resolved_targets if col in result.columns]
+    if not valid_cols:
+        logger.warning("No valid target columns found for imputation.")
+        if get_hierarchical_stats:
+            stats_df = pd.DataFrame(columns=_HIERARCHICAL_STATS_COLUMNS)
+            return result, stats_df
+        return result
+
+    for col in valid_cols:
+        ref_col = match_cols[col] if (match_cols and col in match_cols) else col
+        if ref_col not in dataset.columns:
+            raise ValueError(
+                f"Reference column '{ref_col}' for target '{col}' does not exist in reference dataset."
+            )
+
+    norm_hierarchy = _normalize_hierarchy(hierarchy_cols)
+    for h_col in norm_hierarchy:
+        if h_col not in result.columns:
+            raise ValueError(f"Hierarchy column '{h_col}' does not exist in target dataframe.")
+        ref_h_col = match_cols[h_col] if (match_cols and h_col in match_cols) else h_col
+        if ref_h_col not in dataset.columns:
+            raise ValueError(
+                f"Hierarchy column '{ref_h_col}' (mapped from '{h_col}') does not exist in reference dataset."
+            )
+
+    overlapping = sorted(set(valid_cols) & set(norm_hierarchy))
+    if overlapping:
+        raise ValueError(f"target columns cannot overlap hierarchy columns: {overlapping}")
+
+    for col in valid_cols:
+        ref_col = match_cols[col] if (match_cols and col in match_cols) else col
+        if strategy in ['median', 'mean']:
+            if not pd.api.types.is_numeric_dtype(dataset[ref_col]):
+                raise TypeError(
+                    f"Reference column '{ref_col}' must have a numeric dtype for strategy '{strategy}', got {dataset[ref_col].dtype}."
+                )
+            if not pd.api.types.is_numeric_dtype(result[col]) and not result[col].isna().all():
+                raise TypeError(
+                    f"Target column '{col}' must have a numeric dtype for strategy '{strategy}', got {result[col].dtype}."
+                )
+
+    hierarchical_stats = None
+    if get_hierarchical_stats:
+        ref_valid_cols = [match_cols.get(c, c) if match_cols else c for c in valid_cols]
+        ref_norm_hierarchy = [match_cols.get(c, c) if match_cols else c for c in norm_hierarchy]
+        hierarchical_stats = _compute_hierarchical_stats(
+            dataset,
+            *ref_valid_cols,
+            strategy=strategy,
+            hierarchy_cols=ref_norm_hierarchy,
+        )
+        if match_cols and hierarchical_stats is not None and not hierarchical_stats.empty:
+            rev_match = {v: k for k, v in match_cols.items()}
+            hierarchical_stats['target_column'] = hierarchical_stats['target_column'].map(
+                lambda c: rev_match.get(c, c)
+            )
+            hierarchical_stats['hierarchy_columns'] = hierarchical_stats['hierarchy_columns'].map(
+                lambda cols: tuple(rev_match.get(c, c) for c in cols)
+            )
+
+    if result.empty:
+        if get_hierarchical_stats:
+            return result, hierarchical_stats
+        return result
+
+    for col in valid_cols:
+        if result[col].isna().sum() == 0:
+            continue
+
+        ref_col = match_cols[col] if (match_cols and col in match_cols) else col
+        current_group = norm_hierarchy.copy()
+
+        while len(current_group) > 0 and result[col].isna().sum() > 0:
+            ref_current_group = [match_cols.get(c, c) if match_cols else c for c in current_group]
+
+            if strategy in ['median', 'mean']:
+                grouped = dataset.groupby(ref_current_group, dropna=False)[ref_col]
+                group_counts = grouped.count()
+                stats_s = grouped.agg(strategy).where(group_counts >= min_samples, np.nan)
+                stats_df = stats_s.reset_index(name='_impute_val')
+                if match_cols:
+                    rename_map = {ref: tgt for tgt, ref in zip(current_group, ref_current_group)}
+                    stats_df = stats_df.rename(columns=rename_map)
+
+                temp_df = _left_merge_aligned(
+                    result, stats_df[current_group + ['_impute_val']], current_group
+                )
+                result[col] = result[col].fillna(temp_df['_impute_val'])
+
+            else:
+                mode_counts = (
+                    dataset[dataset[ref_col].notna()]
+                    .groupby(ref_current_group + [ref_col], dropna=False)
+                    .size()
+                    .reset_index(name='_count')
+                )
+
+                if mode_counts.empty:
+                    current_group.pop()
+                    continue
+
+                mode_counts = mode_counts.sort_values(
+                    ref_current_group + ['_count'],
+                    ascending=[True] * len(ref_current_group) + [False],
+                )
+
+                group_totals = mode_counts.groupby(ref_current_group)['_count'].transform('sum')
+                valid_counts = mode_counts[group_totals >= min_samples]
+
+                if valid_counts.empty:
+                    current_group.pop()
+                    continue
+
+                modes_df = valid_counts.drop_duplicates(subset=ref_current_group).rename(
+                    columns={ref_col: '_mode_val'}
+                )
+                if match_cols:
+                    rename_map = {ref: tgt for tgt, ref in zip(current_group, ref_current_group)}
+                    modes_df = modes_df.rename(columns=rename_map)
+
+                temp_df = _left_merge_aligned(
+                    result, modes_df[current_group + ['_mode_val']], current_group
+                )
+                result[col] = result[col].fillna(temp_df['_mode_val'])
+
+            current_group.pop()
+
+        if fallback_global and result[col].isna().sum() > 0:
+            if strategy in ['median', 'mean']:
+                global_val = dataset[ref_col].median() if strategy == 'median' else dataset[ref_col].mean()
+                if pd.notna(global_val):
+                    result[col] = result[col].fillna(global_val)
+            else:
+                non_null = dataset.loc[dataset[ref_col].notna(), [ref_col]]
+                if not non_null.empty:
+                    global_counts = (
+                        non_null.groupby([ref_col], dropna=False)
+                        .size()
+                        .reset_index(name='_count')
+                    )
+                    global_counts = global_counts.sort_values(
+                        ['_count'],
+                        ascending=[False],
+                        kind='mergesort',
+                    )
+                    global_val = global_counts.iloc[0][ref_col]
+                    result[col] = result[col].fillna(global_val)
 
     if get_hierarchical_stats:
         return result, hierarchical_stats

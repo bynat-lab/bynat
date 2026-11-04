@@ -51,7 +51,7 @@ dev = [
 ]
 
 [project.urls]
-Changelog = "https://github.com/abdallahabukhalil/bynat/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/bynat-lab/bynat/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["bynat*"]

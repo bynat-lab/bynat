@@ -2,10 +2,10 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="./assets/Full%20Logo/logo-dark.svg">
+      srcset="https://github.com/bynat-lab/bynat/blob/main/assets/Full%20Logo/logo-dark.svg">
     <img
       alt="bynat"
-      src="./assets/Full%20Logo/logo.svg"
+      src="https://github.com/bynat-lab/bynat/blob/main/assets/Full%20Logo/logo.svg"
       width="320">
   </picture>
 </h1>
@@ -56,7 +56,7 @@ New here? [Install bynat](#installation), then go to the [Quick start](#quick-st
 
 ### Project status
 
-`0.6.5` is the version declared in `pyproject.toml`. See [CHANGELOG.md](CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](./docs/ROADMAP.md) for planned work.
+`0.6.5` is the version declared in `pyproject.toml`. See [CHANGELOG.md](https://github.com/bynat-lab/bynat/blob/main/CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](https://github.com/bynat-lab/bynat/blob/main/docs/ROADMAP.md) for planned work.
 
 ---
 
@@ -954,7 +954,7 @@ To bring a module into scope:
 
 ### Benchmarks
 
-`benchmarks/` holds timing scripts that compare the current implementations with the `0.3.0` algorithms. See [`benchmarks/README.md`](benchmarks/README.md).
+`benchmarks/` holds timing scripts that compare the current implementations with the `0.3.0` algorithms. See [`benchmarks/README.md`](https://github.com/bynat-lab/bynat/blob/main/benchmarks/README.md).
 
 ### Building packages
 
@@ -964,4 +964,4 @@ Building a wheel or source archive requires the configured setuptools build back
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/bynat-lab/bynat/blob/main/LICENSE).

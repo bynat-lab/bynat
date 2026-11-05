@@ -149,7 +149,7 @@ The table below describes the target testing architecture. It is not a claim tha
 - Return contracts match the documented behavior (new object by default; `inplace=True` returns `None` or the documented statistics result).
 - The class API and the accessor produce equal results for the same input.
 
-**Current guards.** `tests/test_doc_drift.py` and parts of `tests/test_accessor.py` and `tests/test_hierarchical_stats.py` already do this. New public API MUST extend them. [BP]
+**Current guards.** `tests/test_doc_drift.py` and parts of `tests/test_accessor.py` and `tests/test_hierarchical_stats.py` pin the top-level `bynat` exports, the `bynat.cleaning` class API, and the accessor signatures and docstrings. No test yet pins the documented caching exports (`CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR`) or the enrichment default `NominatimGeocoder`; a contract test for those paths is recorded as a Phase 0 item. The caching module's public `resolve_cache_dir` helper is not a documented export and MAY be exercised by that test without entering the contract inventory. New public API MUST extend these guards. [BP]
 
 The package-level `bynat.cleaning` namespace MUST expose only its established class API (`BaseData`, `CsvFile`, and `JsonFile`). Profiling functions and report classes MUST be imported from `bynat.cleaning.profile`, accessor APIs from `bynat.cleaning.accessor`, and loader helpers from `bynat.cleaning.io`. Tests MUST verify each documented path without expanding the package namespace merely for convenience. [BP]
 
@@ -192,7 +192,7 @@ The package-level `bynat.cleaning` namespace MUST expose only its established cl
 
 ### 3.8 Additional testing
 
-**Equivalence tests.** Every optimized implementation MUST have an equivalence test against a reference implementation, kept in `tests/test_equivalence.py`. The reference is written for clarity, not speed, and is kept verbatim apart from the `self` → `df` rename. [BP] (ROADMAP: performance changes must come with a benchmark and an equivalence test)
+**Equivalence tests.** Every optimized implementation MUST have an equivalence test against a reference implementation, kept in `tests/test_equivalence.py`. A clarity reference is written independently for readability, not speed, and MUST NOT share a production helper with the implementation under test: a shared helper can reproduce the defect the test exists to catch. A legacy reference preserves the pre-optimization implementation verbatim apart from the `self` → `df` rename and MAY share a production helper; when that helper could reproduce the defect, an independent clarity reference MUST also exist. [BP] (ROADMAP: performance changes must come with a benchmark and an equivalence test)
 
 **Performance tests.** `benchmarks/` scripts compare the current implementation with the 0.3.0 algorithm and print a table. Numbers are recorded in the PR description, not in the code. A performance change without an equivalence test and a benchmark MUST NOT merge. [BP] (ROADMAP definition of done)
 
@@ -208,7 +208,7 @@ These rules exist because a test that cannot fail is worse than no test: it crea
 
 ### A-1 A test MUST be able to fail
 
-Every test function MUST contain at least one assertion or assertion helper (`assert`, `pytest.raises`, `pytest.warns`, `pytest.deprecated_call`, `pd.testing.assert_*`, `np.testing.assert_*`). A test that only calls the code under test is rejected.
+Every test function MUST contain at least one assertion or assertion helper (`assert`, `pytest.raises`, `pytest.warns`, `pytest.deprecated_call`, `pd.testing.assert_*`, `np.testing.assert_*`, or `warnings.catch_warnings()` with `simplefilter("error", ...)` escalating the warnings under test). A test that only calls the code under test is rejected.
 
 **Weak (rejected).** The current shape of `tests/test_enrichment.py::test_translate_conditional_column_accepts_a_generator`:
 
@@ -765,6 +765,8 @@ Every exclusion MUST be reviewed in the PR that adds it. [BP]
 
 ### 7.5 Mutation testing
 
+**Current status.** The policy below is the target, not the current repository state: cosmic-ray and mutmut are not declared in the `dev` extra, no Cosmic Ray session config exists, and no CI job runs either tool. The tooling and configuration are added in Phase 3. [BP]
+
 **Tool.** Cosmic Ray is the primary tool: it is pure Python and uses restartable SQLite sessions. Run it on Ubuntu or Windows where the selected version supports the repository's environment. [SB] (Cosmic Ray concepts)
 
 **Windows and mutmut.** mutmut requires fork support and must run inside WSL on Windows. It is a secondary tool, used on Ubuntu or under WSL, never as a Windows-only requirement. [SB] (mutmut documentation)
@@ -910,7 +912,7 @@ A PR MUST pass every required gate before merge. [BP]
 | Build and install | push, PR | `python -m build`; install the wheel in a clean virtualenv; run the suite against it | Yes, from Phase 3 | Catches missing files and dependency gaps |
 | Extras matrix | push, PR | One job per extra, or a matrix; `pytest -m "extras"` after optional-dependency tests carry the `extras` marker | Yes, from Phase 2 | Each extra is exercised at least once |
 | Property (extended) | scheduled | `python -m pytest -m property --hypothesis-profile=extended` | Yes, from Phase 2 | Scheduled, not a PR gate |
-| Mutation | scheduled | Cosmic Ray on the §7.5 scope | Advisory | Weekly or pre-release |
+| Mutation | scheduled | Cosmic Ray on the §7.5 scope | Advisory, from Phase 3 | Weekly or pre-release |
 | Compile | push, PR | `python -m compileall -q bynat tests` | Yes | Existing (package only); extend to tests |
 | Doc drift | push, PR | `python -m pytest tests/test_doc_drift.py` | Yes | Existing |
 
@@ -927,7 +929,7 @@ Once Phase 2 is adopted, the repository administrator SHOULD require the lint, t
 
 ### 9.5 Release gate
 
-A release MUST NOT be published unless all required gates are green on the release commit and the package has been installed from the built wheel in a clean environment. Publishing to TestPyPI before PyPI is recommended. [SB] (PyPA packaging tutorial)
+A release MUST NOT be published unless all required gates are green on the release commit. From Phase 3, the package MUST also have been installed from the built wheel in a clean environment. Publishing to TestPyPI before PyPI is recommended. [SB] (PyPA packaging tutorial)
 
 ---
 
@@ -985,8 +987,8 @@ A reviewer of a test PR MUST confirm the following. [BP]
 - [ ] Existing tests were not weakened, deleted, or broadened.
 - [ ] New public API extends the contract tests (`test_doc_drift.py`, `test_accessor.py`) and each applicable requirement ID from §5/§6 is referenced in the test name, comment, or a maintained coverage matrix.
 - [ ] Property tests state meaningful invariants and are not over-constrained.
-- [ ] Coverage did not decrease; new lines are covered or exclusions are justified.
-- [ ] Mutation survivors, if a run exists, are triaged.
+- [ ] Coverage did not decrease; new lines are covered or exclusions are justified. (Applicable from Phase 2.)
+- [ ] Mutation survivors, if a run exists, are triaged. (Applicable from Phase 3.)
 - [ ] CHANGELOG and README are updated when behavior changed.
 - [ ] CI is green on all required gates and matrix legs.
 
@@ -999,13 +1001,14 @@ The phases are ordered by value and cost. A phase is adopted when its "Done when
 ### Phase 0 — Stop the bleeding
 
 - Apply §4 to all new tests.
-- Fix the tests that cannot fail: `tests/test_enrichment.py::test_translate_conditional_column_accepts_a_generator` currently has no assertion.
+- Fix the tests that cannot fail: `tests/test_enrichment.py::test_translate_conditional_column_accepts_a_generator` currently has no assertion. (`tests/test_inplace_deprecation.py::test_inplace_false_and_default_do_not_warn` uses the §4 A-1 warning-escalation helper and can fail.)
+- Add a contract test that imports and asserts the documented caching exports (`CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR`) and the enrichment default `NominatimGeocoder`, without expanding the `bynat.cleaning` namespace.
 - Remove the unused `tmp_path` fixtures (14 test functions) or use them.
 - Add the missing transformation cases from §6, prioritizing `fill_missing_from` leakage, unseen groups, and `min_samples` boundaries.
 - Resolve the validation contracts identified by MS-3a and S-4/ML-2 for outlier `min_samples` values and variadic methods that absorb `inplace`.
 - Add the missing DataFrame cases from §5.1.
 
-**Done when.** No test function lacks an assertion; every applicable requirement ID in §5/§6 is mapped to a named test, comment, or maintained coverage matrix; no unused fixture remains. [BP]
+**Done when.** No test function lacks an assertion; every applicable requirement ID in §5/§6 is mapped to a named test, comment, or maintained coverage matrix; the documented caching and enrichment export paths are pinned by a contract test; no unused fixture remains. [BP]
 
 ### Phase 1 — Make the suite measurable
 
@@ -1029,10 +1032,11 @@ The phases are ordered by value and cost. A phase is adopted when its "Done when
 ### Phase 3 — Artifacts and mutation
 
 - Add the build-and-install job: build a wheel, install it in a clean virtualenv, run the suite against it.
+- Declare Cosmic Ray (and optionally mutmut) in the `dev` extra and add the Cosmic Ray session config.
 - Add the scheduled Cosmic Ray run on the §7.5 scope; upload the report.
 - Triage the first survivor set.
 
-**Done when.** The wheel job is green; a mutation report exists and its survivors are triaged. [BP]
+**Done when.** The wheel job is green; Cosmic Ray is declared and configured; a mutation report exists and its survivors are triaged. [BP]
 
 ### Phase 4 — Raise the bar
 

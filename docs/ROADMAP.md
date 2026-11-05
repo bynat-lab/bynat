@@ -98,6 +98,17 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** add declarative checks for required columns, missing-value policies, uniqueness, numeric ranges, and allowed values. Return structured validation results identifying failed checks and relevant violations. Keep validation separate from automatic cleaning.
 - **Done when:** supported rules can be declared and evaluated through a documented API, results identify failures clearly, and tests cover valid data, invalid data, and edge cases without modifying the input.
 
+#### `TEST-01`: comprehensive test suite audit and quality improvement (P1, L)
+- **Problem:** The existing test suite may contain weak assertions, implementation-dependent expected results, insufficient edge-case coverage, inadequate fixtures, and gaps in public-contract coverage. Passing tests alone do not establish that the suite can reliably detect incorrect behavior.
+- **Plan:**
+  1. **Phase 1 — Inventory & Audit:** Inventory all existing tests, map them to public contracts and behaviors, assess their quality, and document findings without modifying tests or production code.
+  2. **Phase 2 — Quality Remediation:** Strengthen weak tests, independently derive expected results, improve fixtures and isolation, and address identified test-quality issues without weakening valid expectations.
+  3. **Phase 3 — Contract & Coverage Gaps:** Add missing contract, regression, integration, and boundary-condition tests. Align test classification and execution with `TESTING_STANDARDS.md` and its adoption phases.
+  4. **Phase 4 — Final Verification:** Run the applicable test suite and validation commands, verify test accounting and regression safety, and document final results and remaining gaps.
+- **Done when:** Every existing test has an explicit audit disposition; identified test-quality issues and missing contract coverage are addressed or justified; all changes preserve valid behavioral expectations; and final verification provides reproducible results and a documented acceptance report.
+- **Execution constraint:** Use the existing configured Subagent workflow for all investigation, implementation, and test execution. The Supervisor only delegates, coordinates, reviews evidence, and makes acceptance decisions; it must not perform these tasks independently.
+- **Scope constraint:** Keep all work within the existing testing-related PR. Production-code defects discovered during the audit must be documented separately rather than silently hidden by test changes.
+
 ### Milestone 9 (`0.9.0`): API maintenance
 
 #### `DEPR-02`: standardize transformation behavior and maintenance boundaries (P2, S)

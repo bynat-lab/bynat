@@ -101,6 +101,8 @@ A good `bynat` test is: [BP]
 
 ### 3.1 Overview
 
+The table below describes the target testing architecture. It is not a claim that every listed directory, dependency, marker, or scheduled job exists today; current repository state is recorded in §9.1 and migration work is staged in §12. [BP]
+
 | Type | Purpose | Required when | Location | Tooling | Gate |
 | --- | --- | --- | --- | --- | --- |
 | Unit | Pin one function's behavior in isolation | Every public function and every branch that can fail | `tests/test_<module>.py` | pytest | PR |
@@ -111,7 +113,7 @@ A good `bynat` test is: [BP]
 | Equivalence | Prove an optimized implementation matches a reference | Every performance optimization | `tests/test_equivalence.py` | pytest | PR |
 | Performance | Measure and record speed at representative sizes | Every performance change | `benchmarks/` | scripts | PR (report in description) |
 | Mutation | Find test gaps by killing generated mutants | Periodic diagnostic | scheduled | Cosmic Ray | Scheduled, advisory |
-| Optional-dependency | Exercise real extras when installed | Every extra-backed method | `tests/test_integrations.py`, `tests/test_enrichment.py` | pytest.importorskip | Extras CI |
+| Optional-dependency | Exercise real extras when installed | Every extra-backed method | `tests/test_integrations.py`, `tests/test_enrichment.py` | pytest.importorskip | Target extras matrix; current CI covers only `categorization` and `sql` |
 
 ### 3.2 Unit tests
 
@@ -139,8 +141,8 @@ A good `bynat` test is: [BP]
 
 **Required coverage.** [BP]
 
-- Every public class and function is importable from its documented path.
-- `inspect.signature` matches the documented parameters, including keyword-only markers. Accessor signatures expose the bound-method `self` placeholder but MUST NOT expose the wrapped frame or internal `cache_manager` parameter.
+- Every supported public class and function MUST be importable from its documented path. The contract inventory MUST distinguish top-level exports (`bynat`), cleaning exports (`bynat.cleaning`), caching exports (`bynat.caching`), and enrichment exports (`bynat.cleaning.enrich`). A documented path that does not resolve is an API/documentation defect to record and correct; it is not a test exception.
+- `inspect.signature` matches the documented parameters, including keyword-only markers. For an unbound accessor method (`inspect.signature(BynatAccessor.method)`), `self` is the first parameter; for a bound accessor method (`inspect.signature(df.bynat.method)`), Python removes `self`. Neither form MUST expose the wrapped frame or internal `cache_manager` parameter.
 - Docstrings on `BaseData` match the shared implementation docstrings.
 - `bynat/cleaning/accessor.pyi` matches `accessor.py`.
 - Output schemas match the documented columns and types (`get_hierarchical_stats`, `profile`, `fill_missing_from`).
@@ -148,6 +150,8 @@ A good `bynat` test is: [BP]
 - The class API and the accessor produce equal results for the same input.
 
 **Current guards.** `tests/test_doc_drift.py` and parts of `tests/test_accessor.py` and `tests/test_hierarchical_stats.py` already do this. New public API MUST extend them. [BP]
+
+The current README's `bynat.cleaning` export table lists several names that do not currently resolve from that namespace (`ProfileReport`, `DatasetProfile`, `ColumnProfile`, `BynatAccessor`, `read_json`, and `read_csv`). This is a repository documentation/export discrepancy, not an exception to the contract rule; the future API inventory MUST record the intended supported path and require the README and exports to agree before the gate is adopted. [BP]
 
 ### 3.5 Property-based tests
 
@@ -217,7 +221,7 @@ def test_accepts_a_generator(tmp_path, monkeypatch):
     )
 ```
 
-This passes whether or not the method works.
+This is an abridged weak example; it passes whether or not the method works.
 
 **Strong (required).**
 
@@ -484,7 +488,7 @@ Every public transformation covered by this document MUST cover the cases that a
 | NaN hierarchy keys | `groupby` drops NaN by default | All hierarchy methods | Null keys remain valid groups (`dropna=False`) |
 | Categorical hierarchy | Unobserved categories change grouping | `handle_outliers` | `observed=True` semantics |
 | Mixed dtypes | Numeric strategy on an object column | `fill_missing_from` | `TypeError` where documented |
-| Nullable dtypes (`Int64`, `Float64`, `string`, `boolean`) | `pd.NA` propagation | `profile`, `fill_missing` | Counts and fills match pandas semantics |
+| Nullable dtypes (`Int64`, `Float64`, `string`, `boolean`) | `pd.NA` propagation and numeric-strategy validation | `profile`, `fill_missing` | Match the documented pandas result: numeric nullable dtypes preserve valid fills; non-numeric targets with numeric strategies raise when applicable |
 | `datetime` / `datetimetz` | Serialization; timezone handling | `save_to_json`, `save_to_sql` | Documented formatting and tz normalization |
 | Unhashable cells (list, dict, set) | `duplicated()` raises `TypeError` | `profile`, `save_to_json` | Compared by value |
 | Non-string column names | Rename/reorder assumptions | `reorder_columns` | Names preserved; methods requiring string operations MUST reject unsupported labels explicitly |
@@ -502,16 +506,16 @@ Every public transformation covered by this document MUST cover the cases that a
 | `numpy.testing.assert_allclose` | Numeric arrays | `rtol=1e-7`, `atol=0`, `equal_nan=True` | Set `rtol`/`atol` explicitly. Use `strict=True` when dtype or shape matters. [SB] (NumPy testing guidelines) |
 | `numpy.testing.assert_array_equal` | Exact arrays | Exact | Use for integers and categories |
 | `pytest.approx` | Scalar floats | `rel=1e-6` | Prefer the NumPy helper for arrays. [SB] (pytest assert) |
-| `assert result is not frame` | Mutation contract | Identity | Required for every transformation |
-| `type(result) is BaseData` | Subclass contract | Exact type | Use `isinstance` only when subclasses are allowed |
+| `assert result is not frame` | Mutation contract | Identity | Required for frame-to-frame transformations |
+| `type(result) is type(frame)` | Subclass contract | Exact input subclass | Require preserved subclass identity; use `isinstance(result, BaseData)` only when the contract permits any supported subclass |
 | `DataFrame.equals` | Quick sanity | dtype-sensitive, index-name-insensitive | Never the only assertion |
 
 **Why `.equals()` is not enough.** `DataFrame.equals` ignores the index name, so it can hide index drift. `pd.testing.assert_frame_equal` checks index type and name by default. Prefer the pandas helper. [BP]
 
-**Comparing a `BaseData` result.** Assert the type separately, then compare values:
+**Comparing a `BaseData` result.** Assert that the result preserves the input subclass, then compare values:
 
 ```python
-assert type(result) is BaseData
+assert type(result) is type(frame)
 pd.testing.assert_frame_equal(pd.DataFrame(result), expected)
 ```
 
@@ -525,15 +529,17 @@ pd.testing.assert_frame_equal(pd.DataFrame(result), expected)
 
 ### 6.1 Shared requirements
 
-Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST satisfy the following, through its public entry point. [BP]
+The requirements in this subsection apply to public frame-to-frame transformations: column, text, statistics, enrichment, and frame-returning I/O methods reached through `BaseData` or the accessor. They do not apply unchanged to report-producing `profile`/`get_hierarchical_stats`, loaders (`read_json`, `read_csv`), or writers (`save_to_json`, `save_to_sql`); those operations require their own return, schema, persistence, and non-mutation assertions. [BP]
 
 - **S-1 Input immutability.** `before = df.copy(deep=True)`; call the method; `pd.testing.assert_frame_equal(df, before)`.
 - **S-2 New object.** `assert result is not df`. Early exits return an independent copy, not the original object. [SB] (ROADMAP API-02)
-- **S-3 Index preservation.** `pd.testing.assert_index_equal(result.index, df.index)`, except for methods documented to reset the index (`split_list_objects(explode_rows=True)`).
-- **S-4 Return contract.** Default returns a new frame; `inplace=True` returns `None` (or the documented statistics result); `get_hierarchical_stats=True` returns `(result, stats)`; `inplace=True` with statistics returns the statistics directly. [SB] (ROADMAP API-02, D-03)
+- **S-3 Index preservation.** `pd.testing.assert_index_equal(result.index, df.index)`, except for methods documented to reset or reconstruct the index, including `split_list_objects(explode_rows=True)` and `melt_transform_pivot`.
+- **S-4 Return contract.** For the class-based API, the default returns a new frame; `inplace=True` returns `None` (or the documented statistics result); `get_hierarchical_stats=True` returns `(result, stats)`; `inplace=True` with statistics returns the statistics directly. The target contract for shared functions and accessor methods is to reject `inplace` rather than silently accept it. The current variadic methods `melt_transform_pivot`, `truncate_after_substring`, `extract_keywords`, and `split_list_objects` require an explicit Phase 0 validation decision because their `**kwargs` paths currently absorb or mis-handle that name. [SB] (ROADMAP API-02, D-03) [BP]
 - **S-5 Class and accessor agreement.** The class method and the accessor produce equal values for the same input. [BP]
 - **S-6 No unexpected warnings.** At minimum, valid input MUST NOT raise `DeprecationWarning`; test with `warnings.simplefilter("error", DeprecationWarning)`. Other warnings are reviewed case by case. [BP]
-- **S-7 No-op inputs.** An empty frame, a missing column, or a frame with nothing to change returns an independent copy. A warning is required only where the public contract documents one, such as an invalid or missing target column. [BP]
+- **S-7 Lenient no-op inputs.** For methods whose public contract documents lenient handling, an empty frame, a missing optional column, or a frame with nothing to change returns an independent copy. Methods with required inputs, such as `melt_transform_pivot` with a missing `id_vars` or `value_vars`, MUST raise their documented validation error instead. A warning is required only where the public contract documents one. [BP]
+
+Rows in the following tables that mention `inplace=True` apply only to `BaseData`, `JsonFile`, and `CsvFile`; the shared functions and pandas accessor have no `inplace` parameter. [BP]
 
 ### 6.2 `fill_missing`
 
@@ -552,7 +558,7 @@ Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST sati
 | FM-11 | No valid target columns remain | Warning and unchanged copy | `caplog` plus `assert_frame_equal` |
 | FM-11a | Some target columns missing, others valid | Missing ones skipped silently; valid ones filled | Exact fills and unchanged missing columns |
 | FM-12 | No missing values | Unchanged copy, no fill | `assert_frame_equal` |
-| FM-13 | All-NaN column | Stays all-NaN | `isna().all()` |
+| FM-13 | All-NaN column | Stays all-NaN by default; `fallback_global=True` may fill it when a statistic exists | `isna().all()` or exact fallback values |
 | FM-14 | All-NaN group | Falls through to coarser levels | NaN by default |
 | FM-15 | Multi-level hierarchy | Most specific level first, then coarser | Exact fills per level |
 | FM-16 | Coarser-level statistics | Computed from the original frame, not from already-filled values | Hand-computed expected values |
@@ -562,7 +568,7 @@ Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST sati
 | FM-20 | `get_hierarchical_stats=True` | Returns `(result, stats)`; stats from the original data | Type, schema, and values |
 | FM-21 | `inplace=True` with statistics | Returns stats only; mutates the original | Type and mutation |
 | FM-22 | Index preservation: named, duplicate, MultiIndex | Index unchanged | `assert_index_equal` |
-| FM-23 | Non-numeric target with `median`/`mean` when a hierarchy level is evaluated | pandas `TypeError` | `pytest.raises(TypeError)` |
+| FM-23 | Non-numeric target with at least one non-null value and numeric `median`/`mean` strategy | pandas `TypeError` on a hierarchy path or `fallback_global=True`; an all-NaN non-numeric target does not raise | `pytest.raises(TypeError)` plus an all-NaN control |
 | FM-24 | Input immutability | Original unchanged | S-1 |
 
 ### 6.3 `fill_missing_from`
@@ -588,11 +594,11 @@ Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST sati
 | FF-16 | Target and hierarchy overlap | `ValueError` | `pytest.raises` |
 | FF-17 | Duplicate columns in target or reference | `ValueError` | `pytest.raises` |
 | FF-18 | `dataset` `None`, non-DataFrame, or empty | `ValueError`/`TypeError` | `pytest.raises` |
-| FF-19 | Non-numeric dtype with a numeric strategy | `TypeError` | `pytest.raises(TypeError)` |
+| FF-19 | Non-numeric reference column, or non-numeric target column with at least one non-null value, with a numeric (`median`/`mean`) strategy | `TypeError`; an all-NaN target column is exempt | `pytest.raises(TypeError)` plus the all-NaN control |
 | FF-20 | Empty target frame | Empty result, schema preserved | `empty` and columns |
 | FF-21 | No missing values | Unchanged copy | `assert_frame_equal` |
-| FF-22 | All-missing target | Filled from reference | Exact fills |
-| FF-23 | All-null reference column | Stays NaN | `isna().all()` |
+| FF-22 | All-missing target | Filled where a matching reference group has at least `min_samples` non-null observations, or globally when `fallback_global=True`; otherwise remains NaN | Exact fills and NaN cases |
+| FF-23 | Numeric all-null reference column with a numeric strategy | Stays NaN; a non-numeric all-null reference column with `median`/`mean` raises `TypeError`, while `mode` remains a separate supported case | `isna().all()` plus the numeric-strategy error control |
 | FF-24 | `get_hierarchical_stats=True` | Stats from the reference; `match_cols` reverse-mapped | Schema and values |
 | FF-25 | `inplace=True` | Mutates and returns `None` (or stats) | Identity and mutation |
 | FF-26 | BaseData and accessor agreement | Equal values | `assert_frame_equal` |
@@ -608,7 +614,7 @@ Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST sati
 | HO-4 | Groups below `min_samples` | Not evaluated; fall through | Exact mask |
 | HO-5 | Outliers replaced with NaN | Row count and index preserved | `assert_frame_equal` on index |
 | HO-6 | Missing target columns | Skipped | Unchanged copy |
-| HO-7 | No hierarchy columns | Warning and unchanged copy | `caplog` plus `assert_frame_equal` |
+| HO-7 | No hierarchy columns (`None` or empty) | Warning and unchanged copy; a named hierarchy column missing from the frame raises `KeyError` | `caplog` plus `assert_frame_equal`, or `pytest.raises(KeyError)` |
 | HO-8 | Multiple target columns | Each evaluated independently | Union of masks |
 | HO-9 | `get_hierarchical_stats=True` | Stats from the original data before replacement | Schema and values |
 | HO-10 | Null hierarchy keys | Valid groups | Exact mask |
@@ -627,7 +633,7 @@ Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST sati
 | DO-3 | Union across targets | A row is dropped if any target flags it | Exact survivors |
 | DO-4 | Index preservation | Surviving index equals the input index subset | `assert_index_equal` |
 | DO-5 | All rows dropped | Empty frame with the same columns | `empty` and columns |
-| DO-6 | No hierarchy columns | Warning and unchanged copy | `caplog` plus `assert_frame_equal` |
+| DO-6 | No hierarchy columns (`None` or empty) | Warning and unchanged copy; a named hierarchy column missing from the frame raises `KeyError` | `caplog` plus `assert_frame_equal`, or `pytest.raises(KeyError)` |
 | DO-7 | `get_hierarchical_stats=True` | Stats from the original data before the drop | Schema and values |
 | DO-8 | Input immutability | Original unchanged | S-1 |
 
@@ -637,14 +643,15 @@ Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST sati
 - **HF-2** `min_samples` counts non-null observations in the group. [BP]
 - **HF-3** A group that is absent or has too few observations falls through to the next coarser level. It never raises for data reasons. [BP]
 - **HF-4** `fallback_global=True` applies only after the hierarchy is exhausted. [BP]
-- **HF-5** Filled or replaced values at finer levels do not affect coarser-level statistics: `fill_missing` computes from the original frame, `fill_missing_from` from the reference. [BP]
+- **HF-5** Filled values do not affect coarser-level statistics: `fill_missing` computes from the original frame, and `fill_missing_from` from the reference. Outlier handling is different: `handle_outliers` excludes values it replaces before later levels, while `drop_outliers` keeps the original values during its scan. [BP]
 - **HF-6** Null hierarchy values remain valid grouping keys at every level. [BP]
 
 ### 6.7 `min_samples`
 
 - **MS-1** Defaults: `fill_missing` and `fill_missing_from` default to 1; `handle_outliers` and `drop_outliers` default to 5. [BP]
 - **MS-2** Boundary: a group with exactly `min_samples` observations supplies a statistic; `min_samples − 1` does not. [BP]
-- **MS-3** Invalid values: `True` (a `bool`, not an `int`), `0`, negative numbers, floats, and strings raise `ValueError`. [BP]
+- **MS-3** For `fill_missing` and `fill_missing_from`, invalid values (`True`, `0`, negative numbers, floats, and strings) raise `ValueError`. [BP]
+- **MS-3a** `handle_outliers` and `drop_outliers` MUST define and test the same invalid-input contract before their validation gate is adopted. The current implementation does not consistently validate `min_samples`; this is a Phase 0 implementation/test gap, not permission to write weak or implementation-dependent tests. [BP]
 - **MS-4** Only non-null observations count toward the threshold. [BP]
 
 ### 6.8 Unseen groups
@@ -656,7 +663,7 @@ Every transformation in `columns`, `text`, `stats`, `enrich`, and `io` MUST sati
 
 ### 6.9 Missing keys
 
-The asymmetry below is documented behavior and MUST be pinned by tests. [BP]
+The asymmetry below is documented behavior and MUST be pinned by tests. The table covers `fill_missing`, `fill_missing_from`, and `get_hierarchical_stats`; outlier methods have separate missing-hierarchy behavior in HO-7 and DO-6. [BP]
 
 | Situation | `fill_missing` | `fill_missing_from` | `get_hierarchical_stats` |
 | --- | --- | --- | --- |
@@ -669,12 +676,12 @@ The asymmetry below is documented behavior and MUST be pinned by tests. [BP]
 
 ### 6.10 Mutation and leakage
 
-- **ML-1** Every transformation returns a new object; the input is unchanged. [BP]
-- **ML-2** `inplace=True` mutates the original and returns `None` (or the documented statistics result). Results of later operations are not aliased to the mutated object. [BP]
+- **ML-1** Every frame-to-frame transformation returns a new object; the input is unchanged. Report, loader, writer, and cache operations have their own return and persistence contracts. [BP]
+- **ML-2** On the class-based API, `inplace=True` mutates the original and returns `None` (or the documented statistics result). The target contract requires shared functions and the accessor to reject `inplace`; current variadic methods that absorb the name are a Phase 0 gap. Results of later operations are not aliased to the mutated object. [BP]
 - **ML-3** The accessor never mutates the frame it wraps. [BP]
 - **ML-4** Cache isolation: different cache directories do not share values; the same directory reuses values. Cache keys are normalized (`1`, `1.0`, and `"1"` collide by design); tests pin the documented normalization rather than assuming uniqueness. [BP]
 - **ML-5** `fill_missing_from` leaks nothing from the target into the statistics and never modifies the reference. [BP]
-- **ML-6** Enrichment cache semantics are tested per provider: exceptions are never cached; translation does not cache falsy results; geocoding and currency may cache not-found results as `None`; successful results are cached. [BP]
+- **ML-6** Enrichment cache semantics are tested per provider: exceptions are never cached; translation does not cache falsy results; geocoding and currency may cache not-found results as `None`; NLP uses its required multi-bucket cache identity and caches valid empty-list outcomes; successful results are cached. [BP]
 - **ML-7** `clear_cache_for_column` deletes only the named bucket and preserves unrelated buckets and functions. [BP]
 
 ---
@@ -715,7 +722,7 @@ Command: `python -m pytest --cov=bynat --cov-branch --cov-report=term-missing --
 
 **Mutation.** Cosmic Ray, configured with a session database and `pytest -x` so one failing test kills a mutant. [SB] (Cosmic Ray concepts)
 
-**Property tests.** Hypothesis profiles registered in `tests/conftest.py`. [BP]
+**Property tests.** The target Hypothesis profiles are registered in `tests/conftest.py` after Phase 1; the current repository does not yet contain that file. [BP]
 
 ### 7.3 Targets (policy)
 
@@ -768,7 +775,7 @@ Every exclusion MUST be reviewed in the PR that adds it. [BP]
 
 1. The baseline suite MUST pass on unmutated code.
 2. Commit before `exec`; mutations are applied on disk and a failed undo can leave mutated code behind.
-3. `cosmic-ray init`; `cosmic-ray exec`; `cosmic-ray report`.
+3. `cosmic-ray init <config.toml> <session.sqlite>`; `cosmic-ray exec <config.toml> <session.sqlite>`; `cr-report <session.sqlite>`.
 4. Triage every survivor as one of: missing test, equivalent mutant, or accepted risk. Record the decision.
 
 **Score.** `MS = K / (M − E)`, where `K` is killed mutants, `M` total mutants, and `E` equivalent mutants. Report killed, survived, equivalent, and incompetent mutants separately. Never compare scores across tools. [SB] (SLR cost reduction; ACM tool comparison)
@@ -779,8 +786,8 @@ Every exclusion MUST be reviewed in the PR that adds it. [BP]
 
 At minimum, property tests SHOULD state these invariants for every transformation that applies: [BP]
 
-- The row count changes only where documented (`drop_outliers`, `split_list_objects(explode_rows=True)`).
-- The index is preserved except where documented.
+- The row count changes only where documented (`drop_outliers`, `split_list_objects(explode_rows=True)`, and `melt_transform_pivot`).
+- The index is preserved except where documented (`split_list_objects(explode_rows=True)` and `melt_transform_pivot`).
 - The input frame is unchanged.
 - The output schema matches the documented columns and types.
 - Repeated calls with the same seed produce the same result.
@@ -792,13 +799,13 @@ At minimum, property tests SHOULD state these invariants for every transformatio
 
 ### 8.1 Layout
 
-The current layout is a flat `tests/` directory with one file per module. The following is the target layout after the phased additions in §12; paths that do not yet exist MUST NOT be described as current state. [BP]
+The current layout is a topic-named `tests/` directory with module and behavior files; it does not yet contain the target shared fixtures, property directory, or marker configuration. The following is the target layout after the phased additions in §12; paths that do not yet exist MUST NOT be described as current state. [BP]
 
 | Path | Purpose |
 | --- | --- |
 | `tests/conftest.py` | Target: shared fixtures, marker registration, Hypothesis profiles |
 | `tests/helpers.py` | Target: fake providers and frame factories shared across files |
-| `tests/test_<module>.py` | Unit and integration tests for one module |
+| `tests/test_<topic>.py` | Target: unit and integration tests organized by module or behavior |
 | `tests/test_equivalence.py` | Reference implementations and equivalence tests |
 | `tests/property/` | Target: Hypothesis property tests, marked `property` |
 | `benchmarks/` | Performance scripts with equivalence checks |
@@ -824,7 +831,7 @@ The current layout is a flat `tests/` directory with one file per module. The fo
 
 - Use `@pytest.mark.parametrize` instead of sharing mutable fixtures across cases. [SB] (Scientific Python pytest guide)
 - Parameter values are passed as-is; mutable values mutated by a test are shared with later calls. Use fresh values or immutable values. [SB] (pytest parametrize)
-- Empty parameter sets are controlled explicitly; a test that collects zero cases is a bug. [SB] (pytest parametrize)
+- Empty parameter sets are controlled explicitly; for bynat, an unexpectedly empty parameter set is a test-design defect and MUST be reviewed rather than silently accepted. [BP] (pytest parametrize)
 
 ### 8.5 Markers
 
@@ -839,6 +846,14 @@ After Phase 1, all markers MUST be registered in `pyproject.toml`. Unknown marke
 | `extras` | Needs an optional extra | Only in extras CI, when the target job selects it explicitly |
 | `mutation` | Mutation-testing support | No, when the target `addopts` excludes it (`-m "not mutation"`) |
 | `network` | Needs network; never run in CI | Never |
+
+**Marker execution paths.** [BP]
+
+- The default run excludes `slow`, `extras`, `network`, and `mutation` through the target `addopts` expression.
+- Slow tests MAY be run explicitly with `python -m pytest -m slow` in a local or scheduled job.
+- Extras tests MUST be run explicitly with `python -m pytest -m extras` after the required optional extra is installed, as described in §9.2.
+- `python -m pytest -m mutation` runs tests marked as mutation support tests only; it does **not** invoke Cosmic Ray, mutmut, or another mutation engine. Actual mutation testing follows the independent §7.5 workflow.
+- Network-marked tests are not part of the supported CI architecture. bynat tests MUST use fakes or injected providers instead; a network marker MUST NOT be used to justify live service access in CI.
 
 ### 8.6 pytest configuration
 
@@ -862,7 +877,7 @@ Tests SHOULD be annotated and added to the mypy scope incrementally. Fixture and
 
 - Build small frames inline. [BP]
 - Use `tmp_path` for JSON, CSV, and SQLite files. [BP]
-- Do not read files from the repository outside `tests/` except through the public API under test. [BP]
+- Do not read application data files from the repository outside `tests/` except through the public API under test. Packaging and typing-contract tests MAY inspect declared artifacts such as `bynat/py.typed` and `bynat/cleaning/accessor.pyi`, and documentation synchronization tests MAY load `tools/sync_docs.py`. [BP]
 - Do not use the default cache directory. [BP]
 
 ---
@@ -908,7 +923,7 @@ A PR MUST pass every required gate before merge. [BP]
 
 ### 9.4 Branch protection
 
-The repository administrator SHOULD require the lint, type check, all four test matrix legs, and coverage checks before merge. [BP]
+Once Phase 2 is adopted, the repository administrator SHOULD require the lint, type check, all four test matrix legs, and the adopted coverage gate before merge. Before Phase 2, only the currently configured gates can be required. [BP]
 
 ### 9.5 Release gate
 
@@ -968,7 +983,7 @@ A reviewer of a test PR MUST confirm the following. [BP]
 - [ ] Errors are asserted with `pytest.raises(..., match=...)`; warnings with `pytest.warns(...)` or an error filter.
 - [ ] No blanket skips, xfails, warning filters, or coverage exclusions.
 - [ ] Existing tests were not weakened, deleted, or broadened.
-- [ ] New public API extends the contract tests (`test_doc_drift.py`, `test_accessor.py`).
+- [ ] New public API extends the contract tests (`test_doc_drift.py`, `test_accessor.py`) and each applicable requirement ID from §5/§6 is referenced in the test name, comment, or a maintained coverage matrix.
 - [ ] Property tests state meaningful invariants and are not over-constrained.
 - [ ] Coverage did not decrease; new lines are covered or exclusions are justified.
 - [ ] Mutation survivors, if a run exists, are triaged.
@@ -987,9 +1002,10 @@ The phases are ordered by value and cost. A phase is adopted when its "Done when
 - Fix the tests that cannot fail: `tests/test_enrichment.py::test_translate_conditional_column_accepts_a_generator` currently has no assertion.
 - Remove the unused `tmp_path` fixtures (14 test functions) or use them.
 - Add the missing transformation cases from §6, prioritizing `fill_missing_from` leakage, unseen groups, and `min_samples` boundaries.
+- Resolve the validation contracts identified by MS-3a and S-4/ML-2 for outlier `min_samples` values and variadic methods that absorb `inplace`.
 - Add the missing DataFrame cases from §5.1.
 
-**Done when.** No test function lacks an assertion; every transformation in §6 has its required cases; no unused fixture remains. [BP]
+**Done when.** No test function lacks an assertion; every applicable requirement ID in §5/§6 is mapped to a named test, comment, or maintained coverage matrix; no unused fixture remains. [BP]
 
 ### Phase 1 — Make the suite measurable
 
@@ -1057,6 +1073,7 @@ Stable URLs, grouped by topic. Every [SB] and [RP] tag in this document points h
 
 - [coverage.py — Branch coverage measurement](https://coverage.readthedocs.io/en/latest/branch.html) — official docs.
 - [coverage.py — Measurement contexts](https://coverage.readthedocs.io/en/latest/contexts.html) — official docs.
+- [coverage.py — Messages and warnings](https://coverage.readthedocs.io/en/latest/messages.html#warning-no-sysmon) — official explanation of the sysmon limitation.
 - [coverage.py — Excluding code from coverage.py](https://coverage.readthedocs.io/en/latest/excluding.html) — official docs.
 - [coverage.py — Configuration reference](https://coverage.readthedocs.io/en/latest/config.html) — official docs.
 - [pytest-cov — Configuration](https://pytest-cov.readthedocs.io/en/latest/config.html) — official docs.
@@ -1068,7 +1085,7 @@ Stable URLs, grouped by topic. Every [SB] and [RP] tag in this document points h
 - [Cosmic Ray — Concepts](https://cosmic-ray.readthedocs.io/en/latest/concepts.html) — tool docs.
 - [Cosmic Ray — Tutorial: The basics](https://cosmic-ray.readthedocs.io/en/latest/tutorials/intro/index.html) — tool docs.
 - [mutmut — Python mutation tester documentation](https://mutmut.readthedocs.io/en/latest/) — tool docs.
-- [mutatest — Python mutation testing documentation](https://mutatest.readthedocs.io/en/latest/) — tool docs.
+
 - [Mutation testing in the wild: findings from GitHub](https://link.springer.com/article/10.1007/s10664-022-10177-8) — peer-reviewed paper.
 - [A Systematic Literature Review of Techniques and Metrics to Reduce the Cost of Mutation Testing](https://www.albany.edu/faculty/offutt/research/papers/SLR-CostReductionMutation.pdf) — peer-reviewed paper.
 - [Static and Dynamic Comparison of Mutation Testing Tools for Python](https://dl.acm.org/doi/10.1145/3701625.3701659) — peer-reviewed paper.

@@ -151,7 +151,7 @@ The table below describes the target testing architecture. It is not a claim tha
 
 **Current guards.** `tests/test_doc_drift.py` and parts of `tests/test_accessor.py` and `tests/test_hierarchical_stats.py` already do this. New public API MUST extend them. [BP]
 
-The current README's `bynat.cleaning` export table lists several names that do not currently resolve from that namespace (`ProfileReport`, `DatasetProfile`, `ColumnProfile`, `BynatAccessor`, `read_json`, and `read_csv`). This is a repository documentation/export discrepancy, not an exception to the contract rule; the future API inventory MUST record the intended supported path and require the README and exports to agree before the gate is adopted. [BP]
+The package-level `bynat.cleaning` namespace MUST expose only its established class API (`BaseData`, `CsvFile`, and `JsonFile`). Profiling functions and report classes MUST be imported from `bynat.cleaning.profile`, accessor APIs from `bynat.cleaning.accessor`, and loader helpers from `bynat.cleaning.io`. Tests MUST verify each documented path without expanding the package namespace merely for convenience. [BP]
 
 ### 3.5 Property-based tests
 

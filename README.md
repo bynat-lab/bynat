@@ -177,7 +177,7 @@ What each module provides:
 | --- | --- |
 | `bynat` | `read_json`, `read_csv`, `BynatAccessor`, `profile`, `ProfileReport` |
 | `bynat.caching` | `CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR` |
-| `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile`, `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile`, plus `BynatAccessor`, `read_json`, `read_csv` |
+| `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile` |
 | `bynat.cleaning.enrich` | Provider protocols `Translator`, `Geocoder`, `RateSource`, and their defaults `GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource` |
 
 > **Import submodules explicitly.** The top-level `bynat` namespace exposes only `read_json`, `read_csv`, `BynatAccessor`, `profile`, and `ProfileReport`. Import the class API from `bynat.cleaning` and the cache API from `bynat.caching`.
@@ -306,7 +306,7 @@ All four forms return the same report:
 | pandas accessor | `df.bynat.profile(*columns, output_type=None)` |
 | Class-based API | `BaseData(df).profile(*columns, output_type=None)` |
 | Top-level function | `bynat.profile(df, *columns, output_type=None)` |
-| Cleaning function | `bynat.cleaning.profile(df, *columns, output_type=None)` |
+| Cleaning function | `from bynat.cleaning.profile import profile`<br>`profile(df, *columns, output_type=None)` |
 
 Passing something other than a `pandas.DataFrame` to the function forms raises a `TypeError`.
 
@@ -338,7 +338,8 @@ Any other value raises a `TypeError`.
 ```python
 import json
 import pandas as pd
-from bynat.cleaning import BaseData, profile
+from bynat.cleaning import BaseData
+from bynat.cleaning.profile import profile
 
 report = profile(df)                              # ProfileReport
 as_dict = profile(df, output_type=dict)           # plain dictionary

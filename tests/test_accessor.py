@@ -99,6 +99,7 @@ def test_accessor_uses_one_shared_cache_manager_per_directory(monkeypatch, tmp_p
 def test_accessor_cached_methods_use_the_selected_cache(tmp_path):
     translator = _Translator({"مكتمل": "Completed"})
     frame = pd.DataFrame({"status": ["مكتمل", "مكتمل"]})
+    original = frame.copy(deep=True)
 
     result = frame.bynat.with_cache(tmp_path).translate_categorical_column("status", provider=translator)
     again = frame.bynat.with_cache(tmp_path).translate_categorical_column("status", provider=translator)
@@ -106,10 +107,12 @@ def test_accessor_cached_methods_use_the_selected_cache(tmp_path):
     assert result["status"].tolist() == ["Completed", "Completed"]
     assert again["status"].tolist() == ["Completed", "Completed"]
     assert translator.calls == [("مكتمل", "en")]
+    pd.testing.assert_frame_equal(frame, original)
 
     frame.bynat.with_cache(tmp_path).clear_cache_for_column("translate_categorical_column", "status")
     frame.bynat.with_cache(tmp_path).translate_categorical_column("status", provider=translator)
     assert len(translator.calls) == 2
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_accessor_save_to_json(tmp_path):

@@ -131,12 +131,13 @@ def test_translate_categorical_column_constructs_the_default_google_translator(m
             return text.upper()
 
     _install(monkeypatch, "deep_translator", GoogleTranslator=FakeGoogleTranslator)
-    translated = pd.DataFrame({"status": ["abc", "abc"]}).bynat.with_cache(
-        tmp_path / "translate"
-    ).translate_categorical_column("status")
+    frame = pd.DataFrame({"status": ["abc", "abc"]})
+    original = frame.copy(deep=True)
+    translated = frame.bynat.with_cache(tmp_path / "translate").translate_categorical_column("status")
 
     assert translated["status"].tolist() == ["ABC", "ABC"]
     assert translators == [("auto", "en")]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder(monkeypatch, tmp_path):
@@ -164,14 +165,17 @@ def test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder(monk
 
     _install(monkeypatch, "geopy.geocoders", Nominatim=FakeNominatim)
     _install(monkeypatch, "geopy.extra.rate_limiter", RateLimiter=FakeRateLimiter)
-    located = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]}).bynat.with_cache(
-        tmp_path / "geocode"
-    ).fill_missing_coordinates("city", lat_col="lat", long_col="lng")
+    frame = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]})
+    original = frame.copy(deep=True)
+    located = frame.bynat.with_cache(tmp_path / "geocode").fill_missing_coordinates(
+        "city", lat_col="lat", long_col="lng"
+    )
 
     assert located[["lat", "lng"]].iloc[0].tolist() == [10.0, 20.0]
     assert [geolocator.user_agent for geolocator in geolocators] == [
         "data_cleaning_core_geocoder"
     ]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch, tmp_path):
@@ -188,14 +192,15 @@ def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch,
 
     _install_currency_lookup(monkeypatch)
     _install(monkeypatch, "yfinance", Ticker=FakeTicker)
-    converted = pd.DataFrame(
-        {"country": ["Egypt"], "year": [2020], "salary": [100.0]}
-    ).bynat.with_cache(tmp_path / "currency").convert_to_usd(
+    frame = pd.DataFrame({"country": ["Egypt"], "year": [2020], "salary": [100.0]})
+    original = frame.copy(deep=True)
+    converted = frame.bynat.with_cache(tmp_path / "currency").convert_to_usd(
         "salary", country_col="country", year_col="year"
     )
 
     assert converted["salary_usd"].tolist() == [50.0]
     assert downloads == [("EGP=X", "2020-01-01", "2020-12-31")]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +211,7 @@ def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch,
 def test_translate_categorical_column_accepts_a_plain_provider(tmp_path):
     translator = DictTranslator({"مكتمل": "Completed", "قيد الانتظار": "Pending"})
     frame = pd.DataFrame({"status": ["مكتمل", "قيد الانتظار", "مكتمل", None]})
+    original = frame.copy(deep=True)
 
     result = frame.bynat.with_cache(tmp_path).translate_categorical_column(
         "status", target_lang="en", provider=translator
@@ -213,22 +219,26 @@ def test_translate_categorical_column_accepts_a_plain_provider(tmp_path):
 
     assert result["status"].tolist()[:3] == ["Completed", "Pending", "Completed"]
     assert sorted(translator.calls) == sorted([("مكتمل", "en"), ("قيد الانتظار", "en")])
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_translate_skips_and_does_not_cache_empty_translations(tmp_path):
     translator = DictTranslator({"a": "A", "b": ""})
     frame = pd.DataFrame({"letter": ["a", "b"]})
+    original = frame.copy(deep=True)
 
     result = frame.bynat.with_cache(tmp_path).translate_categorical_column("letter", provider=translator)
     frame.bynat.with_cache(tmp_path).translate_categorical_column("letter", provider=translator)
 
     assert result["letter"].tolist() == ["A", "b"]
     assert [call[0] for call in translator.calls] == ["a", "b", "b"]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_translate_batch_is_used_in_save_every_chunks(tmp_path):
     translator = BatchTranslator({value: value.upper() for value in "abcde"})
     frame = pd.DataFrame({"letter": list("abcdea")})
+    original = frame.copy(deep=True)
 
     result = frame.bynat.with_cache(tmp_path).translate_categorical_column(
         "letter", save_every=2, provider=translator
@@ -236,6 +246,7 @@ def test_translate_batch_is_used_in_save_every_chunks(tmp_path):
 
     assert result["letter"].tolist() == list("ABCDEA")
     assert translator.batches == [(["a", "b"], "en"), (["c", "d"], "en"), (["e"], "en")]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_default_google_provider_uses_one_translator_per_thread(monkeypatch):
@@ -490,6 +501,7 @@ def test_fill_missing_coordinates_accepts_a_plain_provider(tmp_path):
             "lng": [None, None],
         }
     )
+    original = frame.copy(deep=True)
 
     result = frame.bynat.with_cache(tmp_path).fill_missing_coordinates(
         "street", "city", "country", lat_col="lat", long_col="lng", provider=geocoder
@@ -504,6 +516,7 @@ def test_fill_missing_coordinates_accepts_a_plain_provider(tmp_path):
         "street", "city", "country", lat_col="lat", long_col="lng", provider=geocoder, retry_not_found=True
     )
     assert geocoder.calls == ["Nowhere Rd, Atlantis", "Atlantis"]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_geocoding_errors_are_not_cached(tmp_path):
@@ -517,6 +530,7 @@ def test_geocoding_errors_are_not_cached(tmp_path):
             return (1.0, 2.0)
 
     frame = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]})
+    original = frame.copy(deep=True)
     accessor = frame.bynat.with_cache(tmp_path)
 
     first = accessor.fill_missing_coordinates("city", lat_col="lat", long_col="lng", provider=FlakyGeocoder())
@@ -524,6 +538,7 @@ def test_geocoding_errors_are_not_cached(tmp_path):
 
     assert first["lat"].isna().all()
     assert second[["lat", "lng"]].iloc[0].tolist() == [1.0, 2.0]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 # ---------------------------------------------------------------------------
@@ -541,6 +556,7 @@ def test_convert_to_usd_downloads_once_per_currency(monkeypatch, tmp_path):
             "salary": [170.0, 200.0, 34.0, 10.0, 100.0, 1.0],
         }
     )
+    original = frame.copy(deep=True)
 
     result = frame.bynat.with_cache(tmp_path).convert_to_usd(
         "salary", country_col="country", year_col="year", provider=rates
@@ -553,11 +569,13 @@ def test_convert_to_usd_downloads_once_per_currency(monkeypatch, tmp_path):
     rates.calls.clear()
     frame.bynat.with_cache(tmp_path).convert_to_usd("salary", country_col="country", year_col="year", provider=rates)
     assert rates.calls == []
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_convert_to_usd_does_not_cache_provider_failures(monkeypatch, tmp_path):
     _install_currency_lookup(monkeypatch)
     frame = pd.DataFrame({"country": ["Egypt"], "year": [2020], "salary": [170.0]})
+    original = frame.copy(deep=True)
     accessor = frame.bynat.with_cache(tmp_path)
 
     offline = FakeRates({}, fail={"EGP"})
@@ -569,6 +587,7 @@ def test_convert_to_usd_does_not_cache_provider_failures(monkeypatch, tmp_path):
     assert first["salary_usd"].isna().all()
     assert second["salary_usd"].tolist() == [10.0]
     assert online.calls == [("EGP", 2020, 2020)]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_yfinance_rate_source_computes_yearly_means_from_one_download(monkeypatch):

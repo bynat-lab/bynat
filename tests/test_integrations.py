@@ -393,7 +393,10 @@ def test_extract_entities_nlp_custom_disable_reaches_both_pipe_calls(monkeypatch
 
 @pytest.mark.parametrize(
     ("disable", "expected"),
-    [("ner", ("ner",)), (None, ())],
+    [
+        pytest.param("ner", ("ner",), id="single_string"),
+        pytest.param(None, (), id="none"),
+    ],
 )
 def test_extract_entities_nlp_normalizes_single_string_and_none(
     monkeypatch, tmp_path, disable, expected

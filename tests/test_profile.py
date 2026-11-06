@@ -1,6 +1,7 @@
 """Tests for the data quality profiling API and report structures."""
 
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import asdict
 
@@ -83,6 +84,32 @@ EXPECTED_STATS_KEYS_BY_KIND: dict[str, set[str]] = {
         "top_frequency",
         "top_proportion",
     },
+}
+
+# Fine-grained `infer_dtype` labels that assert a single scalar type. A column
+# holding both numbers and text must never be reported with one of these: the
+# exact "mixed*" spelling pandas uses varies across versions, so the contract
+# is asserted negatively instead of pinning a version-specific label.
+_SINGLE_TYPE_INFERRED_LABELS: set[str] = {
+    "integer",
+    "floating",
+    "decimal",
+    "complex",
+    "string",
+    "unicode",
+    "bytes",
+    "boolean",
+    "datetime64",
+    "datetime",
+    "date",
+    "timestamp",
+    "timedelta64",
+    "timedelta",
+    "time",
+    "period",
+    "interval",
+    "categorical",
+    "empty",
 }
 
 
@@ -314,11 +341,28 @@ def test_numeric_statistics():
     assert stats["max"] == 1000.0
     assert stats["zeros_count"] == 1
     assert pytest.approx(stats["zeros_proportion"]) == 1 / 6
-    assert stats["mean"] == float(np.mean(data))
-    assert stats["median"] == float(np.median(data))
-    assert stats["std"] == pytest.approx(float(pd.Series(data).std()))
-    assert stats["iqr"] is not None
-    assert stats["outliers_count"] == 1  # 1000.0 is detected as outlier
+
+    # Independently derived from the fixed input, not by re-running the pandas
+    # or NumPy aggregations the implementation itself uses. Sorted values are
+    # [0, 10, 20, 20, 30, 1000] with n = 6:
+    #   mean   = 1080 / 6 = 180.0
+    #   median = (20 + 20) / 2 = 20.0
+    #   q25    = 10 + 0.25 * (20 - 10) = 12.5   (linear interpolation)
+    #   q75    = 20 + 0.75 * (30 - 20) = 27.5
+    #   iqr    = q75 - q25 = 15.0
+    #   sample variance = 807400 / 5 = 161480.0, so std = sqrt(161480.0)
+    assert stats["mean"] == 180.0
+    assert stats["median"] == 20.0
+    assert stats["q25"] == 12.5
+    assert stats["q75"] == 27.5
+    assert stats["iqr"] == 15.0
+    # std is irrational, so a tight relative tolerance is justified; it still
+    # distinguishes the documented ddof=1 from ddof=0 (366.83...).
+    assert stats["std"] == pytest.approx(math.sqrt(161480.0), rel=1e-12)
+
+    # Tukey 1.5*IQR bounds are [12.5 - 22.5, 27.5 + 22.5] = [-10.0, 50.0];
+    # only 1000.0 falls outside, so exactly one outlier is counted.
+    assert stats["outliers_count"] == 1
 
 
 def test_categorical_and_text_statistics():
@@ -372,8 +416,11 @@ def test_datetime_statistics():
     assert col.distinct_count == 2
 
     stats = col.stats
-    assert "2024-01-01" in stats["min"]
-    assert "2024-01-05" in stats["max"]
+    # The contract formats min/max as ISO-8601 strings (`Timestamp.isoformat()`).
+    # Assert the exact value rather than a date substring so a wrong day, a
+    # wrong time, or a wrong format all fail.
+    assert stats["min"] == "2024-01-01T10:00:00"
+    assert stats["max"] == "2024-01-05T10:00:00"
     assert stats["range_days"] == pytest.approx(4.0)
 
 
@@ -382,8 +429,16 @@ def test_mixed_and_other_statistics():
     rep = df.bynat.profile()
     col = rep.columns["mixed"]
 
+    # `inferred_type` is pandas' raw `infer_dtype` label, whose exact spelling
+    # for mixed content is input- and version-dependent (this fixture yields
+    # "mixed-integer", but other mixed inputs or pandas versions can return a
+    # different "mixed*" label). The version-stable contract is the
+    # kind/label consistency: a column holding both numbers and text is
+    # classified as "other", so its label must not be one that maps to a
+    # single scalar kind.
     assert col.kind == "other"
-    assert col.inferred_type in ("mixed", "mixed-integer")
+    assert isinstance(col.inferred_type, str)
+    assert col.inferred_type not in _SINGLE_TYPE_INFERRED_LABELS
     assert col.count == 4
     assert col.distinct_count == 3
 
@@ -531,6 +586,31 @@ def test_duplicate_column_names_handling():
     assert rep.column_list[1].name == "a"
     df_summary = rep.to_dataframe()
     assert len(df_summary) == 2
+    assert df_summary["column"].tolist() == ["a", "a"]
+
+    # README "Working with a report" documents that `report.columns` holds one
+    # entry per name when a DataFrame has repeated column names, while
+    # `column_list` preserves every column by position. The ProfileReport
+    # docstring documents that the mapping keeps the last occurrence. Pin that
+    # documented mapping explicitly (PD-03): the name must not disappear from
+    # the mapping, the entry must describe the last column, and `to_dict()`
+    # must mirror the same mapping instead of losing it silently.
+    assert list(rep.columns.keys()) == ["a"]
+    assert len(rep.columns) == 1
+    assert isinstance(rep.columns["a"], ColumnProfile)
+    assert rep.columns["a"].name == "a"
+    assert rep.columns["a"].count == 2
+    assert rep.columns["a"].dtype == "int64"
+    assert rep.columns["a"].stats["min"] == 2  # last occurrence values are [2, 4]
+    assert rep.columns["a"].stats["max"] == 4
+
+    rep_dict = rep.to_dict()
+    assert list(rep_dict["columns"].keys()) == list(rep.columns.keys())
+    assert rep_dict["columns"]["a"]["name"] == "a"
+    assert rep_dict["columns"]["a"]["count"] == 2
+    assert rep_dict["columns"]["a"]["stats"]["min"] == 2
+    assert rep_dict["columns"]["a"]["stats"]["max"] == 4
+    assert set(rep_dict["columns"]["a"].keys()) == set(asdict(rep.columns["a"]).keys())
 
 def test_clean_scalar_bool_before_int():
     # Object column with booleans and strings must preserve bool type for top value

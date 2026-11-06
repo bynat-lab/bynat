@@ -4,6 +4,7 @@ import sys
 import threading
 import types
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -11,6 +12,7 @@ from bynat.caching import CacheManager
 from bynat.cleaning.enrich import (
     Geocoder,
     GoogleTranslatorProvider,
+    NominatimGeocoder,
     RateSource,
     Translator,
     YFinanceRateSource,
@@ -97,9 +99,103 @@ def _install_currency_lookup(monkeypatch):
 
 
 def test_default_providers_satisfy_the_protocols():
-    assert issubclass(DictTranslator, Translator)
-    assert issubclass(DictGeocoder, Geocoder)
-    assert issubclass(FakeRates, RateSource)
+    assert issubclass(GoogleTranslatorProvider, Translator)
+    assert issubclass(NominatimGeocoder, Geocoder)
+    assert issubclass(YFinanceRateSource, RateSource)
+
+
+def test_documented_enrich_exports_include_the_default_providers():
+    import bynat.cleaning.enrich as enrich
+
+    assert set(enrich.__all__) == {
+        "Translator",
+        "Geocoder",
+        "RateSource",
+        "GoogleTranslatorProvider",
+        "NominatimGeocoder",
+        "YFinanceRateSource",
+    }
+    for name in enrich.__all__:
+        assert callable(getattr(enrich, name))
+
+
+# Each public enrichment method builds its documented real default provider.
+def test_translate_categorical_column_constructs_the_default_google_translator(monkeypatch, tmp_path):
+    translators = []
+
+    class FakeGoogleTranslator:
+        def __init__(self, source, target):
+            translators.append((source, target))
+
+        def translate(self, text):
+            return text.upper()
+
+    _install(monkeypatch, "deep_translator", GoogleTranslator=FakeGoogleTranslator)
+    translated = pd.DataFrame({"status": ["abc", "abc"]}).bynat.with_cache(
+        tmp_path / "translate"
+    ).translate_categorical_column("status")
+
+    assert translated["status"].tolist() == ["ABC", "ABC"]
+    assert translators == [("auto", "en")]
+
+
+def test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder(monkeypatch, tmp_path):
+    geolocators = []
+
+    class FakeLocation:
+        latitude = 10.0
+        longitude = 20.0
+
+    class FakeNominatim:
+        def __init__(self, user_agent):
+            self.user_agent = user_agent
+            geolocators.append(self)
+
+        def geocode(self, query):
+            return FakeLocation() if query == "Paris" else None
+
+    class FakeRateLimiter:
+        def __init__(self, function, min_delay_seconds):
+            self.function = function
+            self.min_delay_seconds = min_delay_seconds
+
+        def __call__(self, query):
+            return self.function(query)
+
+    _install(monkeypatch, "geopy.geocoders", Nominatim=FakeNominatim)
+    _install(monkeypatch, "geopy.extra.rate_limiter", RateLimiter=FakeRateLimiter)
+    located = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]}).bynat.with_cache(
+        tmp_path / "geocode"
+    ).fill_missing_coordinates("city", lat_col="lat", long_col="lng")
+
+    assert located[["lat", "lng"]].iloc[0].tolist() == [10.0, 20.0]
+    assert [geolocator.user_agent for geolocator in geolocators] == [
+        "data_cleaning_core_geocoder"
+    ]
+
+
+def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch, tmp_path):
+    downloads = []
+
+    class FakeTicker:
+        def __init__(self, symbol):
+            self.symbol = symbol
+
+        def history(self, start, end):
+            downloads.append((self.symbol, start, end))
+            index = pd.to_datetime(["2020-06-01"])
+            return pd.DataFrame({"Close": [2.0]}, index=index)
+
+    _install_currency_lookup(monkeypatch)
+    _install(monkeypatch, "yfinance", Ticker=FakeTicker)
+    converted = pd.DataFrame(
+        {"country": ["Egypt"], "year": [2020], "salary": [100.0]}
+    ).bynat.with_cache(tmp_path / "currency").convert_to_usd(
+        "salary", country_col="country", year_col="year"
+    )
+
+    assert converted["salary_usd"].tolist() == [50.0]
+    assert downloads == [("EGP=X", "2020-01-01", "2020-12-31")]
 
 
 # ---------------------------------------------------------------------------
@@ -169,13 +265,38 @@ def test_default_google_provider_uses_one_translator_per_thread(monkeypatch):
 
 
 def test_rate_limited_map_runs_calls_concurrently():
-    barrier = threading.Barrier(3, timeout=5)
+    # Deterministic rendezvous: every call registers itself and waits for the
+    # release event, so the test observes all three calls in flight together
+    # before releasing them. A serialized implementation never reaches the
+    # rendezvous and fails on the wait below rather than on a barrier timeout.
+    lock = threading.Lock()
+    in_flight = []
+    all_in_flight = threading.Event()
+    release = threading.Event()
 
     def call(item):
-        barrier.wait()
+        with lock:
+            in_flight.append(item)
+            if len(in_flight) == 3:
+                all_in_flight.set()
+        release.wait()
         return item * 2
 
-    assert _rate_limited_map(call, [1, 2, 3], max_workers=3) == [2, 4, 6]
+    results = {}
+
+    def run():
+        results["value"] = _rate_limited_map(call, [1, 2, 3], max_workers=3)
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    try:
+        assert all_in_flight.wait(30), "the three calls did not run concurrently"
+    finally:
+        release.set()
+    worker.join(30)
+    assert not worker.is_alive()
+
+    assert results["value"] == [2, 4, 6]
 
 
 def test_rate_limited_map_spaces_call_starts(monkeypatch):
@@ -263,14 +384,94 @@ def test_translate_conditional_column_translates_only_foreign_partitions(monkeyp
 
 
 def test_translate_conditional_column_accepts_a_generator(monkeypatch, tmp_path):
-    import numpy as np
+    # detect_even marks a sampled text as foreign only when every sampled index is
+    # even, so the seeded sample sequence decides which partitions are translated.
+    def detect_even(text):
+        indices = [int(part.strip()[-1]) for part in text.split(" . ")]
+        return "ar" if all(index % 2 == 0 for index in indices) else "en"
 
-    _install_langdetect(monkeypatch, lambda text: "en")
-    frame = pd.DataFrame({"p": ["a"] * 5, "d": list("vwxyz"), "t": ["x"] * 5})
-
-    frame.bynat.with_cache(tmp_path).translate_conditional_column(
-        "p", "d", "t", sample_size=2, random_state=np.random.default_rng(3)
+    _install_langdetect(monkeypatch, detect_even)
+    frame = pd.DataFrame(
+        {
+            "p": ["a"] * 4 + ["b"] * 4,
+            "d": ["a0", "a1", "a2", "a3", "b0", "b1", "b2", "b3"],
+            "t": ["a0", "a1", "a2", "a3", "b0", "b1", "b2", "b3"],
+        }
     )
+
+    translator = DictTranslator({value: value.upper() for value in ("a0", "a1", "a2", "a3", "b0", "b1", "b2", "b3")})
+    generator = np.random.default_rng(6)
+
+    result = frame.bynat.with_cache(tmp_path).translate_conditional_column(
+        "p",
+        "d",
+        "t",
+        sample_size=2,
+        number_of_samples=3,
+        threshold=0.5,
+        random_state=generator,
+        provider=translator,
+    )
+
+    # With seed 6 the samples for partition 'a' are ['a1 . a2', 'a3 . a1', 'a3 . a1'],
+    # so 'a' reads as English and stays untranslated; partition 'b' reads as foreign
+    # and is translated. The whole target column is title-cased as well; this test
+    # pins that observed behavior, which the docstring and README do not state.
+    assert result["t"].tolist() == ["A0", "A1", "A2", "A3", "B0", "B1", "B2", "B3"]
+    # One provider call per unique value of the translated partition only.
+    assert translator.calls == [("b0", "en"), ("b1", "en"), ("b2", "en"), ("b3", "en")]
+
+    # An integer seed selects the same Generator path and reproduces the same output.
+    # A fresh cache directory is used so the comparison is not masked by cached translations.
+    translator.calls.clear()
+    seeded = frame.bynat.with_cache(tmp_path / "seeded").translate_conditional_column(
+        "p",
+        "d",
+        "t",
+        sample_size=2,
+        number_of_samples=3,
+        threshold=0.5,
+        random_state=6,
+        provider=translator,
+    )
+    assert seeded["t"].tolist() == result["t"].tolist()
+    assert translator.calls == [("b0", "en"), ("b1", "en"), ("b2", "en"), ("b3", "en")]
+
+    # A RandomState is accepted as the same kind of generator input. Its legacy sampling
+    # stream differs from the Generator stream for the same seed, so both partitions read
+    # as English here and nothing is translated.
+    translator.calls.clear()
+    legacy = frame.bynat.with_cache(tmp_path / "legacy").translate_conditional_column(
+        "p",
+        "d",
+        "t",
+        sample_size=2,
+        number_of_samples=3,
+        threshold=0.5,
+        random_state=np.random.RandomState(6),
+        provider=translator,
+    )
+    assert legacy["t"].tolist() == ["a0", "a1", "a2", "a3", "b0", "b1", "b2", "b3"]
+    assert translator.calls == []
+
+    # A RandomState must be consumed directly rather than coerced through default_rng:
+    # NumPy coerces a legacy RandomState to a Generator, whose sampling stream differs.
+    # With seed 4 the legacy stream marks partition 'b' as foreign, while the coerced
+    # stream reads both partitions as English, so deleting the explicit
+    # Generator/RandomState branch fails this assertion.
+    translator.calls.clear()
+    direct = frame.bynat.with_cache(tmp_path / "direct").translate_conditional_column(
+        "p",
+        "d",
+        "t",
+        sample_size=2,
+        number_of_samples=3,
+        threshold=0.5,
+        random_state=np.random.RandomState(4),
+        provider=translator,
+    )
+    assert direct["t"].tolist() == ["A0", "A1", "A2", "A3", "B0", "B1", "B2", "B3"]
+    assert translator.calls == [("b0", "en"), ("b1", "en"), ("b2", "en"), ("b3", "en")]
 
 
 # ---------------------------------------------------------------------------

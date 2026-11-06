@@ -29,12 +29,14 @@ def test_basedata_core_column_transformations_preserve_subclass_and_cache(tmp_pa
         },
         cache_dir=tmp_path,
     )
+    original = frame.copy(deep=True)
 
     renamed = frame.rename_all_DOTS()
     assert isinstance(renamed, BaseData)
     assert list(renamed.columns) == ["user_name", "user_id", "value"]
     assert renamed.cache_manager is not None
     assert list(frame.drop_by_substring("user").columns) == ["value"]
+    pd.testing.assert_frame_equal(frame, original)
 
     frame.move_column("value", "user_id", position="before", inplace=True)
     assert list(frame.columns) == ["user.name", "value", "user_id"]
@@ -53,6 +55,7 @@ def test_basedata_text_list_reshape_and_imputation_helpers(tmp_path):
         },
         cache_dir=tmp_path,
     )
+    original = frame.copy(deep=True)
 
     keywords = frame.extract_keywords("description", colors=["blue", "red"])
     assert keywords["colors"].tolist() == ["Blue", "Red"]
@@ -71,6 +74,8 @@ def test_basedata_text_list_reshape_and_imputation_helpers(tmp_path):
 
     imputed = frame.fill_missing("score", hierarchy_cols="group")
     assert imputed["score"].tolist() == [1.0, 1.0]
+
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_save_to_json_writes_local_output(tmp_path):
@@ -122,7 +127,8 @@ def test_impute_by_language_missing_reference_returns_before_optional_import(mon
 
     result = frame.impute_by_language("missing")
     assert result is not frame
-    assert result.equals(frame)
+    assert type(result) is type(frame)
+    pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(frame))
     assert frame.impute_by_language("missing", inplace=True) is None
 
 
@@ -169,6 +175,7 @@ def test_translate_conditional_safe_partition_does_not_import_deep_translator(mo
         {"partition": ["safe"], "description": ["already English"], "label": ["Existing Label"]},
         cache_dir=tmp_path,
     )
+    original = frame.copy(deep=True)
 
     result = frame.translate_conditional_column(
         partition_col="partition",
@@ -180,9 +187,11 @@ def test_translate_conditional_safe_partition_does_not_import_deep_translator(mo
         save_every=1,
     )
 
-    assert result.equals(frame)
+    assert type(result) is type(frame)
+    pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(frame))
     assert DetectorFactory.seed == 0
     assert len(detect_calls) == 2
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_translate_conditional_missing_langdetect_raises_documented_import_error(monkeypatch, tmp_path):
@@ -235,6 +244,7 @@ def test_hierarchy_methods_support_named_multi_and_duplicate_indexes(tmp_path, i
         index=index,
         cache_dir=tmp_path,
     )
+    original = frame.copy(deep=True)
 
     handled = frame.handle_outliers("v", hierarchy_cols=["g"])
     dropped = frame.drop_outliers("v", hierarchy_cols=["g"])
@@ -243,6 +253,7 @@ def test_hierarchy_methods_support_named_multi_and_duplicate_indexes(tmp_path, i
     assert handled.index.equals(index)
     assert dropped["v"].tolist() == [1.0, 2.0, 3.0, 4.0, 5.0]
     assert dropped.index.equals(index[:5])
+    pd.testing.assert_frame_equal(frame, original)
 
     in_place = frame.copy()
     assert in_place.drop_outliers("v", hierarchy_cols=["g"], inplace=True) is None
@@ -327,7 +338,7 @@ def test_save_to_sql_rejects_invalid_arguments_before_connecting(monkeypatch, tm
         BaseData({"a": [1]}, cache_dir=tmp_path).save_to_sql(**arguments)
 
 
-def test_fill_missing_min_samples_and_fallback_global_reproduction(tmp_path):
+def test_fill_missing_min_samples_and_fallback_global_reproduction():
     from bynat.cleaning import stats
 
     # 1) A group with no observed values stays NaN by default, filled when fallback_global=True
@@ -335,6 +346,8 @@ def test_fill_missing_min_samples_and_fallback_global_reproduction(tmp_path):
         "country": ["EG", "EG", "EG", "US", "US", "DE"],
         "salary":  [10.0, 14.0, np.nan, 70.0, 90.0, np.nan],
     })
+    df1_before = df1.copy(deep=True)
+
     default_res = stats.fill_missing(df1, "salary", strategy="median", hierarchy_cols=["country"])
     assert pd.isna(default_res.loc[5, "salary"])
     assert default_res.loc[2, "salary"] == 12.0
@@ -351,6 +364,7 @@ def test_fill_missing_min_samples_and_fallback_global_reproduction(tmp_path):
         "country": ["EG", "EG", "US", "US"],
         "salary":  [10.0, np.nan, 1000.0, np.nan],
     })
+    df2_before = df2.copy(deep=True)
     res_min1 = stats.fill_missing(df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=1)
     assert res_min1.loc[1, "salary"] == 10.0
     assert res_min1.loc[3, "salary"] == 1000.0
@@ -375,6 +389,9 @@ def test_fill_missing_min_samples_and_fallback_global_reproduction(tmp_path):
     assert res_none_global.loc[2, "salary"] == 42.0
     assert res_none_global.loc[5, "salary"] == 42.0
 
+    pd.testing.assert_frame_equal(df1, df1_before)
+    pd.testing.assert_frame_equal(df2, df2_before)
+
 
 def test_fill_missing_validates_min_samples(tmp_path):
     frame = BaseData({"g": ["a", "a"], "v": [1.0, None]}, cache_dir=tmp_path)
@@ -392,12 +409,13 @@ def test_fill_missing_validates_min_samples(tmp_path):
         frame.fill_missing("v", hierarchy_cols="g", min_samples="2")  # type: ignore[arg-type]
 
 
-def test_fill_missing_hierarchical_fallthrough_multi_level(tmp_path):
+def test_fill_missing_hierarchical_fallthrough_multi_level():
     df = pd.DataFrame({
         "country": ["EG", "EG", "EG", "EG", "US", "US"],
         "city":    ["Cairo", "Cairo", "Alex", "Alex", "NYC", "NYC"],
         "salary":  [100.0, np.nan, 20.0, 40.0, 500.0, np.nan],
     })
+    original = df.copy(deep=True)
 
     res_no_global = df.bynat.fill_missing(
         "salary", strategy="median", hierarchy_cols=["country", "city"], min_samples=2
@@ -411,13 +429,16 @@ def test_fill_missing_hierarchical_fallthrough_multi_level(tmp_path):
     assert res_global.loc[1, "salary"] == 40.0
     assert res_global.loc[5, "salary"] == 70.0
 
+    pd.testing.assert_frame_equal(df, original)
 
-def test_fill_missing_all_strategies_with_fallbacks(tmp_path):
+
+def test_fill_missing_all_strategies_with_fallbacks():
     df = pd.DataFrame({
         "group": ["A", "A", "B", "B"],
         "num":   [10.0, np.nan, 50.0, np.nan],
         "cat":   ["x", None, "y", None],
     })
+    original = df.copy(deep=True)
 
     res_mean = df.bynat.fill_missing(
         "num", strategy="mean", hierarchy_cols=["group"], min_samples=2, fallback_global=True
@@ -434,13 +455,17 @@ def test_fill_missing_all_strategies_with_fallbacks(tmp_path):
     )
     assert res_mod["cat"].tolist() == ["x", "x", "y", "x"]
 
+    pd.testing.assert_frame_equal(df, original)
 
-def test_fill_missing_all_nan_column(tmp_path):
+
+def test_fill_missing_all_nan_column():
     df = pd.DataFrame({
         "group": ["A", "A", "B", "B"],
         "val":   [np.nan, np.nan, np.nan, np.nan],
     })
+    original = df.copy(deep=True)
     res = df.bynat.fill_missing(
         "val", strategy="median", hierarchy_cols=["group"], min_samples=2, fallback_global=True
     )
     assert res["val"].isna().all()
+    pd.testing.assert_frame_equal(df, original)

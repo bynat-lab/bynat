@@ -192,12 +192,14 @@ def keyword_frame(request):
     ],
 )
 def test_extract_keywords_literal_matches_legacy(keyword_frame, keywords, remove_extracted):
+    original = keyword_frame.copy(deep=True)
     expected = _legacy_extract_keywords(
         keyword_frame, "title", "body", remove_extracted=remove_extracted, found=keywords
     )
     actual = text.extract_keywords(keyword_frame, "title", "body", remove_extracted=remove_extracted, found=keywords)
 
     pd.testing.assert_frame_equal(actual, expected)
+    pd.testing.assert_frame_equal(keyword_frame, original)
 
 
 @pytest.mark.parametrize("remove_extracted", [False, True])
@@ -210,6 +212,7 @@ def test_extract_keywords_literal_matches_legacy(keyword_frame, keywords, remove
     ],
 )
 def test_extract_keywords_regex_matches_legacy(keyword_frame, patterns, remove_extracted):
+    original = keyword_frame.copy(deep=True)
     expected = _legacy_extract_keywords(
         keyword_frame, "title", "body", remove_extracted=remove_extracted, use_regex=True, found=patterns
     )
@@ -218,10 +221,12 @@ def test_extract_keywords_regex_matches_legacy(keyword_frame, patterns, remove_e
     )
 
     pd.testing.assert_frame_equal(actual, expected)
+    pd.testing.assert_frame_equal(keyword_frame, original)
 
 
 @pytest.mark.parametrize("use_regex", [False, True])
 def test_extract_keywords_repeated_calls_into_existing_column_match_legacy(keyword_frame, use_regex):
+    original = keyword_frame.copy(deep=True)
     first = ["blue"] if not use_regex else [r"(blue)"]
     second = ["red", "blue"] if not use_regex else [r"(red)", r"(blue)"]
 
@@ -232,10 +237,12 @@ def test_extract_keywords_repeated_calls_into_existing_column_match_legacy(keywo
     actual = text.extract_keywords(actual, "body", use_regex=use_regex, existing=second)
 
     pd.testing.assert_frame_equal(actual, expected)
+    pd.testing.assert_frame_equal(keyword_frame, original)
 
 
 def test_extract_keywords_aho_corasick_and_regex_paths_agree(monkeypatch, keyword_frame):
     pytest.importorskip("ahocorasick")
+    original = keyword_frame.copy(deep=True)
     keywords = ["data", "data analyst", "analyst", "c++", ".net", "x_y", "red"]
 
     with_automaton = text.extract_keywords(keyword_frame, "title", "body", found=keywords)
@@ -243,14 +250,17 @@ def test_extract_keywords_aho_corasick_and_regex_paths_agree(monkeypatch, keywor
     regex_only = text.extract_keywords(keyword_frame, "title", "body", found=keywords)
 
     pd.testing.assert_frame_equal(with_automaton, regex_only)
+    pd.testing.assert_frame_equal(keyword_frame, original)
 
 
 def test_extract_keywords_overlapping_keywords_respect_priority():
     frame = pd.DataFrame({"text": ["x ab c", "ab c x", "x ab"]})
+    original = frame.copy(deep=True)
 
     result = text.extract_keywords(frame, "text", found=["ab c", "x ab"])
 
     assert result["found"].tolist() == ["Ab C", "Ab C", "X Ab"]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +342,7 @@ def _brute_force_outliers(df, target_cols, hierarchy_cols, min_samples, blank_fo
 @pytest.mark.parametrize("min_samples", [3, 20])
 def test_outliers_match_a_brute_force_reference(seed, min_samples):
     frame = _outlier_frame(seed).iloc[:150]
+    original = frame.copy(deep=True)
     hierarchy = ["country", "title"]
 
     _, expected_handled = _brute_force_outliers(frame, ["bonus", "salary"], hierarchy, min_samples, True)
@@ -342,6 +353,7 @@ def test_outliers_match_a_brute_force_reference(seed, min_samples):
 
     pd.testing.assert_frame_equal(handled.reset_index(drop=True), expected_handled)
     pd.testing.assert_frame_equal(dropped, frame.iloc[np.flatnonzero(~flagged)])
+    pd.testing.assert_frame_equal(frame, original)
 
 
 @_LEGACY_RELIABLE
@@ -349,6 +361,7 @@ def test_outliers_match_a_brute_force_reference(seed, min_samples):
 @pytest.mark.parametrize("min_samples", [1, 3, 5, 20])
 def test_handle_and_drop_outliers_match_legacy(seed, min_samples):
     frame = _outlier_frame(seed)
+    original = frame.copy(deep=True)
     hierarchy = ["country", "title", "company"]
 
     pd.testing.assert_frame_equal(
@@ -359,24 +372,29 @@ def test_handle_and_drop_outliers_match_legacy(seed, min_samples):
         stats.drop_outliers(frame, "salary", "bonus", hierarchy_cols=hierarchy, min_samples=min_samples),
         _legacy_drop_outliers(frame, "salary", "bonus", hierarchy_cols=hierarchy, min_samples=min_samples),
     )
+    pd.testing.assert_frame_equal(frame, original)
 
 
 @_LEGACY_RELIABLE
 def test_outliers_match_legacy_with_categorical_hierarchy():
     frame = _outlier_frame(7)
     frame["country"] = frame["country"].astype(pd.CategoricalDtype(["EG", "US", "FR", "ZZ"]))
+    original = frame.copy(deep=True)
 
     pd.testing.assert_frame_equal(
         stats.handle_outliers(frame, "bonus", hierarchy_cols=["country", "title"], min_samples=4),
         _legacy_handle_outliers(frame, "bonus", hierarchy_cols=["country", "title"], min_samples=4),
     )
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_outlier_masks_do_not_merge(monkeypatch):
     frame = _outlier_frame(0)
+    original = frame.copy(deep=True)
 
     def unexpected_merge(*args, **kwargs):
         pytest.fail("the one-pass IQR must not merge bounds back")
 
     monkeypatch.setattr(pd.DataFrame, "merge", unexpected_merge)
     stats.drop_outliers(frame, "bonus", hierarchy_cols=["country", "title"])
+    pd.testing.assert_frame_equal(frame, original)

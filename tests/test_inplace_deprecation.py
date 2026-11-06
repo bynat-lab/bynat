@@ -10,12 +10,10 @@ from bynat.cleaning import BaseData
 
 
 def _frame(tmp_path, data=None):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        return BaseData(
-            data if data is not None else {"id": [1, 2], "latitude": [1.0, 2.0], "name": ["a", "b"]},
-            cache_dir=tmp_path,
-        )
+    return BaseData(
+        data if data is not None else {"id": [1, 2], "latitude": [1.0, 2.0], "name": ["a", "b"]},
+        cache_dir=tmp_path,
+    )
 
 
 # Calls that take an early-exit path because nothing needs changing.
@@ -69,7 +67,8 @@ def test_early_exit_with_stats_returns_a_copy(tmp_path):
     result, stats = frame.handle_outliers("v", hierarchy_cols=[], get_hierarchical_stats=True)
 
     assert result is not frame
-    assert result.equals(frame)
+    assert type(result) is type(frame)
+    pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(frame))
     assert stats.empty
 
 
@@ -86,17 +85,38 @@ def test_inplace_true_still_mutates_and_returns_none(tmp_path):
 @pytest.mark.parametrize(
     ("call", "returns_stats", "removes_outlier"),
     [
-        (lambda frame: frame.handle_outliers("v", hierarchy_cols=["g"], inplace=True), False, True),
-        (
+        pytest.param(
+            lambda frame: frame.handle_outliers("v", hierarchy_cols=["g"], inplace=True),
+            False,
+            True,
+            id="handle_outliers",
+        ),
+        pytest.param(
             lambda frame: frame.handle_outliers(
                 "v", hierarchy_cols=["g"], inplace=True, get_hierarchical_stats=True
             ),
             True,
             True,
+            id="handle_outliers_with_stats",
         ),
-        (lambda frame: frame.fill_missing("v", hierarchy_cols="g", inplace=True), False, False),
-        (lambda frame: frame.fill_missing_from(frame, "v", hierarchy_cols="g", inplace=True), False, False),
-        (lambda frame: frame.rename_all_DOTS(inplace=True), False, False),
+        pytest.param(
+            lambda frame: frame.fill_missing("v", hierarchy_cols="g", inplace=True),
+            False,
+            False,
+            id="fill_missing",
+        ),
+        pytest.param(
+            lambda frame: frame.fill_missing_from(frame, "v", hierarchy_cols="g", inplace=True),
+            False,
+            False,
+            id="fill_missing_from",
+        ),
+        pytest.param(
+            lambda frame: frame.rename_all_DOTS(inplace=True),
+            False,
+            False,
+            id="rename_all_DOTS",
+        ),
     ],
 )
 def test_every_inplace_path_is_silent_and_preserves_behavior(
@@ -146,11 +166,13 @@ def test_split_list_objects_inplace_explode_reshapes_the_original(tmp_path):
 
 def test_melt_transform_pivot_result_keeps_the_cache_manager(tmp_path):
     frame = _frame(tmp_path, {"id": [1, 2], "left": ["a", "b"], "right": ["c", "d"]})
+    original = frame.copy(deep=True)
 
     result = frame.melt_transform_pivot(id_vars="id", transform_func=lambda values: values.str.upper())
 
     assert isinstance(result, BaseData)
     assert result.cache_manager is frame.cache_manager
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_inplace_results_are_not_aliases(tmp_path):

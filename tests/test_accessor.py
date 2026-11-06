@@ -57,9 +57,7 @@ def test_accessor_methods_return_new_plain_frames_and_leave_the_source_alone():
 
 def test_accessor_matches_basedata_results(tmp_path):
     data = {"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]}
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        legacy = BaseData(data, cache_dir=tmp_path)
+    legacy = BaseData(data, cache_dir=tmp_path)
 
     plain = pd.DataFrame(data)
 
@@ -153,9 +151,9 @@ def test_read_helpers_raise_like_the_legacy_loaders(tmp_path):
 @pytest.mark.parametrize(
     "factory",
     [
-        lambda path: BaseData({"a": [1]}, cache_dir=path),
-        lambda path: JsonFile({"a": [1]}, cache_dir=path),
-        lambda path: CsvFile({"a": [1]}, cache_dir=path),
+        pytest.param(lambda path: BaseData({"a": [1]}, cache_dir=path), id="BaseData"),
+        pytest.param(lambda path: JsonFile({"a": [1]}, cache_dir=path), id="JsonFile"),
+        pytest.param(lambda path: CsvFile({"a": [1]}, cache_dir=path), id="CsvFile"),
     ],
 )
 def test_supported_classes_construct_without_warning(tmp_path, factory):
@@ -174,9 +172,7 @@ def test_supported_classes_construct_without_warning(tmp_path, factory):
 
 
 def test_pandas_operations_share_the_legacy_cache_manager(monkeypatch, tmp_path):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        frame = BaseData({"g": ["a", "b"], "v": [1, 2]}, cache_dir=tmp_path)
+    frame = BaseData({"g": ["a", "b"], "v": [1, 2]}, cache_dir=tmp_path)
 
     manager = frame.cache_manager
     built = []

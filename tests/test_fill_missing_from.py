@@ -7,7 +7,7 @@ import pytest
 from bynat.cleaning import BaseData, stats
 
 
-def test_fill_missing_from_basic_imputation(tmp_path):
+def test_fill_missing_from_basic_imputation():
     """Test basic column-wide and 1-level hierarchical reference imputation with mean, median, mode."""
     train = pd.DataFrame({
         "country": ["EG", "EG", "US", "US"],
@@ -19,6 +19,8 @@ def test_fill_missing_from_basic_imputation(tmp_path):
         "salary": [np.nan, np.nan, np.nan],
         "category": [None, None, None],
     })
+    train_before = train.copy(deep=True)
+    test_before = test.copy(deep=True)
 
     # Hierarchical median with fallback_global=True
     res_median = test.bynat.fill_missing_from(
@@ -65,8 +67,11 @@ def test_fill_missing_from_basic_imputation(tmp_path):
     )
     assert res_mod["category"].tolist() == ["A", "B", "A"]
 
+    pd.testing.assert_frame_equal(test, test_before)
+    pd.testing.assert_frame_equal(train, train_before)
 
-def test_fill_missing_from_prevents_statistical_leakage(tmp_path):
+
+def test_fill_missing_from_prevents_statistical_leakage():
     """Verify that target DataFrame values never affect calculated statistics and train is immutable."""
     train = pd.DataFrame({
         "country": ["EG", "EG", "US", "US"],
@@ -79,6 +84,7 @@ def test_fill_missing_from_prevents_statistical_leakage(tmp_path):
         "country": ["EG", "EG", "US", "US"],
         "salary": [999999.0, np.nan, -999999.0, np.nan],
     })
+    test_before = test.copy(deep=True)
 
     res = test.bynat.fill_missing_from(
         train,
@@ -93,9 +99,10 @@ def test_fill_missing_from_prevents_statistical_leakage(tmp_path):
 
     # Reference dataset must remain completely unmodified
     pd.testing.assert_frame_equal(train, train_copy)
+    pd.testing.assert_frame_equal(test, test_before)
 
 
-def test_fill_missing_from_hierarchical_fallthrough_and_min_samples(tmp_path):
+def test_fill_missing_from_hierarchical_fallthrough_and_min_samples():
     """Test multi-level hierarchies and min_samples fallthrough using reference statistics."""
     train = pd.DataFrame({
         "country": ["EG", "EG", "EG", "US", "US"],
@@ -108,6 +115,8 @@ def test_fill_missing_from_hierarchical_fallthrough_and_min_samples(tmp_path):
         "city": ["Cairo", "Alex", "LA", "London"],
         "score": [np.nan, np.nan, np.nan, np.nan],
     })
+    train_before = train.copy(deep=True)
+    test_before = test.copy(deep=True)
 
     # With min_samples=2:
     # Level 2 ('country', 'city'):
@@ -144,8 +153,11 @@ def test_fill_missing_from_hierarchical_fallthrough_and_min_samples(tmp_path):
     assert res_no_global["score"].iloc[:3].tolist() == [12.0, 14.0, 150.0]
     assert pd.isna(res_no_global["score"].iloc[3])
 
+    pd.testing.assert_frame_equal(test, test_before)
+    pd.testing.assert_frame_equal(train, train_before)
 
-def test_fill_missing_from_match_cols(tmp_path):
+
+def test_fill_missing_from_match_cols():
     """Test match_cols mapping between target and reference schemas."""
     # Reference uses 'nation', 'town', 'income'
     train = pd.DataFrame({
@@ -160,6 +172,8 @@ def test_fill_missing_from_match_cols(tmp_path):
         "city": ["Cairo", "NYC", "Berlin"],
         "salary": [np.nan, np.nan, np.nan],
     })
+    train_before = train.copy(deep=True)
+    test_before = test.copy(deep=True)
 
     mapping = {
         "country": "nation",
@@ -189,8 +203,11 @@ def test_fill_missing_from_match_cols(tmp_path):
     )
     assert res_targets["salary"].tolist() == [15.0, 150.0, 82.5]
 
+    pd.testing.assert_frame_equal(test, test_before)
+    pd.testing.assert_frame_equal(train, train_before)
 
-def test_fill_missing_from_validation(tmp_path):
+
+def test_fill_missing_from_validation():
     """Test validation of dataset, match_cols, hierarchy, types, and parameters."""
     valid_train = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
     target = pd.DataFrame({"g": ["a", "b"], "v": [np.nan, 2.0]})
@@ -266,41 +283,53 @@ def test_fill_missing_from_validation(tmp_path):
         target.bynat.fill_missing_from(valid_train, "v", strategy="unknown")
 
 
-def test_fill_missing_from_edge_cases(tmp_path):
-    """Test empty target, no-missing-values target, all-missing reference column, and unhashable values."""
+def test_fill_missing_from_edge_cases():
+    """Test empty target, no-missing target, all-missing target, and all-null reference column."""
     train = pd.DataFrame({
         "g": ["a", "b"],
         "num": [10.0, 20.0],
         "all_null": [np.nan, np.nan],
     })
+    train_before = train.copy(deep=True)
 
     # Empty target DataFrame
     empty_target = pd.DataFrame(columns=["g", "num"])
+    empty_before = empty_target.copy(deep=True)
     res_empty = empty_target.bynat.fill_missing_from(train, "num")
     assert res_empty.empty
     assert list(res_empty.columns) == ["g", "num"]
+    pd.testing.assert_frame_equal(empty_target, empty_before)
 
     # Target has no missing values
     clean_target = pd.DataFrame({"g": ["a", "b"], "num": [1.0, 2.0]})
+    clean_before = clean_target.copy(deep=True)
     res_clean = clean_target.bynat.fill_missing_from(train, "num")
     assert res_clean["num"].tolist() == [1.0, 2.0]
+    pd.testing.assert_frame_equal(clean_target, clean_before)
 
     # Target has all missing values
     all_null_target = pd.DataFrame({"g": ["a", "b"], "num": [np.nan, np.nan]})
+    all_null_before = all_null_target.copy(deep=True)
     res_all_null = all_null_target.bynat.fill_missing_from(train, "num", hierarchy_cols=["g"])
     assert res_all_null["num"].tolist() == [10.0, 20.0]
+    pd.testing.assert_frame_equal(all_null_target, all_null_before)
 
     # Reference column contains entirely missing values
     target_for_null_ref = pd.DataFrame({"g": ["a", "b"], "all_null": [np.nan, np.nan]})
+    null_ref_before = target_for_null_ref.copy(deep=True)
     res_ref_null = target_for_null_ref.bynat.fill_missing_from(
         train, "all_null", hierarchy_cols=["g"], fallback_global=True
     )
     assert res_ref_null["all_null"].isna().all()
+    pd.testing.assert_frame_equal(target_for_null_ref, null_ref_before)
+
+    pd.testing.assert_frame_equal(train, train_before)
 
 
-def test_fill_missing_from_index_preservation(tmp_path):
+def test_fill_missing_from_index_preservation():
     """Test index and row-order preservation with named, duplicate, and MultiIndex objects."""
     train = pd.DataFrame({"g": ["a", "b"], "v": [10.0, 20.0]})
+    train_before = train.copy(deep=True)
 
     for idx in [
         pd.Index(range(100, 104), name="row_id"),
@@ -311,16 +340,22 @@ def test_fill_missing_from_index_preservation(tmp_path):
             {"g": ["a", "a", "b", "b"], "v": [np.nan, 5.0, np.nan, 15.0], "extra": [1, 2, 3, 4]},
             index=idx,
         )
+        target_before = target.copy(deep=True)
         res = target.bynat.fill_missing_from(train, "v", hierarchy_cols=["g"])
         assert res.index.equals(target.index)
         assert res["v"].tolist() == [10.0, 5.0, 20.0, 15.0]
         assert res["extra"].tolist() == [1, 2, 3, 4]
+        pd.testing.assert_frame_equal(target, target_before)
+
+    pd.testing.assert_frame_equal(train, train_before)
 
 
 def test_fill_missing_from_basedata_and_contracts(tmp_path):
     """Test BaseData wrapper, inplace mutation, and get_hierarchical_stats contract."""
     train = BaseData({"g": ["a", "a", "b"], "v": [10.0, 20.0, 30.0]}, cache_dir=tmp_path)
     target = BaseData({"g": ["a", "b", "c"], "v": [np.nan, np.nan, np.nan]}, cache_dir=tmp_path)
+    train_before = train.copy(deep=True)
+    target_before = target.copy(deep=True)
 
     # get_hierarchical_stats=True
     res, stats_df = target.fill_missing_from(
@@ -332,6 +367,8 @@ def test_fill_missing_from_basedata_and_contracts(tmp_path):
     assert "strategy" in stats_df.columns
     assert "statistic" in stats_df.columns
     assert set(stats_df["statistic"].tolist()) == {15.0, 30.0}
+    pd.testing.assert_frame_equal(target, target_before)
+    pd.testing.assert_frame_equal(train, train_before)
 
     # inplace=True
     mutating = target.copy()
@@ -341,14 +378,16 @@ def test_fill_missing_from_basedata_and_contracts(tmp_path):
     assert pd.isna(mutating["v"].iloc[2])
 
 
-def test_existing_fill_missing_remains_unchanged(tmp_path):
+def test_existing_fill_missing_remains_unchanged():
     """Regression test ensuring existing fill_missing behavior remains unchanged."""
     df = pd.DataFrame({
         "country": ["EG", "EG", "EG", "US", "US", "DE"],
         "salary": [10.0, 14.0, np.nan, 70.0, 90.0, np.nan],
     })
+    original = df.copy(deep=True)
 
     # Existing fill_missing call without new parameters
     res = df.bynat.fill_missing("salary", strategy="median", hierarchy_cols=["country"])
     assert res.loc[2, "salary"] == 12.0
     assert pd.isna(res.loc[5, "salary"])
+    pd.testing.assert_frame_equal(df, original)

@@ -124,11 +124,13 @@ def test_translate_categorical_column_translates_each_unique_value_once(monkeypa
     monkeypatch.setattr("time.sleep", lambda seconds: None)
 
     frame = BaseData({"status": ["مكتمل", "قيد الانتظار", "مكتمل", None]}, cache_dir=tmp_path)
+    original = frame.copy(deep=True)
     result = frame.translate_categorical_column("status")
 
     assert result["status"].tolist()[:3] == ["Completed", "Pending", "Completed"]
     assert pd.isna(result["status"].iloc[3])
     assert sorted(calls) == sorted(["مكتمل", "قيد الانتظار"])
+    pd.testing.assert_frame_equal(frame, original)
 
     # A second frame with the same cache directory needs no translator calls.
     calls.clear()
@@ -179,6 +181,7 @@ def test_fill_missing_coordinates_shortens_queries_and_caches_misses(monkeypatch
         },
         cache_dir=tmp_path,
     )
+    original = frame.copy(deep=True)
 
     result = frame.fill_missing_coordinates(
         "street", "city", "country", lat_col="lat", long_col="lng", user_agent="bynat-tests"
@@ -212,6 +215,7 @@ def test_fill_missing_coordinates_shortens_queries_and_caches_misses(monkeypatch
         "street", "city", "country", lat_col="lat", long_col="lng", retry_not_found=True
     )
     assert calls == ["Nowhere Rd, Atlantis", "Atlantis"]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def _install_currency(monkeypatch, history_by_ticker_year, fetches):
@@ -262,6 +266,7 @@ def test_convert_to_usd_looks_back_and_caches_missing_years(monkeypatch, tmp_pat
         cache_dir=tmp_path,
     )
     frame.loc["d"] = ["Egypt", 2019, 34.0]
+    original = frame.copy(deep=True)
 
     result = frame.convert_to_usd("salary", country_col="country", year_col="year", round_decimals=2)
 
@@ -293,6 +298,7 @@ def test_convert_to_usd_looks_back_and_caches_missing_years(monkeypatch, tmp_pat
     fetches.clear()
     frame.convert_to_usd("salary", country_col="country", year_col="year")
     assert fetches == []
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_extract_entities_nlp_default_disable_reaches_both_pipe_calls(monkeypatch, tmp_path):
@@ -393,7 +399,10 @@ def test_extract_entities_nlp_custom_disable_reaches_both_pipe_calls(monkeypatch
 
 @pytest.mark.parametrize(
     ("disable", "expected"),
-    [("ner", ("ner",)), (None, ())],
+    [
+        pytest.param("ner", ("ner",), id="single_string"),
+        pytest.param(None, (), id="none"),
+    ],
 )
 def test_extract_entities_nlp_normalizes_single_string_and_none(
     monkeypatch, tmp_path, disable, expected
@@ -544,6 +553,7 @@ def test_categorize_by_reference_with_real_pyahocorasick(tmp_path):
         {"title": ["Senior Python Developer", "Data Analyst", "Chef", None]},
         cache_dir=tmp_path,
     )
+    original = frame.copy(deep=True)
 
     result = frame.categorize_by_reference(
         "title",
@@ -552,6 +562,7 @@ def test_categorize_by_reference_with_real_pyahocorasick(tmp_path):
     )
 
     assert result["family"].tolist() == ["Engineering", "Data", "Other", "Other"]
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_save_to_sql_with_real_sqlalchemy_and_sqlite(tmp_path):

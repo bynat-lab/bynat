@@ -21,7 +21,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 ## 3. Current state (`0.6.5`)
 
 - **Python:** `>=3.11`. CI runs Ubuntu and Windows on 3.11 and 3.13, a Ruff lint job, and an extras job (`.[categorization,sql]`).
-- **Tests:** 315 full-suite tests pass on pandas 3 (pandas 2 skips the comparisons against the `0.3.0` outlier merge, which mishandles null keys there). Six are skipped unless the `categorization` and `sql` extras are installed. Equivalence tests for the optimized methods live in `tests/test_equivalence.py`.
+- **Tests:** 337 tests are collected and pass in the local pandas 3 environment (a measured local result, not proof for every CI matrix combination; the passing set depends on the pandas version). pandas 2 skips the comparisons against the `0.3.0` outlier merge, which mishandles null keys there. Six are skipped unless the `categorization` and `sql` extras are installed. Equivalence tests for the optimized methods live in `tests/test_equivalence.py`.
 - **Lint:** `ruff check bynat tests benchmarks` is clean with `E`, `F`, `W`, `I`, `UP` (`E501` ignored; see `pyproject.toml`).
 - **Types:** `python -m mypy` is clean for the scope in `[tool.mypy]`: the cache manager and the cleaning helpers. The supported class wrappers in `bynat/cleaning/base.py` may remain outside the initial scope while the remaining helper modules are brought into coverage incrementally; this is not a removal plan.
 - **Row-wise iteration audit:** no `apply(axis=1)`, `iterrows`, or `itertuples` in `bynat/`. Unique-value loops exist in the enrichment methods by design (Principle 1).
@@ -98,6 +98,17 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** add declarative checks for required columns, missing-value policies, uniqueness, numeric ranges, and allowed values. Return structured validation results identifying failed checks and relevant violations. Keep validation separate from automatic cleaning.
 - **Done when:** supported rules can be declared and evaluated through a documented API, results identify failures clearly, and tests cover valid data, invalid data, and edge cases without modifying the input.
 
+#### `TEST-01`: comprehensive test suite audit and quality improvement (P1, L)
+- **Problem:** The existing test suite may contain weak assertions, implementation-dependent expected results, insufficient edge-case coverage, inadequate fixtures, and gaps in public-contract coverage. Passing tests alone do not establish that the suite can reliably detect incorrect behavior.
+- **Plan:**
+  1. **Phase 1 — Inventory & Audit:** Inventory all existing tests, map them to public contracts and behaviors, assess their quality, and document findings without modifying tests or production code.
+  2. **Phase 2 — Quality Remediation:** Strengthen weak tests, independently derive expected results, improve fixtures and isolation, and address identified test-quality issues without weakening valid expectations.
+  3. **Phase 3 — Contract & Coverage Gaps:** Add missing contract, regression, integration, and boundary-condition tests. Align test classification and execution with `TESTING_STANDARDS.md` and its adoption phases.
+  4. **Phase 4 — Final Verification:** Run the applicable test suite and validation commands, verify test accounting and regression safety, and document final results and remaining gaps.
+- **Done when:** Every existing test has an explicit audit disposition; identified test-quality issues and missing contract coverage are addressed or justified; all changes preserve valid behavioral expectations; and final verification provides reproducible results and a documented acceptance report.
+- **Execution constraint:** Use the existing configured Subagent workflow for all investigation, implementation, and test execution. The Supervisor only delegates, coordinates, reviews evidence, and makes acceptance decisions; it must not perform these tasks independently.
+- **Scope constraint:** Keep all work within the existing testing-related PR. Production-code defects discovered during the audit must be documented separately rather than silently hidden by test changes.
+
 ### Milestone 9 (`0.9.0`): API maintenance
 
 #### `DEPR-02`: standardize transformation behavior and maintenance boundaries (P2, S)
@@ -105,10 +116,20 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** standardize `inplace` behavior according to `API-02`, without deleting `BaseData`, `JsonFile`, `CsvFile`, or `bynat/cleaning/base.py`. Add the remaining helper modules to the mypy scope; the class wrappers may remain a separate gradual-typing boundary. Keep the `bynat.cleaning.Cleaning` and `bynat.caching.Caching` aliases for at least one additional minor release.
 - **Done when:** the `inplace` mutation and return behavior is documented and tested consistently, the supported class API and imports continue to work, the remaining helper modules are covered by mypy, the aliases remain available for the stated period, and the full test suite and mypy checks pass.
 
+#### `QA-02`: mutation testing tooling and first advisory run (P2, S)
+- **Problem:** the testing policy names Cosmic Ray as the primary mutation tool and plans a scheduled advisory run, but the tool is not declared in the `dev` extra and no session configuration or scheduled job exists, so the policy cannot be executed.
+- **Plan:** declare Cosmic Ray (and optionally mutmut for POSIX/WSL runs) in the `dev` extra, add the Cosmic Ray session configuration for the core scope (`bynat/cleaning/stats.py`, `bynat/cleaning/enrich/engine.py`, `bynat/caching/manager.py`), and add a scheduled advisory run that uploads the report. Keep the run advisory, not a merge gate.
+- **Done when:** the tool and configuration are committed, a scheduled advisory run produces a report, and the first survivor set is triaged.
+
 #### `PERF-05`: rates through the engine (P3, S)
 - **Problem:** `convert_to_usd` resolves currency codes through `_cached_map`, but year-range rate downloads remain a dedicated loop because each fetch populates multiple `CODE_YEAR` keys.
 - **Plan:** revisit integration if the engine gains a multi-key store. Keep the existing dedicated download loop until that abstraction provides a clear benefit.
 - **Done when:** the existing implementation remains documented as intentional or a multi-key engine integration is implemented with equivalent results and tests.
+
+#### `PERF-06`: equivalence and benchmark evidence for `PERF-01` and `PERF-03` (P2, M)
+- **Problem:** `PERF-01` (translation batching/rate limiting and one rate download per currency) and `PERF-03` (`translate_conditional_column` single-`groupby` partitioning) are marked done, but unlike `PERF-02` and `PERF-04` they have no equivalence test in `tests/test_equivalence.py` and no benchmark in `benchmarks/`. The general performance rule requires both; this is a missing-evidence gap, not a known production defect.
+- **Plan:** add an equivalence test against a clear reference (the pre-optimization behavior or a brute-force equivalent) and a benchmark at representative sizes for each optimization, following the `PERF-02`/`PERF-04` pattern. Record the numbers in the PR description, not in the code.
+- **Done when:** `tests/test_equivalence.py` covers both optimizations, `benchmarks/` has a script for each, and the equivalence tests pass.
 
 ### Milestone 10 (`1.0.0`): I/O and compatibility
 
@@ -117,10 +138,10 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** add an append-friendly output option, such as JSON Lines or SQLite, that avoids rewriting the complete dataset on each append while preserving the existing JSON behavior.
 - **Done when:** repeated appends do not require rewriting the entire accumulated dataset, output can be read back correctly, and tests cover appends, existing files, and failure cases.
 
-#### `COMPAT-01`: Python 3.10 support (P3, S)
-- **Problem:** the package currently requires Python 3.11 or newer, limiting use in Python 3.10 environments.
-- **Plan:** evaluate compatibility using `typing.Self` from `typing_extensions` and a dedicated Python 3.10 CI run before changing `requires-python`.
-- **Done when:** the test suite passes on Python 3.10, compatibility requirements are satisfied, and package metadata is updated only if support is confirmed.
+#### `COMPAT-01`: Python, pandas, and NumPy compatibility policy (P3, M)
+- **Problem:** the package requires Python 3.11 or newer and declares `numpy` and `pandas` without version bounds, so the supported runtime ranges are not stated and Python 3.10 environments are excluded.
+- **Plan:** publish a verified-range policy: Python `>=3.11` with CI legs on 3.11 and 3.13; pandas 3.x as the version CI installs; NumPy 2.x as resolved by the CI install; pandas 2.x is handled by version guards in the suite but has no CI leg. Name the representative combinations CI exercises today: Ubuntu and Windows on Python 3.11 and 3.13, plus the `categorization,sql` extras job. Add a limited matrix extension (one Python 3.10 leg and one pinned pandas 2 leg) and evaluate `typing.Self` from `typing_extensions` for 3.10. Do not claim any version or combination that a leg does not verify.
+- **Done when:** the roadmap states the verified Python/pandas/NumPy ranges and the representative combinations, the limited matrix legs pass, and `requires-python` and package metadata change only after the Python 3.10 leg confirms support.
 
 ## 5. Decisions
 
@@ -139,7 +160,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 
 ## 6. Definition of done
 
-- `python -m pytest -q`, `python -m compileall -q bynat tests`, and `ruff check bynat tests` pass. CI is green on every matrix job.
+- `python -m pytest -q`, `python -m compileall -q bynat`, and `ruff check bynat tests` pass. CI is green on every matrix job.
 - New or changed behavior has tests covering the success path and the edge cases that motivated it (nulls, empty frames, named, multi-level, and duplicate indexes, unhashable cells).
 - Performance items include an equivalence test and a benchmark at representative sizes. Record the numbers in the PR description, not in the code.
 - Behavior changes are listed in `CHANGELOG.md`, and the README stays accurate. README examples are executed before merging.

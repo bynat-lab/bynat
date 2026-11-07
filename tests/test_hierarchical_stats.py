@@ -6,11 +6,6 @@ import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData, CsvFile, JsonFile
-from bynat.cleaning.Cleaning import (
-    _HIERARCHICAL_STATS_COLUMNS,
-    _convert_output,
-    _validate_output_type,
-)
 
 OUTPUT_COLUMNS = [
     "hierarchy_level",
@@ -269,7 +264,7 @@ def test_get_hierarchical_stats_returns_requested_type_for_empty_results(tmp_pat
     assert dict_result == {column: [] for column in OUTPUT_COLUMNS}
 
 
-def test_get_hierarchical_stats_has_no_nested_functions_or_apply_lambda(tmp_path):
+def test_get_hierarchical_stats_has_no_nested_functions_or_apply_lambda():
     from bynat.cleaning import stats
 
     source = textwrap.dedent(inspect.getsource(stats.get_hierarchical_stats))
@@ -341,8 +336,8 @@ def test_get_hierarchical_stats_rejects_target_hierarchy_overlap_before_aggregat
         )
 
 
-def test_get_hierarchical_stats_aggregates_all_mode_targets_once_per_level(
-    monkeypatch, tmp_path
+def test_get_hierarchical_stats_mode_returns_all_targets_at_every_hierarchy_level(
+    tmp_path,
 ):
     frame = BaseData(
         {
@@ -353,14 +348,6 @@ def test_get_hierarchical_stats_aggregates_all_mode_targets_once_per_level(
         },
         cache_dir=tmp_path,
     )
-    original_groupby = pd.DataFrame.groupby
-    groupby_calls = []
-
-    def counting_groupby(dataframe, *args, **kwargs):
-        groupby_calls.append(dataframe)
-        return original_groupby(dataframe, *args, **kwargs)
-
-    monkeypatch.setattr(pd.DataFrame, "groupby", counting_groupby)
 
     result = frame.get_hierarchical_stats(
         "first",
@@ -369,8 +356,42 @@ def test_get_hierarchical_stats_aggregates_all_mode_targets_once_per_level(
         hierarchy_cols=["region", "department"],
     )
 
-    assert len(groupby_calls) == 4
+    # One mode statistic per target, per hierarchy level, per group. The
+    # expected rows are derived by hand from the definition of mode and the
+    # documented hierarchy levels, not from the implementation.
     assert result["target_column"].tolist() == ["first"] * 6 + ["second"] * 6
+    assert result["hierarchy_level"].tolist() == [2, 2, 2, 2, 1, 1] * 2
+    assert result["hierarchy_columns"].tolist() == [
+        ("region", "department"),
+        ("region", "department"),
+        ("region", "department"),
+        ("region", "department"),
+        ("region",),
+        ("region",),
+    ] * 2
+    assert result["group_key"].tolist() == [
+        ("East", "A"),
+        ("East", "B"),
+        ("West", "A"),
+        ("West", "B"),
+        ("East",),
+        ("West",),
+    ] * 2
+    assert result["strategy"].tolist() == ["mode"] * 12
+    assert result["statistic"].tolist() == [
+        "x",
+        "x",
+        "y",
+        "y",
+        "x",
+        "y",
+        "m",
+        "m",
+        "n",
+        "n",
+        "m",
+        "n",
+    ]
 
 
 def test_get_hierarchical_stats_mode_allows_hierarchy_column_named_count(tmp_path):
@@ -388,22 +409,6 @@ def test_get_hierarchical_stats_mode_allows_hierarchy_column_named_count(tmp_pat
 
     assert result["group_key"].tolist() == [("a",), ("b",)]
     assert result["statistic"].tolist() == ["x", "y"]
-
-
-def test_generic_output_helpers_are_schema_independent(tmp_path):
-    data = pd.DataFrame({"alpha": [("x",)], "beta": [3]})
-
-    assert isinstance(_HIERARCHICAL_STATS_COLUMNS, tuple)
-    assert _convert_output(data, dict) == {
-        "alpha": [("x",)],
-        "beta": [3],
-    }
-    _validate_output_type(pd.DataFrame)
-    _validate_output_type(dict)
-    _validate_output_type(BaseData)
-
-    with pytest.raises(TypeError, match="output_type"):
-        _validate_output_type("records")
 
 
 def test_get_hierarchical_stats_supports_ordered_multiple_strategies(tmp_path):

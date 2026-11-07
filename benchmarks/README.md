@@ -1,7 +1,7 @@
 # Benchmarks
 
 Each script times the current implementation against the 0.3.0 algorithm
-kept in `tests/test_equivalence.py`, checks that both give the same result,
+kept in `benchmarks/reference_impls.py`, checks that both give the same result,
 and prints a table. Record the numbers in the pull request, not in the code.
 
 ```bash

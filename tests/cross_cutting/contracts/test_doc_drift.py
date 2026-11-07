@@ -9,7 +9,7 @@ from bynat.cleaning import BaseData
 from bynat.cleaning.accessor import BynatAccessor
 from tools.sync_docs import check
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_docstrings_and_stubs_are_in_sync():

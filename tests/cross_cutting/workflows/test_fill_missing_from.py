@@ -1,10 +1,21 @@
 """Comprehensive tests for reference-based missing value imputation (fill_missing_from)."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData, stats
+
+OUTPUT_COLUMNS = [
+    "hierarchy_level",
+    "hierarchy_columns",
+    "group_key",
+    "target_column",
+    "strategy",
+    "statistic",
+]
 
 
 def test_fill_missing_from_basic_imputation():
@@ -391,3 +402,116 @@ def test_existing_fill_missing_remains_unchanged():
     assert res.loc[2, "salary"] == 12.0
     assert pd.isna(res.loc[5, "salary"])
     pd.testing.assert_frame_equal(df, original)
+
+
+# ---------------------------------------------------------------------------
+# fill_missing_from: edge contracts
+# ---------------------------------------------------------------------------
+
+
+def test_fill_missing_from_non_numeric_target_with_numeric_strategy_raises():
+    train = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 2.0]})
+    target = pd.DataFrame({"g": ["a", "a"], "v": ["x", None]})
+
+    with pytest.raises(TypeError, match="numeric dtype"):
+        target.bynat.fill_missing_from(train, "v", strategy="median", hierarchy_cols=["g"])
+
+
+def test_fill_missing_from_stats_reverse_map_match_cols():
+    train = pd.DataFrame({"nation": ["EG", "EG", "US"], "wage": [10.0, 20.0, 30.0]})
+    target = pd.DataFrame({"country": ["EG", "US"], "salary": [None, None]})
+    before = target.copy(deep=True)
+
+    result, stats_result = target.bynat.fill_missing_from(
+        train,
+        "salary",
+        match_cols={"salary": "wage", "country": "nation"},
+        hierarchy_cols=["country"],
+        get_hierarchical_stats=True,
+    )
+
+    assert result["salary"].tolist() == [15.0, 30.0]
+    assert list(stats_result.columns) == OUTPUT_COLUMNS
+    # The schema is reverse-mapped to the target names, but the statistics
+    # come from the reference column.
+    assert stats_result["target_column"].tolist() == ["salary", "salary"]
+    assert stats_result["hierarchy_columns"].tolist() == [("country",), ("country",)]
+    assert stats_result["group_key"].tolist() == [("EG",), ("US",)]
+    assert stats_result["strategy"].tolist() == ["median", "median"]
+    assert stats_result["statistic"].tolist() == [15.0, 30.0]
+    pd.testing.assert_frame_equal(target, before)
+
+
+def test_fill_missing_from_inplace_with_stats_returns_stats_and_mutates(tmp_path):
+    train = BaseData({"g": ["a", "a", "b"], "v": [10.0, 20.0, 30.0]}, cache_dir=tmp_path)
+    frame = BaseData({"g": ["a", "b"], "v": [None, None]}, cache_dir=tmp_path)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        stats_result = frame.fill_missing_from(
+            train,
+            "v",
+            hierarchy_cols=["g"],
+            get_hierarchical_stats=True,
+            inplace=True,
+        )
+
+    assert type(stats_result) is BaseData
+    assert list(stats_result.columns) == OUTPUT_COLUMNS
+    assert frame["v"].tolist() == [15.0, 30.0]
+
+
+def test_fill_missing_from_non_numeric_all_nan_target_is_exempt():
+    reference = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
+    target = pd.DataFrame({"g": ["a", "b"], "v": pd.Series([None, None], dtype=object)})
+
+    result = stats.fill_missing_from(
+        target, reference, "v", strategy="median", hierarchy_cols=["g"]
+    )
+
+    assert result["v"].tolist() == [1.0, 2.0]
+
+
+def test_fill_missing_from_skips_missing_targets_and_fills_valid_ones():
+    reference = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
+    target = pd.DataFrame({"g": ["a", "b"], "v": [None, None]})
+
+    result = stats.fill_missing_from(target, reference, "v", "missing", hierarchy_cols=["g"])
+
+    assert result["v"].tolist() == [1.0, 2.0]
+    assert "missing" not in result.columns
+
+
+# ---------------------------------------------------------------------------
+# FF-8 -- duplicate targets are deduplicated
+# ---------------------------------------------------------------------------
+
+
+def test_fill_missing_from_duplicate_targets_are_deduplicated():
+    reference = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
+    target = pd.DataFrame({"g": ["a", "b"], "v": [None, None]})
+
+    unique = stats.fill_missing_from(target, reference, "v", hierarchy_cols=["g"])
+    duplicated = stats.fill_missing_from(target, reference, "v", "v", hierarchy_cols=["g"])
+
+    pd.testing.assert_frame_equal(duplicated, unique)
+
+
+# ---------------------------------------------------------------------------
+# fill_missing_from -- match_cols validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "match_cols",
+    [
+        pytest.param({"": "v"}, id="empty-key"),
+        pytest.param({"v": ""}, id="empty-value"),
+    ],
+)
+def test_fill_missing_from_rejects_empty_match_cols_strings(match_cols):
+    reference = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
+    target = pd.DataFrame({"g": ["a", "b"], "v": [None, None]})
+
+    with pytest.raises(ValueError, match="cannot be empty strings"):
+        stats.fill_missing_from(target, reference, "v", match_cols=match_cols)

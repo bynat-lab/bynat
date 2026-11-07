@@ -1,10 +1,11 @@
-"""TEST-02 Phase 3: real optional-dependency integration coverage.
+"""Optional integration tests that run when the extra dependencies are installed.
 
-Exercises the two optional extras that can be verified deterministically and
-offline with local fixtures: ``categorization`` (pyahocorasick) and ``sql``
-(SQLAlchemy with the standard-library SQLite driver). The remaining extras
-(translation, geocoding, currency, nlp) call network services or need a
-downloaded model, so they stay with the fake-module tests.
+Real optional-dependency coverage for the extras that can be verified
+deterministically and offline with local fixtures: ``categorization``
+(pyahocorasick) and ``sql`` (SQLAlchemy with the standard-library SQLite
+driver). The remaining extras (translation, geocoding, currency, nlp) call
+network services or need a downloaded model, so they stay with the
+fake-module tests.
 
 ``pytest.importorskip`` isolates each real integration when its extra is
 absent. Expected values are derived from the documented behavior.
@@ -148,6 +149,24 @@ def test_categorize_by_reference_ignores_blank_keywords(tmp_path):
     pd.testing.assert_frame_equal(frame, before)
 
 
+def test_categorize_by_reference_with_real_pyahocorasick(tmp_path):
+    pytest.importorskip("ahocorasick")
+    frame = BaseData(
+        {"title": ["Senior Python Developer", "Data Analyst", "Chef", None]},
+        cache_dir=tmp_path,
+    )
+    original = frame.copy(deep=True)
+
+    result = frame.categorize_by_reference(
+        "title",
+        target_col="family",
+        reference={"Engineering": ["python developer", "developer"], "Data": ["data analyst"]},
+    )
+
+    assert result["family"].tolist() == ["Engineering", "Data", "Other", "Other"]
+    pd.testing.assert_frame_equal(frame, original)
+
+
 # ---------------------------------------------------------------------------
 # sql: real SQLAlchemy with the local SQLite driver
 # ---------------------------------------------------------------------------
@@ -272,3 +291,43 @@ def test_save_to_sql_reports_missing_sqlalchemy_dependency(tmp_path, monkeypatch
 
     with pytest.raises(ImportError, match="save_to_sql requires the optional 'SQLAlchemy'"):
         frame.save_to_sql("items", **_sqlite_arguments(tmp_path / "missing.db"))
+
+
+def test_save_to_sql_with_real_sqlalchemy_and_sqlite(tmp_path):
+    sqlalchemy = pytest.importorskip("sqlalchemy")
+    database = tmp_path / "out.db"
+    frame = BaseData({"a": [1, 2], "b": ["x", "y"]}, cache_dir=tmp_path)
+
+    frame.save_to_sql(
+        "items",
+        database_type="sqlite",
+        database_user="",
+        database_password="",
+        database_host="",
+        database_port="",
+        database_name=str(database),
+    )
+
+    engine = sqlalchemy.create_engine(f"sqlite:///{database}")
+    with engine.connect() as connection:
+        rows = connection.execute(sqlalchemy.text("SELECT a, b FROM items ORDER BY a")).all()
+    engine.dispose()
+
+    assert [tuple(row) for row in rows] == [(1, "x"), (2, "y")]
+
+
+def test_save_to_sql_propagates_database_errors(tmp_path):
+    pytest.importorskip("sqlalchemy")
+    frame = BaseData({"a": [1]}, cache_dir=tmp_path)
+    arguments = dict(
+        database_type="sqlite",
+        database_user="",
+        database_password="",
+        database_host="",
+        database_port="",
+        database_name=str(tmp_path / "out.db"),
+    )
+    frame.save_to_sql("items", **arguments)
+
+    with pytest.raises(ValueError, match="already exists"):
+        frame.save_to_sql("items", if_exists="fail", **arguments)

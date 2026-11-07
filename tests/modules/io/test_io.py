@@ -13,12 +13,13 @@ expected values written independently of the implementation.
 """
 
 import json
+import sys
 
 import pandas as pd
 import pytest
 from pandas.errors import EmptyDataError, ParserError
 
-from bynat.cleaning import CsvFile, JsonFile, io
+from bynat.cleaning import BaseData, CsvFile, JsonFile, io
 
 # ---------------------------------------------------------------------------
 # Round trips
@@ -407,3 +408,114 @@ def test_file_constructors_accept_positional_paths(tmp_path):
     assert json_frame[["a", "b"]].to_dict("list") == {"a": [1], "b": ["x"]}
     assert isinstance(csv_frame, CsvFile)
     assert csv_frame[["a", "b"]].to_dict("list") == {"a": [1], "b": [2]}
+
+
+# ---------------------------------------------------------------------------
+# read_json -- documented loader validation
+# ---------------------------------------------------------------------------
+
+
+def test_read_json_missing_key_raises_keyerror(tmp_path):
+    path = tmp_path / "records.json"
+    path.write_text(json.dumps({"items": [{"a": 1}]}), encoding="utf-8")
+
+    with pytest.raises(KeyError, match="missing"):
+        io.read_json(path, key="missing")
+
+
+def test_read_json_key_on_non_dict_payload_raises_typeerror(tmp_path):
+    path = tmp_path / "records.json"
+    path.write_text(json.dumps([{"a": 1}]), encoding="utf-8")
+
+    with pytest.raises(TypeError, match="dictionary payload"):
+        io.read_json(path, key="items")
+
+
+# ---------------------------------------------------------------------------
+# BaseData save_to_json / save_to_sql contracts
+# ---------------------------------------------------------------------------
+
+
+def test_save_to_json_writes_local_output(tmp_path):
+    output = tmp_path / "nested" / "records.json"
+    BaseData({"name": ["Ada"]}, cache_dir=tmp_path).save_to_json(output)
+
+    assert json.loads(output.read_text(encoding="utf-8")) == [{"name": "Ada"}]
+
+
+def test_save_to_json_append_keeps_existing_rows_with_list_columns(tmp_path):
+    file_path = tmp_path / "out.json"
+
+    BaseData({"a": [1, 2], "tags": [["x"], ["y"]]}, cache_dir=tmp_path).save_to_json(file_path)
+    BaseData({"a": [2, 3], "tags": [["y"], ["z"]]}, cache_dir=tmp_path).save_to_json(
+        file_path, append=True
+    )
+
+    saved = json.loads(file_path.read_text(encoding="utf-8"))
+
+    assert saved == [
+        {"a": 1, "tags": ["x"]},
+        {"a": 2, "tags": ["y"]},
+        {"a": 3, "tags": ["z"]},
+    ]
+
+
+def test_save_to_json_append_deduplicates_plain_columns_without_json_keys(tmp_path, monkeypatch):
+    import bynat.cleaning.io as cleaning
+
+    file_path = tmp_path / "out.json"
+    BaseData({"a": [1, 2], "b": ["x", "y"]}, cache_dir=tmp_path).save_to_json(file_path)
+
+    monkeypatch.setattr(cleaning, "_dedupe_key", lambda value: pytest.fail("fast path expected"))
+    BaseData({"a": [2, 3], "b": ["y", "z"]}, cache_dir=tmp_path).save_to_json(file_path, append=True)
+
+    assert json.loads(file_path.read_text(encoding="utf-8")) == [
+        {"a": 1, "b": "x"},
+        {"a": 2, "b": "y"},
+        {"a": 3, "b": "z"},
+    ]
+
+
+def test_save_to_json_append_refuses_to_overwrite_unreadable_file(tmp_path):
+    file_path = tmp_path / "out.json"
+    file_path.write_text('{"not": "records"', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Cannot append"):
+        BaseData({"a": [1]}, cache_dir=tmp_path).save_to_json(file_path, append=True)
+
+    assert file_path.read_text(encoding="utf-8") == '{"not": "records"'
+
+
+def test_save_to_json_requires_file_path(tmp_path):
+    with pytest.raises(ValueError, match="file_path"):
+        BaseData({"a": [1]}, cache_dir=tmp_path).save_to_json("  ")
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"table_name": " "}, "table_name"),
+        ({"if_exists": "merge"}, "if_exists"),
+        ({"database_type": ""}, "database_type"),
+        ({"database_name": ""}, "SQLite"),
+        ({"database_type": "postgresql", "database_host": ""}, "are required"),
+        ({"database_type": "mssql+pyodbc", "database_user": "u", "database_password": "p",
+          "database_host": "h", "database_port": "1"}, "database_driver"),
+    ],
+)
+def test_save_to_sql_rejects_invalid_arguments_before_connecting(monkeypatch, tmp_path, kwargs, message):
+    monkeypatch.setitem(sys.modules, "sqlalchemy", None)
+    arguments = {
+        "table_name": "items",
+        "database_type": "sqlite",
+        "database_user": "",
+        "database_password": "",
+        "database_host": "",
+        "database_port": "",
+        "database_name": str(tmp_path / "out.db"),
+        "if_exists": "append",
+    }
+    arguments.update(kwargs)
+
+    with pytest.raises(ValueError, match=message):
+        BaseData({"a": [1]}, cache_dir=tmp_path).save_to_sql(**arguments)

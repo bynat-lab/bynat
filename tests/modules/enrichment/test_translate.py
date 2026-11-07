@@ -1,14 +1,16 @@
-"""Injectable providers, the shared cached-lookup engine, and batched external calls."""
+"""Translation providers, the shared cached-lookup engine, and batched external calls."""
 
 import sys
 import threading
 import types
+import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from bynat.caching import CacheManager
+from bynat.cleaning import BaseData
 from bynat.cleaning.enrich import (
     Geocoder,
     GoogleTranslatorProvider,
@@ -44,58 +46,12 @@ class BatchTranslator(DictTranslator):
         return [self.mapping.get(text) for text in texts]
 
 
-class DictGeocoder:
-    def __init__(self, known):
-        self.known = known
-        self.calls = []
-
-    def geocode(self, query):
-        self.calls.append(query)
-        return self.known.get(query)
-
-
-class FakeRates:
-    def __init__(self, rates, fail=()):
-        self.rates = rates
-        self.fail = set(fail)
-        self.calls = []
-
-    def yearly_rates(self, currency, start_year, end_year):
-        self.calls.append((currency, start_year, end_year))
-        if currency in self.fail:
-            raise ConnectionError("offline")
-        return {
-            year: rate
-            for (code, year), rate in self.rates.items()
-            if code == currency and start_year <= year <= end_year
-        }
-
-
 def _install(monkeypatch, name, **attrs):
     module = types.ModuleType(name)
     for key, value in attrs.items():
         setattr(module, key, value)
     monkeypatch.setitem(sys.modules, name, module)
     return module
-
-
-def _install_currency_lookup(monkeypatch):
-    class Country:
-        def __init__(self, alpha_2):
-            self.alpha_2 = alpha_2
-
-    def search_fuzzy(name):
-        if name == "Atlantis":
-            raise LookupError(name)
-        return [Country({"Egypt": "EG", "United States": "US", "France": "FR"}[name])]
-
-    _install(monkeypatch, "pycountry", countries=types.SimpleNamespace(search_fuzzy=search_fuzzy))
-    _install(monkeypatch, "babel")
-    _install(
-        monkeypatch,
-        "babel.numbers",
-        get_territory_currencies=lambda alpha_2: {"EG": ["EGP"], "US": ["USD"], "FR": ["EUR"]}[alpha_2],
-    )
 
 
 def test_default_providers_satisfy_the_protocols():
@@ -137,69 +93,6 @@ def test_translate_categorical_column_constructs_the_default_google_translator(m
 
     assert translated["status"].tolist() == ["ABC", "ABC"]
     assert translators == [("auto", "en")]
-    pd.testing.assert_frame_equal(frame, original)
-
-
-def test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder(monkeypatch, tmp_path):
-    geolocators = []
-
-    class FakeLocation:
-        latitude = 10.0
-        longitude = 20.0
-
-    class FakeNominatim:
-        def __init__(self, user_agent):
-            self.user_agent = user_agent
-            geolocators.append(self)
-
-        def geocode(self, query):
-            return FakeLocation() if query == "Paris" else None
-
-    class FakeRateLimiter:
-        def __init__(self, function, min_delay_seconds):
-            self.function = function
-            self.min_delay_seconds = min_delay_seconds
-
-        def __call__(self, query):
-            return self.function(query)
-
-    _install(monkeypatch, "geopy.geocoders", Nominatim=FakeNominatim)
-    _install(monkeypatch, "geopy.extra.rate_limiter", RateLimiter=FakeRateLimiter)
-    frame = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]})
-    original = frame.copy(deep=True)
-    located = frame.bynat.with_cache(tmp_path / "geocode").fill_missing_coordinates(
-        "city", lat_col="lat", long_col="lng"
-    )
-
-    assert located[["lat", "lng"]].iloc[0].tolist() == [10.0, 20.0]
-    assert [geolocator.user_agent for geolocator in geolocators] == [
-        "data_cleaning_core_geocoder"
-    ]
-    pd.testing.assert_frame_equal(frame, original)
-
-
-def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch, tmp_path):
-    downloads = []
-
-    class FakeTicker:
-        def __init__(self, symbol):
-            self.symbol = symbol
-
-        def history(self, start, end):
-            downloads.append((self.symbol, start, end))
-            index = pd.to_datetime(["2020-06-01"])
-            return pd.DataFrame({"Close": [2.0]}, index=index)
-
-    _install_currency_lookup(monkeypatch)
-    _install(monkeypatch, "yfinance", Ticker=FakeTicker)
-    frame = pd.DataFrame({"country": ["Egypt"], "year": [2020], "salary": [100.0]})
-    original = frame.copy(deep=True)
-    converted = frame.bynat.with_cache(tmp_path / "currency").convert_to_usd(
-        "salary", country_col="country", year_col="year"
-    )
-
-    assert converted["salary_usd"].tolist() == [50.0]
-    assert downloads == [("EGP=X", "2020-01-01", "2020-12-31")]
     pd.testing.assert_frame_equal(frame, original)
 
 
@@ -485,129 +378,34 @@ def test_translate_conditional_column_accepts_a_generator(monkeypatch, tmp_path)
     assert translator.calls == [("b0", "en"), ("b1", "en"), ("b2", "en"), ("b3", "en")]
 
 
-# ---------------------------------------------------------------------------
-# geocoding
-# ---------------------------------------------------------------------------
+def test_translate_categorical_column_translates_each_unique_value_once(monkeypatch, tmp_path):
+    calls = []
 
+    class GoogleTranslator:
+        def __init__(self, source, target):
+            assert (source, target) == ("auto", "en")
 
-def test_fill_missing_coordinates_accepts_a_plain_provider(tmp_path):
-    geocoder = DictGeocoder({"Springfield, USA": (39.8, -89.6)})
-    frame = pd.DataFrame(
-        {
-            "street": ["1 Main St", "Nowhere Rd"],
-            "city": ["Springfield", "Atlantis"],
-            "country": ["USA", None],
-            "lat": [None, None],
-            "lng": [None, None],
-        }
-    )
+        def translate(self, text):
+            calls.append(text)
+            return {"مكتمل": "Completed", "قيد الانتظار": "Pending"}[text]
+
+    _install(monkeypatch, "deep_translator", GoogleTranslator=GoogleTranslator)
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+
+    frame = BaseData({"status": ["مكتمل", "قيد الانتظار", "مكتمل", None]}, cache_dir=tmp_path)
     original = frame.copy(deep=True)
+    result = frame.translate_categorical_column("status")
 
-    result = frame.bynat.with_cache(tmp_path).fill_missing_coordinates(
-        "street", "city", "country", lat_col="lat", long_col="lng", provider=geocoder
-    )
-
-    assert result[["lat", "lng"]].iloc[0].tolist() == [39.8, -89.6]
-    assert result[["lat", "lng"]].iloc[1].isna().all()
-    assert geocoder.calls == ["1 Main St, Springfield, USA", "Springfield, USA", "Nowhere Rd, Atlantis", "Atlantis"]
-
-    geocoder.calls.clear()
-    frame.bynat.with_cache(tmp_path).fill_missing_coordinates(
-        "street", "city", "country", lat_col="lat", long_col="lng", provider=geocoder, retry_not_found=True
-    )
-    assert geocoder.calls == ["Nowhere Rd, Atlantis", "Atlantis"]
+    assert result["status"].tolist()[:3] == ["Completed", "Pending", "Completed"]
+    assert pd.isna(result["status"].iloc[3])
+    assert sorted(calls) == sorted(["مكتمل", "قيد الانتظار"])
     pd.testing.assert_frame_equal(frame, original)
 
-
-def test_geocoding_errors_are_not_cached(tmp_path):
-    class FlakyGeocoder:
-        calls = 0
-
-        def geocode(self, query):
-            FlakyGeocoder.calls += 1
-            if FlakyGeocoder.calls == 1:
-                raise TimeoutError("slow")
-            return (1.0, 2.0)
-
-    frame = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]})
-    original = frame.copy(deep=True)
-    accessor = frame.bynat.with_cache(tmp_path)
-
-    first = accessor.fill_missing_coordinates("city", lat_col="lat", long_col="lng", provider=FlakyGeocoder())
-    second = accessor.fill_missing_coordinates("city", lat_col="lat", long_col="lng", provider=FlakyGeocoder())
-
-    assert first["lat"].isna().all()
-    assert second[["lat", "lng"]].iloc[0].tolist() == [1.0, 2.0]
-    pd.testing.assert_frame_equal(frame, original)
-
-
-# ---------------------------------------------------------------------------
-# currency
-# ---------------------------------------------------------------------------
-
-
-def test_convert_to_usd_downloads_once_per_currency(monkeypatch, tmp_path):
-    _install_currency_lookup(monkeypatch)
-    rates = FakeRates({("EGP", 2019): 17.0, ("EGP", 2021): 20.0, ("EUR", 2020): 0.5})
-    frame = pd.DataFrame(
-        {
-            "country": ["Egypt", "Egypt", "Egypt", "France", "United States", "Atlantis"],
-            "year": [2020, 2021, 2019, 2020, 2020, 2020],
-            "salary": [170.0, 200.0, 34.0, 10.0, 100.0, 1.0],
-        }
-    )
-    original = frame.copy(deep=True)
-
-    result = frame.bynat.with_cache(tmp_path).convert_to_usd(
-        "salary", country_col="country", year_col="year", provider=rates
-    )
-
-    assert result["salary_usd"].tolist()[:5] == [10.0, 10.0, 2.0, 20.0, 100.0]
-    assert pd.isna(result["salary_usd"].iloc[5])
-    assert sorted(rates.calls) == [("EGP", 2019, 2021), ("EUR", 2019, 2020)]
-
-    rates.calls.clear()
-    frame.bynat.with_cache(tmp_path).convert_to_usd("salary", country_col="country", year_col="year", provider=rates)
-    assert rates.calls == []
-    pd.testing.assert_frame_equal(frame, original)
-
-
-def test_convert_to_usd_does_not_cache_provider_failures(monkeypatch, tmp_path):
-    _install_currency_lookup(monkeypatch)
-    frame = pd.DataFrame({"country": ["Egypt"], "year": [2020], "salary": [170.0]})
-    original = frame.copy(deep=True)
-    accessor = frame.bynat.with_cache(tmp_path)
-
-    offline = FakeRates({}, fail={"EGP"})
-    first = accessor.convert_to_usd("salary", country_col="country", year_col="year", provider=offline)
-
-    online = FakeRates({("EGP", 2020): 17.0})
-    second = accessor.convert_to_usd("salary", country_col="country", year_col="year", provider=online)
-
-    assert first["salary_usd"].isna().all()
-    assert second["salary_usd"].tolist() == [10.0]
-    assert online.calls == [("EGP", 2020, 2020)]
-    pd.testing.assert_frame_equal(frame, original)
-
-
-def test_yfinance_rate_source_computes_yearly_means_from_one_download(monkeypatch):
-    downloads = []
-
-    class Ticker:
-        def __init__(self, symbol):
-            self.symbol = symbol
-
-        def history(self, start, end):
-            downloads.append((self.symbol, start, end))
-            index = pd.to_datetime(["2019-03-01", "2019-06-01", "2020-01-02", "2021-05-05"])
-            return pd.DataFrame({"Close": [10.0, 20.0, 30.0, float("nan")]}, index=index)
-
-    _install(monkeypatch, "yfinance", Ticker=Ticker)
-
-    rates = YFinanceRateSource().yearly_rates("EGP", 2019, 2021)
-
-    assert rates == {2019: 15.0, 2020: 30.0}
-    assert downloads == [("EGP=X", "2019-01-01", "2021-12-31")]
+    # A second frame with the same cache directory needs no translator calls.
+    calls.clear()
+    again = BaseData({"status": ["مكتمل"]}, cache_dir=tmp_path).translate_categorical_column("status")
+    assert again["status"].tolist() == ["Completed"]
+    assert calls == []
 
 
 # ---------------------------------------------------------------------------
@@ -687,3 +485,186 @@ def test_cached_map_rejects_batches_with_the_wrong_length(tmp_path):
     )
 
     assert cache == {}
+
+
+# ---------------------------------------------------------------------------
+# impute_by_language
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_langdetect(monkeypatch):
+    module = types.ModuleType("langdetect")
+
+    class DetectorFactory:
+        seed = None
+
+    module.DetectorFactory = DetectorFactory
+    module.LangDetectException = Exception
+    module.detect = lambda text: "en"
+    monkeypatch.setitem(sys.modules, "langdetect", module)
+    return module
+
+
+def test_impute_by_language_exact_detection_and_generated_fallback(fake_langdetect):
+    fake_langdetect.detect = lambda text: "en" if text == "Pear (FR)" else "ar"
+    frame = pd.DataFrame(
+        {
+            "slug": ["red-apple", "green-pear", "yellow-banana", "red-apple", "one-two"],
+            "name": [None, "Pear (FR)", "موز", "Red Apple", "123"],
+            "extra": [1, 2, 3, 4, 5],
+        },
+        index=pd.Index([3, 4, 5, 6, 7], name="row"),
+    )
+    before = frame.copy(deep=True)
+
+    result = frame.bynat.impute_by_language("slug", "name", target_lang="en")
+
+    # Pass 1 (exact, case- and hyphen-insensitive): "Red Apple" -> "Red Apple".
+    # Pass 2 (detection): "Pear (FR)" is detected as English and kept.
+    # Pass 3 (generation): the remaining references are title-cased.
+    # Numeric text is never sent to the detector.
+    expected = pd.DataFrame(
+        {
+            "slug": ["red-apple", "green-pear", "yellow-banana", "red-apple", "one-two"],
+            "name": ["Red Apple", "Pear (FR)", "Yellow Banana", "Red Apple", "One Two"],
+            "extra": [1, 2, 3, 4, 5],
+        },
+        index=pd.Index([3, 4, 5, 6, 7], name="row"),
+    )
+    pd.testing.assert_frame_equal(result, expected)
+    assert result is not frame
+    assert fake_langdetect.DetectorFactory.seed == 0
+    pd.testing.assert_frame_equal(frame, before)
+
+    # The seed makes repeated runs deterministic.
+    again = frame.bynat.impute_by_language("slug", "name", target_lang="en")
+    pd.testing.assert_frame_equal(again, result)
+
+
+def test_impute_by_language_honors_target_lang(fake_langdetect):
+    fake_langdetect.detect = lambda text: "en"
+    frame = pd.DataFrame({"slug": ["green-pear"], "name": ["English Label"]})
+
+    kept = frame.bynat.impute_by_language("slug", "name", target_lang="en")
+    generated = frame.bynat.impute_by_language("slug", "name", target_lang="ar")
+
+    assert kept["name"].tolist() == ["English Label"]
+    assert generated["name"].tolist() == ["Green Pear"]
+
+
+def test_impute_by_language_skips_missing_columns(fake_langdetect):
+    frame = pd.DataFrame({"slug": ["a-b"], "name": [None], "other": [1]})
+    before = frame.copy(deep=True)
+
+    missing_target = frame.bynat.impute_by_language("slug", "missing")
+    missing_reference = frame.bynat.impute_by_language("missing", "name")
+
+    assert missing_target is not frame
+    assert missing_reference is not frame
+    pd.testing.assert_frame_equal(missing_target, frame)
+    pd.testing.assert_frame_equal(missing_reference, frame)
+    pd.testing.assert_frame_equal(frame, before)
+
+
+def test_impute_by_language_inplace_matches_the_copy_result(tmp_path, fake_langdetect):
+    fake_langdetect.detect = lambda text: "en"
+    frame = BaseData({"slug": ["a-b"], "name": [None]}, cache_dir=tmp_path)
+    expected = frame.impute_by_language("slug", "name")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        returned = frame.impute_by_language("slug", "name", inplace=True)
+
+    assert returned is None
+    pd.testing.assert_frame_equal(pd.DataFrame(frame), pd.DataFrame(expected))
+
+
+# ---------------------------------------------------------------------------
+# translate_conditional_column -- documented argument validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("threshold", [-0.1, 1.1], ids=["below-range", "above-range"])
+def test_translate_conditional_column_rejects_out_of_range_threshold(tmp_path, threshold):
+    frame = pd.DataFrame({"partition": ["a"], "detect": ["hello"], "label": ["x"]})
+
+    with pytest.raises(ValueError, match="threshold"):
+        frame.bynat.with_cache(tmp_path).translate_conditional_column(
+            "partition", "detect", "label", threshold=threshold
+        )
+
+
+@pytest.mark.parametrize(
+    ("parameter", "value"),
+    [
+        pytest.param("sample_size", 0, id="sample-size-zero"),
+        pytest.param("sample_size", -1, id="sample-size-negative"),
+        pytest.param("sample_size", 2.5, id="sample-size-float"),
+        pytest.param("number_of_samples", 0, id="number-of-samples-zero"),
+        pytest.param("save_every", 0, id="save-every-zero"),
+    ],
+)
+def test_translate_conditional_column_rejects_non_positive_integer_parameters(
+    tmp_path, parameter, value
+):
+    frame = pd.DataFrame({"partition": ["a"], "detect": ["hello"], "label": ["x"]})
+
+    with pytest.raises(ValueError, match=parameter):
+        frame.bynat.with_cache(tmp_path).translate_conditional_column(
+            "partition", "detect", "label", **{parameter: value}
+        )
+
+
+# ---------------------------------------------------------------------------
+# Optional dependencies -- documented failures at method use
+# ---------------------------------------------------------------------------
+
+
+def test_impute_by_language_missing_reference_returns_before_optional_import(monkeypatch, tmp_path):
+    monkeypatch.setitem(sys.modules, "langdetect", None)
+    frame = BaseData({"category": ["pending"]}, cache_dir=tmp_path)
+
+    result = frame.impute_by_language("missing")
+    assert result is not frame
+    assert type(result) is type(frame)
+    pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(frame))
+    assert frame.impute_by_language("missing", inplace=True) is None
+
+
+def test_translate_conditional_missing_langdetect_raises_documented_import_error(monkeypatch, tmp_path):
+    monkeypatch.setitem(sys.modules, "langdetect", None)
+    monkeypatch.setitem(sys.modules, "deep_translator", None)
+    frame = BaseData(
+        {"partition": ["group"], "description": ["text"], "label": ["value"]},
+        cache_dir=tmp_path,
+    )
+
+    with pytest.raises(ImportError, match="langdetect"):
+        frame.translate_conditional_column(
+            partition_col="partition",
+            detect_col="description",
+            target_col="label",
+            sample_size=1,
+            number_of_samples=1,
+        )
+
+
+def test_optional_integration_reports_missing_dependency_at_method_use(monkeypatch, tmp_path):
+    monkeypatch.setitem(sys.modules, "deep_translator", None)
+    frame = BaseData({"category": ["pending"]}, cache_dir=tmp_path)
+
+    with pytest.raises(ImportError, match="deep-translator"):
+        frame.translate_categorical_column("category")
+
+
+def test_optional_categorization_reports_missing_dependency_at_method_use(monkeypatch, tmp_path):
+    monkeypatch.setitem(sys.modules, "ahocorasick", None)
+    frame = BaseData({"description": ["python developer"]}, cache_dir=tmp_path)
+
+    with pytest.raises(ImportError, match="pyahocorasick"):
+        frame.categorize_by_reference(
+            "description",
+            target_col="category",
+            reference={"Software": ["python developer"]},
+        )

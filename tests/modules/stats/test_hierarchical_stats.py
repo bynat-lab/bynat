@@ -5,7 +5,7 @@ import textwrap
 import pandas as pd
 import pytest
 
-from bynat.cleaning import BaseData, CsvFile, JsonFile
+from bynat.cleaning import BaseData, CsvFile, JsonFile, stats
 
 OUTPUT_COLUMNS = [
     "hierarchy_level",
@@ -89,27 +89,6 @@ def test_get_hierarchical_stats_supports_mean_multiple_targets_and_string_hierar
     assert result["strategy"].tolist() == ["mean"] * 4
     assert result["statistic"].tolist()[:3] == [1.0, 5.0, 15.0]
     assert pd.isna(result.iloc[3]["statistic"])
-
-
-def test_get_hierarchical_stats_mode_matches_tie_breaking_and_normalizes_mod(tmp_path):
-    frame = BaseData(
-        {
-            "group": ["x", "x", "x", "y", "y", None],
-            "label": ["b", "a", None, "c", "c", "z"],
-        },
-        cache_dir=tmp_path,
-    )
-
-    result = frame.get_hierarchical_stats("label", strategy="mod", hierarchy_cols="group")
-    direct_mode = frame.get_hierarchical_stats(
-        "label", strategy="mode", hierarchy_cols="group"
-    )
-
-    assert result["strategy"].tolist() == ["mode"] * 3
-    pd.testing.assert_frame_equal(direct_mode, result)
-    assert result["group_key"].tolist()[:2] == [("x",), ("y",)]
-    assert pd.isna(result.iloc[2]["group_key"][0])
-    assert result["statistic"].tolist() == ["a", "c", "z"]
 
 
 def test_get_hierarchical_stats_handles_null_values_and_empty_groups(tmp_path):
@@ -336,81 +315,6 @@ def test_get_hierarchical_stats_rejects_target_hierarchy_overlap_before_aggregat
         )
 
 
-def test_get_hierarchical_stats_mode_returns_all_targets_at_every_hierarchy_level(
-    tmp_path,
-):
-    frame = BaseData(
-        {
-            "region": ["East", "East", "West", "West"],
-            "department": ["A", "B", "A", "B"],
-            "first": ["x", "x", "y", "y"],
-            "second": ["m", "m", "n", "n"],
-        },
-        cache_dir=tmp_path,
-    )
-
-    result = frame.get_hierarchical_stats(
-        "first",
-        "second",
-        strategy="mode",
-        hierarchy_cols=["region", "department"],
-    )
-
-    # One mode statistic per target, per hierarchy level, per group. The
-    # expected rows are derived by hand from the definition of mode and the
-    # documented hierarchy levels, not from the implementation.
-    assert result["target_column"].tolist() == ["first"] * 6 + ["second"] * 6
-    assert result["hierarchy_level"].tolist() == [2, 2, 2, 2, 1, 1] * 2
-    assert result["hierarchy_columns"].tolist() == [
-        ("region", "department"),
-        ("region", "department"),
-        ("region", "department"),
-        ("region", "department"),
-        ("region",),
-        ("region",),
-    ] * 2
-    assert result["group_key"].tolist() == [
-        ("East", "A"),
-        ("East", "B"),
-        ("West", "A"),
-        ("West", "B"),
-        ("East",),
-        ("West",),
-    ] * 2
-    assert result["strategy"].tolist() == ["mode"] * 12
-    assert result["statistic"].tolist() == [
-        "x",
-        "x",
-        "y",
-        "y",
-        "x",
-        "y",
-        "m",
-        "m",
-        "n",
-        "n",
-        "m",
-        "n",
-    ]
-
-
-def test_get_hierarchical_stats_mode_allows_hierarchy_column_named_count(tmp_path):
-    frame = BaseData(
-        {
-            "_count": ["a", "a", "b", "b"],
-            "label": ["x", "x", "y", None],
-        },
-        cache_dir=tmp_path,
-    )
-
-    result = frame.get_hierarchical_stats(
-        "label", strategy="mode", hierarchy_cols="_count"
-    )
-
-    assert result["group_key"].tolist() == [("a",), ("b",)]
-    assert result["statistic"].tolist() == ["x", "y"]
-
-
 def test_get_hierarchical_stats_supports_ordered_multiple_strategies(tmp_path):
     frame = BaseData(
         {
@@ -476,25 +380,6 @@ def test_get_hierarchical_stats_rejects_non_string_strategy_values_before_aggreg
         frame.get_hierarchical_stats("value", strategy=["mean", 1], hierarchy_cols="group")
 
 
-def test_get_hierarchical_stats_mode_has_no_melt_and_keeps_null_groups(tmp_path, monkeypatch):
-    frame = BaseData(
-        {
-            "group": ["a"] * 100 + ["b"] * 100 + [None],
-            "label": ["x"] * 60 + ["y"] * 40 + ["z"] * 100 + [None],
-        },
-        cache_dir=tmp_path,
-    )
-
-    def unexpected_melt(*args, **kwargs):
-        pytest.fail("mode aggregation must not materialize a melt intermediate")
-
-    monkeypatch.setattr(pd.DataFrame, "melt", unexpected_melt)
-    result = frame.get_hierarchical_stats("label", strategy="mode", hierarchy_cols="group")
-
-    assert result["group_key"].tolist() == [("a",), ("b",)]
-    assert result["statistic"].tolist() == ["x", "z"]
-
-
 def test_get_hierarchical_stats_default_fallback_requires_data_signature(tmp_path):
     class NoDataParameter(BaseData):
         def __init__(self, frame, **kwargs):
@@ -546,18 +431,6 @@ def test_get_hierarchical_stats_all_output_types_keep_multi_strategy_schema(tmp_
             assert result["strategy"].tolist() == ["mean", "mean", "median", "median"]
 
 
-def test_get_hierarchical_stats_mode_empty_valid_values_returns_empty_rows(tmp_path):
-    frame = BaseData(
-        {"group": ["a", "b", None], "label": [None, None, None]},
-        cache_dir=tmp_path,
-    )
-
-    result = frame.get_hierarchical_stats("label", strategy="mode", hierarchy_cols="group")
-
-    assert result.empty
-    assert list(result.columns) == OUTPUT_COLUMNS
-
-
 def test_get_hierarchical_stats_falls_back_to_dataframe_for_incompatible_default_subclass(
     tmp_path,
 ):
@@ -577,134 +450,56 @@ def test_get_hierarchical_stats_falls_back_to_dataframe_for_incompatible_default
     assert result["statistic"].tolist() == [1.0, 3.0]
 
 
-@pytest.mark.parametrize(
-    "method_name",
-    ["handle_outliers", "drop_outliers", "fill_missing"],
-)
-def test_hierarchy_methods_keep_existing_return_contract_when_stats_disabled(
-    tmp_path, method_name
-):
-    frame = BaseData(
-        {"group": ["a"] * 6, "value": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]},
-        cache_dir=tmp_path,
-    )
-    hierarchy_cols = "group" if method_name == "fill_missing" else ["group"]
-    kwargs = {"hierarchy_cols": hierarchy_cols, "get_hierarchical_stats": False}
-    if method_name == "fill_missing":
-        frame.loc[1, "value"] = None
-
-    result = getattr(frame, method_name)("value", **kwargs)
-
-    assert isinstance(result, BaseData)
-    assert not isinstance(result, tuple)
+# ---------------------------------------------------------------------------
+# Input-validation contracts (TEST-02)
+# ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "method_name",
-    ["handle_outliers", "drop_outliers", "fill_missing"],
-)
-@pytest.mark.parametrize(
-    "stats_kwargs", [{}, {"get_hierarchical_stats": False}],
-    ids=["omitted", "explicit_false"],
-)
-def test_hierarchy_methods_skip_stats_calculation_when_disabled(
-    monkeypatch, tmp_path, method_name, stats_kwargs
-):
-    frame = BaseData(
-        {"group": ["a"] * 6, "value": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]},
-        cache_dir=tmp_path,
-    )
-    hierarchy_cols = "group" if method_name == "fill_missing" else ["group"]
-    if method_name == "fill_missing":
-        frame.loc[1, "value"] = None
+@pytest.mark.parametrize("strategy", ["median", "mean"])
+def test_get_hierarchical_stats_non_numeric_target_raises_typeerror(strategy):
+    frame = pd.DataFrame({"g": ["a", "a", "b"], "label": ["x", "y", "z"]})
 
-    def unexpected_stats_call(*args, **kwargs):
-        pytest.fail("get_hierarchical_stats must not run when disabled")
-
-    monkeypatch.setattr(frame, "get_hierarchical_stats", unexpected_stats_call)
-
-    result = getattr(frame, method_name)(
-        "value", hierarchy_cols=hierarchy_cols, **stats_kwargs
-    )
-
-    assert isinstance(result, BaseData)
-    assert not isinstance(result, tuple)
+    with pytest.raises(TypeError):
+        stats.get_hierarchical_stats(frame, "label", strategy=strategy, hierarchy_cols=["g"])
 
 
-@pytest.mark.parametrize(
-    "method_name",
-    ["handle_outliers", "drop_outliers", "fill_missing"],
-)
-def test_hierarchy_methods_return_stats_for_copy_and_inplace_modes(tmp_path, method_name):
-    source = BaseData(
-        {"group": ["a"] * 6, "value": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]},
-        cache_dir=tmp_path,
-    )
-    if method_name == "fill_missing":
-        source.loc[1, "value"] = None
-    hierarchy_cols = "group" if method_name == "fill_missing" else ["group"]
-    kwargs = {"hierarchy_cols": hierarchy_cols, "get_hierarchical_stats": True}
+def test_get_hierarchical_stats_non_numeric_target_mode_is_allowed():
+    frame = pd.DataFrame({"g": ["a", "a", "b"], "label": ["x", "y", "z"]})
 
-    result, stats = getattr(source, method_name)("value", **kwargs)
+    result = stats.get_hierarchical_stats(frame, "label", strategy="mode", hierarchy_cols=["g"])
 
-    assert isinstance(result, BaseData)
-    assert isinstance(stats, BaseData)
-    assert list(stats.columns) == OUTPUT_COLUMNS
-    assert stats["target_column"].tolist() == ["value"]
-
-    inplace_source = source.copy()
-    inplace_stats = getattr(inplace_source, method_name)(
-        "value", inplace=True, **kwargs
-    )
-
-    assert isinstance(inplace_stats, BaseData)
-    assert list(inplace_stats.columns) == OUTPUT_COLUMNS
-    assert not isinstance(inplace_stats, tuple)
-    if method_name == "handle_outliers":
-        assert inplace_source["value"].isna().tolist() == [False] * 5 + [True]
-    elif method_name == "drop_outliers":
-        assert len(inplace_source) == 5
-    else:
-        assert inplace_source["value"].isna().sum() == 0
+    assert result["statistic"].tolist() == ["x", "z"]
 
 
-def test_hierarchy_stats_are_extracted_before_drop_outliers(tmp_path):
-    frame = BaseData(
-        {"group": ["a"] * 7, "value": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 100.0]},
-        cache_dir=tmp_path,
-    )
+def test_get_hierarchical_stats_skips_missing_targets():
+    frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 3.0]})
 
-    result, stats = frame.drop_outliers(
-        "value",
-        hierarchy_cols=["group"],
-        get_hierarchical_stats=True,
-    )
+    result = stats.get_hierarchical_stats(frame, "v", "missing", hierarchy_cols=["g"])
 
-    assert result["value"].tolist() == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
-    assert stats["hierarchy_level"].tolist() == [1]
-    assert stats["statistic"].tolist() == [4.0]
+    assert result["target_column"].unique().tolist() == ["v"]
 
 
-def test_hierarchy_stats_are_extracted_before_progressive_fill(tmp_path):
-    frame = BaseData(
-        {
-            "region": ["east", "east", "east", "east"],
-            "department": ["a", "a", "b", "b"],
-            "value": [1.0, None, 9.0, 11.0],
-        },
-        cache_dir=tmp_path,
-    )
+# ---------------------------------------------------------------------------
+# get_hierarchical_stats -- strategy validation
+# ---------------------------------------------------------------------------
 
-    result, stats = frame.fill_missing(
-        "value",
-        strategy="mean",
-        hierarchy_cols=["region", "department"],
-        get_hierarchical_stats=True,
-    )
 
-    assert result["value"].tolist() == [1.0, 1.0, 9.0, 11.0]
-    region_stat = stats.loc[
-        (stats["hierarchy_level"] == 1) & (stats["hierarchy_columns"] == ("region",)),
-        "statistic",
-    ]
-    assert region_stat.tolist() == [7.0]
+def test_get_hierarchical_stats_rejects_non_iterable_strategy():
+    frame = pd.DataFrame({"g": ["a"], "v": [1.0]})
+
+    with pytest.raises(TypeError, match="strategy must be a string or an iterable"):
+        stats.get_hierarchical_stats(frame, "v", strategy=5, hierarchy_cols=["g"])
+
+
+def test_get_hierarchical_stats_rejects_empty_strategy_iterable():
+    frame = pd.DataFrame({"g": ["a"], "v": [1.0]})
+
+    with pytest.raises(ValueError, match="at least one strategy"):
+        stats.get_hierarchical_stats(frame, "v", strategy=[], hierarchy_cols=["g"])
+
+
+def test_get_hierarchical_stats_rejects_unknown_strategy():
+    frame = pd.DataFrame({"g": ["a"], "v": [1.0]})
+
+    with pytest.raises(ValueError, match="Invalid strategy 'bogus'"):
+        stats.get_hierarchical_stats(frame, "v", strategy="bogus", hierarchy_cols=["g"])

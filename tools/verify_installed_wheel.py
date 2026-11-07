@@ -16,8 +16,9 @@ script makes that check reproducible and offline:
    all come from the installed wheel rather than any source tree;
 4. copy the complete ``tests/`` tree, the development tooling
    ``tools/sync_docs.py``, and the source artifacts the doc-drift test reads
-   into a scratch test root, then run the full suite, the four Phase 3 files,
-   and an installed-distribution smoke test against the installed wheel.
+   into a scratch test root, then run the full suite, the four target
+   verification files, and an installed-distribution smoke test against the
+   installed wheel.
 
 The doc-drift test reads source files (``bynat/py.typed``,
 ``bynat/cleaning/base.py``, ``bynat/cleaning/accessor.py``, and
@@ -53,17 +54,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = "bynat"
 PHASE3_TESTS = (
-    "tests/test_phase3_input_validation.py",
-    "tests/test_phase3_transformations.py",
-    "tests/test_phase3_file_io.py",
-    "tests/test_phase3_optional_integrations.py",
+    "tests/modules/io/test_io.py",
+    "tests/modules/enrichment/test_optional.py",
+    "tests/modules/columns/test_columns.py",
+    "tests/cross_cutting/accessor/test_parity.py",
 )
 TOP_LEVEL_EXPORTS = {"BynatAccessor", "ProfileReport", "profile", "read_csv", "read_json"}
 CLEANING_EXPORTS = {"BaseData", "CsvFile", "JsonFile"}
 PACKAGE_DATA = ("bynat/py.typed", "bynat/cleaning/accessor.pyi")
 
 # Development tooling the copied suite imports. It is not part of the wheel.
-TEST_TOOLING = ("tools/sync_docs.py",)
+# `benchmarks/reference_impls.py` backs the equivalence tests' shared 0.3.0
+# reference implementations (see benchmarks/_common.py), so it is copied
+# alongside tools/sync_docs.py.
+TEST_TOOLING = ("tools/sync_docs.py", "benchmarks/reference_impls.py")
 
 # Source artifacts the doc-drift test reads. They are copied into the scratch
 # test root without __init__.py so they stay a namespace portion and cannot
@@ -493,7 +497,11 @@ def _prepare_test_root(scratch: Path, source_root: Path) -> Path:
     tools_dir = testroot / "tools"
     tools_dir.mkdir()
     for relative in TEST_TOOLING:
-        shutil.copyfile(source_root / relative, tools_dir / Path(relative).name)
+        destination = tools_dir / Path(relative).name
+        shutil.copyfile(source_root / relative, destination)
+        if Path(relative).parent != Path("."):
+            (testroot / Path(relative).parent).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_root / relative, testroot / relative)
     for relative in DOC_DRIFT_SOURCE_FILES:
         destination = testroot / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -667,7 +675,7 @@ def main() -> int:
         env["BYNAT_VERIFY_VERSION"] = str(installed["version"])
 
         tests_dir = testroot / "tests"
-        phase3_targets = [tests_dir / Path(relative).name for relative in PHASE3_TESTS]
+        phase3_targets = [testroot / relative for relative in PHASE3_TESTS]
         full = _run_pytest(scratch, venv_python, [tests_dir], env, "full")
         phase3 = _run_pytest(scratch, venv_python, phase3_targets, env, "phase3")
         smoke = _run_pytest(scratch, venv_python, [testroot / "smoke"], env, "smoke")

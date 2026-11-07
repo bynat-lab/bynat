@@ -149,7 +149,7 @@ The table below describes the target testing architecture. It is not a claim tha
 - Return contracts match the documented behavior (new object by default; `inplace=True` returns `None` or the documented statistics result).
 - The class API and the accessor produce equal results for the same input.
 
-**Current guards.** `tests/test_doc_drift.py` and parts of `tests/test_accessor.py` and `tests/test_hierarchical_stats.py` pin the top-level `bynat` exports, the `bynat.cleaning` class API, and the accessor signatures and docstrings. No test yet pins the documented caching exports (`CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR`) or the enrichment default `NominatimGeocoder`; a contract test for those paths is recorded as a Phase 0 item. The caching module's public `resolve_cache_dir` helper is not a documented export and MAY be exercised by that test without entering the contract inventory. New public API MUST extend these guards. [BP]
+**Current guards.** `tests/cross_cutting/contracts/test_doc_drift.py` and parts of `tests/cross_cutting/accessor/test_accessor.py` and `tests/modules/stats/test_hierarchical_stats.py` pin the top-level `bynat` exports, the `bynat.cleaning` class API, and the accessor signatures and docstrings. No test yet pins the documented caching exports (`CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR`) or the enrichment default `NominatimGeocoder`; a contract test for those paths is recorded as a Phase 0 item. The caching module's public `resolve_cache_dir` helper is not a documented export and MAY be exercised by that test without entering the contract inventory. New public API MUST extend these guards. [BP]
 
 The package-level `bynat.cleaning` namespace MUST expose only its established class API (`BaseData`, `CsvFile`, and `JsonFile`). Profiling functions and report classes MUST be imported from `bynat.cleaning.profile`, accessor APIs from `bynat.cleaning.accessor`, and loader helpers from `bynat.cleaning.io`. Tests MUST verify each documented path without expanding the package namespace merely for convenience. [BP]
 
@@ -192,7 +192,7 @@ The package-level `bynat.cleaning` namespace MUST expose only its established cl
 
 ### 3.8 Additional testing
 
-**Equivalence tests.** Every optimized implementation MUST have an equivalence test against a reference implementation, kept in `tests/test_equivalence.py`. A clarity reference is written independently for readability, not speed, and MUST NOT share a production helper with the implementation under test: a shared helper can reproduce the defect the test exists to catch. A legacy reference preserves the pre-optimization implementation verbatim apart from the `self` → `df` rename and MAY share a production helper; when that helper could reproduce the defect, an independent clarity reference MUST also exist. [BP] (ROADMAP: performance changes must come with a benchmark and an equivalence test)
+**Equivalence tests.** Every optimized implementation MUST have an equivalence test against a reference implementation, kept in `tests/cross_cutting/equivalence/test_equivalence.py`. A clarity reference is written independently for readability, not speed, and MUST NOT share a production helper with the implementation under test: a shared helper can reproduce the defect the test exists to catch. A legacy reference preserves the pre-optimization implementation verbatim apart from the `self` → `df` rename and MAY share a production helper; when that helper could reproduce the defect, an independent clarity reference MUST also exist. [BP] (ROADMAP: performance changes must come with a benchmark and an equivalence test)
 
 **Performance tests.** `benchmarks/` scripts compare the current implementation with the 0.3.0 algorithm and print a table. Numbers are recorded in the PR description, not in the code. A performance change without an equivalence test and a benchmark MUST NOT merge. [BP] (ROADMAP definition of done)
 
@@ -801,7 +801,7 @@ At minimum, property tests SHOULD state these invariants for every transformatio
 
 ### 8.1 Layout
 
-The current layout is a flat root `tests/` directory with 15 test files and `tests/conftest.py`; it does not yet contain the target hierarchical structure, shared test infrastructure, or marker configuration. The following is the authoritative target hierarchical layout after the phased additions in §12 and the migration plan in §8.9; paths that do not yet exist MUST NOT be described as current state. [BP]
+The current layout is the hierarchical structure below: `tests/conftest.py` at the root, module-owned tests under `tests/modules/<module>/`, and cross-cutting contracts and workflows under `tests/cross_cutting/<topic>/`. The §8.9.8 migration produced it from the former flat root layout. No `tests/shared/` file exists because no distinct-domain reuse has been evidenced. Marker registration in `pyproject.toml` remains a Phase 1 target. [BP]
 
 | Path | Purpose |
 | --- | --- |
@@ -811,7 +811,7 @@ The current layout is a flat root `tests/` directory with 15 test files and `tes
 | `tests/shared/` | Illustrative home for genuinely reusable infrastructure when distinct-domain reuse is verified; no current shared file is prescribed |
 | `benchmarks/` | Performance benchmark scripts with equivalence checks against reference implementations |
 
-**Splitting rule.** When a test file exceeds roughly 800 lines or the suite exceeds roughly 2000 collected tests, new tests go into topic-named files rather than appending to the largest file. The rule applies to every test file, current and new, across both `tests/modules/` and `tests/cross_cutting/`. Two current files exceed it: `tests/test_caching.py` (1,774 lines) and `tests/test_profile.py` (857 lines). They are recorded as target-state violations in §8.9, not exceptions: new tests MUST NOT be appended to them, and the §8.9 migration plan brings each below the threshold. [BP]
+**Splitting rule.** When a test file exceeds roughly 800 lines or the suite exceeds roughly 2000 collected tests, new tests go into topic-named files rather than appending to the largest file. The rule applies to every test file, current and new, across both `tests/modules/` and `tests/cross_cutting/`. Before the §8.9 migration, two files exceeded it: `tests/test_caching.py` (1,774 lines) and `tests/test_profile.py` (857 lines). They were recorded as target-state violations in §8.9, not exceptions, and the §8.9.8 migration split them; every current target file is below the threshold. [BP]
 
 ### 8.2 Naming
 
@@ -894,9 +894,11 @@ Tests SHOULD be annotated and added to the mypy scope incrementally. Fixture and
 
 **Authority and status.** This section is the authoritative TEST-ARCH-01 analysis and defines binding policy for the test suite layout. It replaces the previous flat-root hybrid model with a single consistent, repository-specific hierarchical architecture and migration plan. §1.4 makes this document the detailed policy behind `docs/ROADMAP.md` §2 and §6, and this document controls on conflict. The normative apparatus of §1 (RFC 2119 keywords and the [SB]/[BP]/[RP] basis tags) applies to every statement below. Where this section and §8.1–§8.8 overlap, this section is the more specific rule and controls; where it is silent, §8.1–§8.8 control. [BP]
 
-**Current state (verified).** The repository at the reviewed revision contains 15 `tests/test_*.py` modules plus `tests/conftest.py`, 319 test function definitions, 528 collected test cases, 8,454 lines across the 15 test modules, and 8,471 lines across `tests/*.py` including `conftest.py`. `tests/conftest.py` is a 17-line `sys.path` shim with no fixtures, markers, or Hypothesis profiles. `tests/modules/`, `tests/cross_cutting/`, and `tests/shared/` do not exist. `pyproject.toml` declares no `[tool.pytest.ini_options]`, no `[tool.coverage.*]`, and no Hypothesis dependency. Four files are named after a process phase (`tests/test_phase3_file_io.py`, `tests/test_phase3_input_validation.py`, `tests/test_phase3_optional_integrations.py`, `tests/test_phase3_transformations.py`), one after a process artifact (`tests/test_inplace_deprecation.py`), and one is a cross-component grab-bag (`tests/test_cleaning.py`). Two files exceed the §8.1 800-line threshold: `tests/test_caching.py` at 1,774 lines and `tests/test_profile.py` at 857 lines. [BP]
+**Pre-migration baseline (verified).** The repository at the reviewed revision contained 15 `tests/test_*.py` modules plus `tests/conftest.py`, 319 test function definitions, 528 collected test cases, 8,454 lines across the 15 test modules, and 8,471 lines across `tests/*.py` including `conftest.py`. `tests/conftest.py` was a 17-line `sys.path` shim with no fixtures, markers, or Hypothesis profiles. `tests/modules/`, `tests/cross_cutting/`, and `tests/shared/` did not exist. `pyproject.toml` declared no `[tool.pytest.ini_options]`, no `[tool.coverage.*]`, and no Hypothesis dependency. Four files were named after a process phase (`tests/test_phase3_file_io.py`, `tests/test_phase3_input_validation.py`, `tests/test_phase3_optional_integrations.py`, `tests/test_phase3_transformations.py`), one after a process artifact (`tests/test_inplace_deprecation.py`), and one was a cross-component grab-bag (`tests/test_cleaning.py`). Two files exceeded the §8.1 800-line threshold: `tests/test_caching.py` at 1,774 lines and `tests/test_profile.py` at 857 lines. [BP]
 
-**Target state.** Everything in §8.9.1–§8.9.9 is target state, not a description of current repository files. This section establishes the authoritative hierarchical architecture and migration plan. The migration that produces it is documented in §8.9.8 and is **not authorized** (§8.9.9). §12's phases remain the adoption gates for tooling and CI; this section approves the organizational model. [BP]
+**Current state (verified).** The §8.9.8 migration dissolved all 15 flat-root modules into the hierarchical target tree. The suite now defines 321 test functions and collects 530 cases, preserves all 990 `assert` statements and all 100 `pytest.param` cases, and keeps every target file below the 800-line threshold. The only root-level test-suite file is `tests/conftest.py`; `tests/modules/caching/conftest.py` is the single module-local conftest; no `tests/shared/` file exists. `tests/cross_cutting/equivalence/_bench_refs.py` and `tests/modules/caching/helpers.py` are the only non-test support modules. [BP]
+
+**Target state.** Everything in §8.9.1–§8.9.9 is the approved target state. This section establishes the authoritative hierarchical architecture and migration plan. The migration that produces it is documented in §8.9.8 and was authorized and completed (§8.9.9). §12's phases remain the adoption gates for tooling and CI; this section approves the organizational model. [BP]
 
 #### 8.9.1 Alternatives evaluated
 
@@ -951,9 +953,9 @@ The target suite is structured hierarchically into three distinct functional tie
 3. `tests/shared/`: Owns only genuinely reusable infrastructure whose consumers span distinct architectural domains. Domain-local fakes, factories, and helpers remain in their module or topic subtree.
 
 **Ownership rules.** [BP]
-- Module-specific behavior and contracts belong to the relevant module directory; a production package may have several focused test files within that directory. The directory is the ownership boundary, not an exactly-one-test-file rule.
+- Module-specific behavior and contracts belong to the relevant module directory; a production package may have several focused test files within that directory. The directory is the ownership boundary, not an exactly-one-test-file rule. Module-owned tests MAY exercise supporting dependencies (for example a cache manager, accessor, or shared helper imported by the module under test) when those dependencies support the module-specific behavior being pinned.
 - When a module's test volume exceeds 800 lines (e.g. caching, profile, stats), the module tests are split into responsibility-focused files within that module's directory.
-- Each cross-cutting contract maps to exactly one topic directory under `tests/cross_cutting/`, and each test has one primary owner.
+- Each cross-cutting contract maps to exactly one topic directory under `tests/cross_cutting/`, and each test has one primary owner. `tests/cross_cutting/` is reserved for tests whose primary responsibility is a genuinely cross-module contract or workflow; a test that primarily pins one module's behavior does not move there merely because it imports another module.
 - A test that verifies a genuinely cross-module contract or workflow belongs to `tests/cross_cutting/` and is referenced by the relevant module coverage matrices.
 - A helper, fake, or fixture used by two or more files across different domains belongs in `tests/shared/`. Domain-specific helpers remain within their owning module directory.
 
@@ -1020,7 +1022,7 @@ The target suite is structured hierarchically into three distinct functional tie
 | `tests/cross_cutting/workflows/test_fill_missing_from.py` | `fill_missing_from` (9), `trans` (3), `val` (4) | 393 + 84 + 9 | 486 | 800 |
 | `tests/cross_cutting/invariants/test_invariants.py` | Future system-wide Hypothesis property tests only | — | Not estimated until justified | 800 |
 
-**Planned compliance.** Every listed target is intended to remain strictly below the 800-line threshold; the largest planning estimate is `test_persistence.py` at 750 lines. Migration MUST recompute actual line counts from the resulting files and stop for a responsibility-based split if any file reaches or exceeds 800 lines. The estimates are planning evidence, not a claim that the target files already exist or that their final counts have been verified. [BP]
+**Verified compliance.** Every listed target is strictly below the 800-line threshold; the largest actual post-migration file is `test_persistence.py` at 782 lines (planning estimate 750). The estimates were planning evidence; the migration recomputed actual line counts from the resulting files and confirmed 100% compliance. [BP]
 
 #### 8.9.4 Responsibility and boundary rules
 
@@ -1056,9 +1058,9 @@ The target suite is structured hierarchically into three distinct functional tie
 4. Test-type markers (`unit`, `integration`, `property`, `extras`, `slow`) remain the execution filter mechanism in CI, independent of directory location.
 
 **Temporary implementation dependencies (resolved during migration).** [BP]
-1. `tools/verify_installed_wheel.py`: Currently hardcodes `PHASE3_TESTS` pointing at the four `test_phase3_*.py` files. When these files are dissolved, `PHASE3_TESTS` MUST be updated to reference representative target verification files (e.g., `tests/modules/io/test_io.py`, `tests/modules/enrichment/test_optional.py`, `tests/modules/columns/test_columns.py`, and `tests/cross_cutting/accessor/test_parity.py`).
-2. `benchmarks/_common.py`: Adds `ROOT / "tests"` to `sys.path`, and the benchmark scripts import reference implementations from `test_equivalence.py`. The preferred future solution is to create `benchmarks/reference_impls.py`, extract those reference implementations there, and have both equivalence tests and benchmarks import that module. Updating benchmark imports and the equivalence-test imports is a separate migration dependency; adding a nested test directory to `sys.path` is not the preferred permanent architecture.
-3. `tests/test_doc_drift.py`: Computes `ROOT` as the repository root with `Path(__file__).resolve().parent.parent`. When moved to `tests/cross_cutting/contracts/test_doc_drift.py`, `ROOT` MUST remain the repository root, which requires `.parents[3]`; the test-suite root is then `ROOT / "tests"`.
+1. `tools/verify_installed_wheel.py`: Hardcoded `PHASE3_TESTS` pointing at the four `test_phase3_*.py` files. The migration updated `PHASE3_TESTS` to reference representative target verification files (`tests/modules/io/test_io.py`, `tests/modules/enrichment/test_optional.py`, `tests/modules/columns/test_columns.py`, and `tests/cross_cutting/accessor/test_parity.py`).
+2. `benchmarks/_common.py`: Added `ROOT / "tests"` to `sys.path`, and the benchmark scripts imported reference implementations from `test_equivalence.py`. The migration created `benchmarks/reference_impls.py`, extracted those reference implementations there, and updated both benchmark scripts and the equivalence tests to import that module. The test-directory path addition was removed, so the benchmarks no longer depend on the `tests/` tree; the repository root remains on `sys.path` so the checkout's `bynat` package resolves when the benchmarks run from a source tree.
+3. `tests/test_doc_drift.py`: Computes `ROOT` as the repository root with `Path(__file__).resolve().parent.parent`. When moved to `tests/cross_cutting/contracts/test_doc_drift.py`, `ROOT` MUST remain the repository root, which requires `Path(__file__).resolve().parents[3]`; the test-suite root is then `ROOT / "tests"`.
 4. Strict xfail reason references: The 20 strict-xfail cases (8 in `tests/cross_cutting/base_api/test_base.py`, 12 in `tests/modules/stats/test_fill_missing.py`) point to `docs/temb/TEST-02-phase1-audit.md` via reason strings. That tracked file MUST NOT be moved.
 5. Pandas-2 skips: The 17 version-conditional skips in `test_equivalence.py` are preserved in place.
 
@@ -1184,7 +1186,7 @@ The target suite is structured hierarchically into three distinct functional tie
 
 #### 8.9.8 Phased migration plan with verification gates
 
-**Planning authority and non-execution.** This plan is future planning only and MUST NOT be executed without supervisor approval. No test file was moved or renamed in this task. Each migration step below represents an independent, reviewable change with strict verification gates. [BP]
+**Authorization and completion.** This plan was authorized and executed on branch `test-01`. Every step below was applied and its verification gate satisfied: the resulting suite collects 530 cases, defines 321 test functions, preserves all 990 `assert` statements, all 100 `pytest.param` cases, and all 20 strict `xfail` cases, and keeps every target file below the 800-line threshold. The steps are retained below as the reviewable record of the migration. [BP]
 
 1. **Step 1: Create shared infrastructure and module scaffolding.**
    - Do not create a `tests/shared/` file unless the migration audit verifies a distinct-domain reusable consumer.
@@ -1251,9 +1253,9 @@ The target suite is structured hierarchically into three distinct functional tie
 
 **Preservation invariants.** [BP] The migration plan preserves every test function, helper, class, and constant; all 990 `assert` statements; all 100 `pytest.param` cases; and all 20 strict `xfail` cases with `strict=True`. Redundancy cleanup MUST NOT be used to eliminate tests or assertions.
 
-#### 8.9.9 Non-authorization of migration
+#### 8.9.9 Authorization and completion of migration
 
-The migration described in §8.9.8 is future design and planning only and is **not authorized**. It MUST NOT be performed until explicitly approved by the supervisor. Until authorization is granted, all 15 test files remain in their current flat layout directly under `tests/`, and the hierarchical architecture approved here serves as the authoritative design model for all new work. No test file was created, moved, renamed, or deleted by this documentation update, and no production code, configuration, CI workflow, or dependency was modified. [BP]
+The migration described in §8.9.8 was authorized and completed on branch `test-01`. All 15 original flat-root test modules were dissolved into the hierarchical target tree: module-owned tests now live under `tests/modules/<module>/` and cross-cutting contracts and workflows under `tests/cross_cutting/<topic>/`. The only root-level test-suite file is `tests/conftest.py`; no `tests/shared/` file was created because no distinct-domain reuse was evidenced. Every original test function, helper, class, and constant is accounted for exactly once, and no test or assertion was removed or weakened. No production code, CI workflow, or dependency was modified by the migration. [BP]
 
 
 ---
@@ -1288,7 +1290,7 @@ A PR MUST pass every required gate before merge. [BP]
 | Property (extended) | scheduled | `python -m pytest -m property --hypothesis-profile=extended` | Yes, from Phase 2 | Scheduled, not a PR gate |
 | Mutation | scheduled | Cosmic Ray on the §7.5 scope | Advisory, from Phase 3 | Weekly or pre-release |
 | Compile | push, PR | `python -m compileall -q bynat tests` | Yes | Existing (package only); extend to tests |
-| Doc drift | push, PR | `python -m pytest tests/cross_cutting/contracts/test_doc_drift.py` after the hierarchical migration | Yes | Existing contract test; current pre-migration path is `tests/test_doc_drift.py` |
+| Doc drift | push, PR | `python -m pytest tests/cross_cutting/contracts/test_doc_drift.py` | Yes | Existing contract test; the §8.9.8 migration moved it from `tests/test_doc_drift.py` |
 
 ### 9.3 Windows and mutation tooling
 

@@ -808,7 +808,7 @@ The current layout is a flat root `tests/` directory with 15 test files and `tes
 | `tests/conftest.py` | Root suite-wide configuration and genuinely suite-wide fixtures; marker registration and Hypothesis profiles are future Phase 1 additions |
 | `tests/modules/<module>/` | Module-owned unit and component-level integration tests (e.g. `caching`, `columns`, `text`, `stats`, `profile`, `io`, `enrichment`) |
 | `tests/cross_cutting/<topic>/` | Topic-oriented cross-cutting tests: class contracts, parity, doc drift, equivalence, multi-step workflows, invariant properties |
-| `tests/shared/` | Genuinely reusable test infrastructure: shared fake providers, frame factories, schema constants (2+ domain consumers) |
+| `tests/shared/` | Illustrative home for genuinely reusable infrastructure when distinct-domain reuse is verified; no current shared file is prescribed |
 | `benchmarks/` | Performance benchmark scripts with equivalence checks against reference implementations |
 
 **Splitting rule.** When a test file exceeds roughly 800 lines or the suite exceeds roughly 2000 collected tests, new tests go into topic-named files rather than appending to the largest file. The rule applies to every test file, current and new, across both `tests/modules/` and `tests/cross_cutting/`. Two current files exceed it: `tests/test_caching.py` (1,774 lines) and `tests/test_profile.py` (857 lines). They are recorded as target-state violations in §8.9, not exceptions: new tests MUST NOT be appended to them, and the §8.9 migration plan brings each below the threshold. [BP]
@@ -925,7 +925,7 @@ Seven architectural models were evaluated against the observed suite, the §8 po
 | Shared infrastructure / test independence | Poor | Poor | Medium | Medium | Medium | Medium (`tests/helpers.py`) | **High**: scoped `tests/shared/` + local `conftest.py` |
 | Tooling / CI coupling | Medium | Medium | Medium | Medium | Medium | Low | **Low**: recursive discovery via `testpaths = ["tests"]` |
 | Maintenance cost / consistency | High | Medium | Medium | Medium | Medium | Medium | **Low**: self-contained modules, clear boundary rules |
-| Mandatory-rule compliance (<800 lines, root conftest) | No (violations) | Yes | Yes | Yes | Yes | Yes | **Yes**: all target files < 800 lines |
+| Mandatory-rule compliance (<800 lines, root conftest) | No (violations) | Yes | Yes | Yes | Yes | Yes | **Planned yes**: each target must pass the migration-time <800-line check |
 | Files moved / tests moved | 0 / 0 | 15 / 319 | 15 / 319 | 15 / 319 | 15 / 319 | 11 / 287 | 15 / 319 |
 
 **Why F is rejected.** The status quo Flat model scores worst across all maintainability dimensions: cross-cutting contracts lack a defined home, cross-component grab-bags mix unrelated dependencies, and two files (`test_caching.py` at 1,774 lines, `test_profile.py` at 857 lines) violate the mandatory 800-line limit. [BP]
@@ -940,7 +940,7 @@ Seven architectural models were evaluated against the observed suite, the §8 po
 
 **Why E is rejected.** The flat hybrid model places 25+ test files directly in the root `tests/` directory. As the suite expands toward 2,000 tests, a flat root directory becomes unmanageable, obscures module cohesion, and lacks cleanly scoped infrastructure. [BP]
 
-**Why H is selected.** The Hierarchical Responsibility Architecture (Model H) establishes a clean separation of concerns: module-owned tests are grouped under `tests/modules/<module>/`, cross-cutting contracts and workflows have dedicated homes under `tests/cross_cutting/<topic>/`, genuinely reusable infrastructure is centralized in `tests/shared/`, and markers provide an orthogonal axis of responsibility selection. It satisfies every mandatory limit, scales smoothly, and minimizes long-term maintenance costs. [BP]
+**Why H is selected.** The Hierarchical Responsibility Architecture (Model H) establishes a clean separation of concerns: module-owned tests are grouped under `tests/modules/<module>/`, cross-cutting contracts and workflows have dedicated homes under `tests/cross_cutting/<topic>/`, genuinely reusable infrastructure has a reserved home in `tests/shared/` when evidence justifies it, and markers provide an orthogonal axis of responsibility selection. It satisfies every mandatory limit, scales smoothly, and minimizes long-term maintenance costs. [BP]
 
 #### 8.9.2 Selected architecture and ownership
 
@@ -954,7 +954,7 @@ The target suite is structured hierarchically into three distinct functional tie
 - Module-specific behavior and contracts belong to the relevant module directory; a production package may have several focused test files within that directory. The directory is the ownership boundary, not an exactly-one-test-file rule.
 - When a module's test volume exceeds 800 lines (e.g. caching, profile, stats), the module tests are split into responsibility-focused files within that module's directory.
 - Each cross-cutting contract maps to exactly one topic directory under `tests/cross_cutting/`, and each test has one primary owner.
-- A test that verifies cross-component behavior belongs to `tests/cross_cutting/` and is referenced by the relevant module coverage matrices.
+- A test that verifies a genuinely cross-module contract or workflow belongs to `tests/cross_cutting/` and is referenced by the relevant module coverage matrices.
 - A helper, fake, or fixture used by two or more files across different domains belongs in `tests/shared/`. Domain-specific helpers remain within their owning module directory.
 
 **Production-module → owner table.** [BP]
@@ -992,7 +992,6 @@ The target suite is structured hierarchically into three distinct functional tie
 | --- | --- | --- | ---: | ---: |
 | `tests/conftest.py` | Root suite shim | 17 current lines | 17 | 800 |
 | `tests/modules/caching/helpers.py` | Caching-only `_seed_cache_entries`, `_rows` | 40 + 0 + 5 | 45 | 800 |
-| `tests/shared/constants.py` | Cross-domain `OUTPUT_COLUMNS` | 12 + 0 + 3 | 15 | 800 |
 | `tests/modules/caching/conftest.py` | Caching local fixtures | 30 + 4 + 6 | 40 | 800 |
 | `tests/modules/caching/test_persistence.py` | `test_caching.py` (30 items) | 715 + 30 + 5 | 750 | 800 |
 | `tests/modules/caching/test_migration.py` | `test_caching.py` (21 items) | 592 + 21 + 6 | 619 | 800 |
@@ -1025,7 +1024,7 @@ The target suite is structured hierarchically into three distinct functional tie
 
 #### 8.9.4 Responsibility and boundary rules
 
-- **Module autonomy.** Files under `tests/modules/<module>/` MUST test only the functions and classes defined in that production module. They MUST NOT test cross-module contracts or multi-step workflows across other modules. [BP]
+- **Module ownership.** Files under `tests/modules/<module>/` are owned by the primary responsibility and contract they verify. They MAY exercise dependencies from other modules when those dependencies support the module-specific behavior. They MUST NOT own a genuinely cross-module contract or multi-step workflow whose primary responsibility belongs under `tests/cross_cutting/<topic>/`. [BP]
 - **Cross-cutting ownership.** Tests that assert parity between different APIs (such as `BaseData` vs `df.bynat`), documentation drift, or end-to-end workflows MUST reside in `tests/cross_cutting/<topic>/`. [BP]
 - **Orthogonality of markers.** Directory structure defines ownership; markers define execution gates (§8.5). `unit`, `integration`, `property`, `slow`, `extras`, `mutation`, and `network` markers apply equally across module and cross-cutting tests. [BP]
 - **Property tests.** Hypothesis property tests for module invariants reside within the respective module directory (e.g. `tests/modules/stats/test_invariants_property.py`). Cross-component or system-wide invariants reside under an appropriate cross-cutting topic such as `tests/cross_cutting/invariants/`; `property` is a marker, not a mandatory directory. All property tests MUST be marked with `@pytest.mark.property`. [BP]
@@ -1034,34 +1033,33 @@ The target suite is structured hierarchically into three distinct functional tie
 #### 8.9.5 Fixture, helper, data, naming, marker, and discovery rules
 
 **Fixtures and conftest scoping.** [BP]
-- Root `tests/conftest.py` is reserved for suite-wide configuration: `sys.path` registration, marker declarations, Hypothesis settings, and global autouse safety checks (prohibiting live network calls, enforcing `tmp_path`).
+- Root `tests/conftest.py` is reserved for genuinely suite-wide configuration and fixtures. The current file contains only the `sys.path` shim. Marker declarations, Hypothesis settings, and global safety fixtures are optional future additions, not permanent requirements, and require separate evidence and adoption.
 - Module-local `conftest.py` is permitted only where justified by module-scoped fixtures (e.g. `tests/modules/caching/conftest.py` for SQLite database handles and seeder fixtures; `tests/modules/enrichment/conftest.py` for mock provider lifecycles). Modules without shared fixtures MUST NOT create a local `conftest.py`.
 - Single-file fixtures remain file-local.
 
 **Shared infrastructure.** [BP]
-- Genuinely reusable infrastructure is placed in `tests/shared/` only when there are two or more consumers across distinct architectural domains and centralization improves maintainability.
-- `tests/shared/constants.py`: the cross-domain `OUTPUT_COLUMNS` schema constant. `EXPECTED_STATS_KEYS_BY_KIND` remains local to the profile contract tests.
-- Caching-only helpers (`_seed_cache_entries`, `_rows`) remain in `tests/modules/caching/helpers.py`; enrichment provider fakes and installers remain in the enrichment subtree; `PARITY_DATA` remains with accessor parity tests.
+- Genuinely reusable infrastructure is placed in `tests/shared/` only when there are two or more consumers across distinct architectural domains and centralization improves maintainability. The current suite provides no verified shared-infrastructure consumer that requires a new `tests/shared/` file; the directory remains reserved for a future evidence-based extraction.
+- Caching-only helpers (`_seed_cache_entries`, `_rows`) remain in `tests/modules/caching/helpers.py`; enrichment provider fakes and installers remain in the enrichment subtree; `PARITY_DATA`, `OUTPUT_COLUMNS`, and `EXPECTED_STATS_KEYS_BY_KIND` remain local unless a future migration audit verifies distinct-domain consumers.
 - Domain-specific helpers (such as `_Location`, `_install_geopy`, `_install_fake_spacy`) remain local to their owning module directory.
 
 **Naming and discovery.** [BP]
 - Test files MUST be named `test_<topic>.py`.
-- Shared infrastructure files in `tests/shared/` MUST NOT start with `test_` (`fakes.py`, `factories.py`, `constants.py`), ensuring pytest never attempts to collect them as test modules.
+- Any future shared infrastructure file in `tests/shared/` MUST NOT start with `test_`, ensuring pytest never attempts to collect it as a test module.
 - The future Phase 1 configuration in `pyproject.toml` adds `testpaths = ["tests"]`. Pytest then discovers test files recursively across all nested module and cross-cutting directories without manual path enumeration; the current configuration has no pytest section.
 
 #### 8.9.6 Verified structural constraints versus temporary implementation dependencies
 
 **Structural constraints (permanent architecture invariants).** [BP]
-1. Root `tests/conftest.py` MUST remain at the `tests/` root to configure the suite, provide the `sys.path` shim, and establish global test execution policies.
+1. Root `tests/conftest.py` MUST remain at the `tests/` root. It preserves the existing suite-wide `sys.path` shim; additional suite-wide configuration or fixtures require separate evidence and adoption.
 2. The 800-line per-file limit is an absolute constraint across all target directories.
 3. The prohibition on network access, test-only production hooks, and modifying production code to satisfy tests is absolute (§4, §10).
 4. Test-type markers (`unit`, `integration`, `property`, `extras`, `slow`) remain the execution filter mechanism in CI, independent of directory location.
 
 **Temporary implementation dependencies (resolved during migration).** [BP]
 1. `tools/verify_installed_wheel.py`: Currently hardcodes `PHASE3_TESTS` pointing at the four `test_phase3_*.py` files. When these files are dissolved, `PHASE3_TESTS` MUST be updated to reference representative target verification files (e.g., `tests/modules/io/test_io.py`, `tests/modules/enrichment/test_optional.py`, `tests/modules/columns/test_columns.py`, and `tests/cross_cutting/accessor/test_parity.py`).
-2. `benchmarks/_common.py`: Adds `ROOT / "tests"` to `sys.path`, and the benchmark scripts import reference implementations from `test_equivalence.py`. The preferred future solution is to extract those benchmark reference implementations into a proper benchmark support module such as `benchmarks/reference_impls.py`, then have both equivalence tests and benchmarks import that module. Updating benchmark imports and the equivalence-test imports is a separate migration dependency; adding a nested test directory to `sys.path` is not the preferred permanent architecture.
-3. `tests/test_doc_drift.py`: Computes `ROOT = Path(__file__).resolve().parent.parent`. When moved to `tests/cross_cutting/contracts/test_doc_drift.py`, its root path resolution MUST be updated to `.parents[2]`.
-4. Strict xfail reason references: The 20 strict-xfail cases (8 in `test_base.py`, 12 in `test_stats.py`) point to `docs/temb/TEST-02-phase1-audit.md` via reason strings. That tracked file MUST NOT be moved.
+2. `benchmarks/_common.py`: Adds `ROOT / "tests"` to `sys.path`, and the benchmark scripts import reference implementations from `test_equivalence.py`. The preferred future solution is to create `benchmarks/reference_impls.py`, extract those reference implementations there, and have both equivalence tests and benchmarks import that module. Updating benchmark imports and the equivalence-test imports is a separate migration dependency; adding a nested test directory to `sys.path` is not the preferred permanent architecture.
+3. `tests/test_doc_drift.py`: Computes `ROOT` as the repository root with `Path(__file__).resolve().parent.parent`. When moved to `tests/cross_cutting/contracts/test_doc_drift.py`, `ROOT` MUST remain the repository root, which requires `.parents[3]`; the test-suite root is then `ROOT / "tests"`.
+4. Strict xfail reason references: The 20 strict-xfail cases (8 in `tests/cross_cutting/base_api/test_base.py`, 12 in `tests/modules/stats/test_fill_missing.py`) point to `docs/temb/TEST-02-phase1-audit.md` via reason strings. That tracked file MUST NOT be moved.
 5. Pandas-2 skips: The 17 version-conditional skips in `test_equivalence.py` are preserved in place.
 
 #### 8.9.7 Complete mapping of current test and support files
@@ -1088,7 +1086,7 @@ The target suite is structured hierarchically into three distinct functional tie
 | `tests/test_phase3_optional_integrations.py` | **M** | `tests/modules/enrichment/test_optional.py` | Real optional dependency tests; process name dissolved |
 | `tests/test_phase3_transformations.py` | **A** | `tests/modules/columns/`, `text/`, `stats/`, `enrichment/`, `cross_cutting/accessor/test_parity.py`, `base_api/` | Transformations dissolved by component and parity owner |
 | `tests/test_profile.py` | **S** | `tests/modules/profile/test_profile_general.py`, `test_profile_edges.py`, `test_profile_contract.py` | 857 lines exceeds 800-line limit; split by responsibility |
-| — | **C** | `tests/modules/caching/helpers.py`, `tests/shared/constants.py` | Caching-local helpers plus the one currently evidenced cross-domain constant |
+| — | **C** | `tests/modules/caching/helpers.py` | Caching-local helpers reused by multiple caching target files; no shared-domain extraction is currently justified |
 
 **Support-item migration mapping.** [BP]
 
@@ -1099,6 +1097,7 @@ The target suite is structured hierarchically into three distinct functional tie
 | `benchmarks/_common.py` | **U** | Prefer no test-directory path addition; consume the future benchmark reference module | Removes benchmark dependence on importing a test module |
 | `benchmarks/bench_extract_keywords.py` | **U** | Import the future benchmark reference module | Keeps benchmark/reference code outside `tests/` |
 | `benchmarks/bench_outliers.py` | **U** | Import the future benchmark reference module | Keeps benchmark/reference code outside `tests/` |
+| — | **C** | `benchmarks/reference_impls.py` | Future home for benchmark reference implementations shared by benchmarks and equivalence tests |
 | `.github/workflows/test.yml` | **K** | Unchanged | Runs `pytest -q` which discovers all nested tests recursively |
 | `.github/workflows/publish.yml` | **K** | Unchanged | Packaging workflow; no test path coupling |
 | `pyproject.toml` | **U** | Add target `[tool.pytest.ini_options]` during the separately adopted Phase 1 | Enables recursive discovery and marker configuration; current file has no pytest section |
@@ -1108,7 +1107,7 @@ The target suite is structured hierarchically into three distinct functional tie
 **Test-level routing details.** Every test and helper is routed to exactly one target. Tests marked `#part` represent the single multi-concept test split into three focused tests. Shared infrastructure is extracted only where distinct-domain consumers are evidenced; same-domain helpers remain in their module or topic subtree. [BP]
 
 - **Shared/local support items:**
-  - `OUTPUT_COLUMNS` (`tests/test_hierarchical_stats.py:10`, duplicate in `test_phase3_transformations.py:29`) -> `tests/shared/constants.py`, because it is consumed across statistics and transformation responsibilities.
+  - `OUTPUT_COLUMNS` (`tests/test_hierarchical_stats.py:10`, duplicate in `test_phase3_transformations.py:29`) remains local to the responsible target files unless migration evidence demonstrates a distinct-domain shared consumer; duplicate definitions alone do not justify `tests/shared/` centralization.
   - `_seed_cache_entries` (`tests/test_caching.py:1146`) and `_rows` (`tests/test_caching.py:1500`) -> `tests/modules/caching/helpers.py`, because both are reused only within caching responsibilities.
   - `_install`, provider fakes, `EXPECTED_STATS_KEYS_BY_KIND`, and `PARITY_DATA` remain local to their owning enrichment, profile, or accessor-parity targets unless migration evidence demonstrates distinct-domain reuse.
 
@@ -1130,13 +1129,13 @@ The target suite is structured hierarchically into three distinct functional tie
   - `test_profile_general.py` (15 items): `test_public_entry_points`, `test_profiling_does_not_modify_input`, `test_report_structure_and_access_patterns`, `test_output_type_parameter`, `test_column_selection_and_errors`, `test_missing_values_and_proportions`, `test_duplicate_rows_counting_semantics`, `test_duplicate_rows_with_unhashable_cells`, `test_numeric_statistics`, `test_categorical_and_text_statistics`, `test_boolean_statistics`, `test_datetime_statistics`, `test_mixed_and_other_statistics`, `test_nullable_dtypes`, `_SINGLE_TYPE_INFERRED_LABELS`.
   - `test_profile_edges.py` (8 items): `test_empty_dataframe_edge_cases`, `test_all_missing_column_edge_cases`, `test_single_row_statistics`, `test_duplicate_column_names_handling`, `test_clean_scalar_bool_before_int`, `test_timedelta_columns_and_clean_scalar`, `test_categorical_pd_categorical`, `test_tz_aware_datetime`.
   - `test_profile_contract.py` (6 items): `test_contract_stability_key_sets`, `test_contract_stability_value_types`, `test_contract_json_dumps_mixed_dataframe`, `EXPECTED_TOP_LEVEL_KEYS`, `EXPECTED_DATASET_FIELDS`, `EXPECTED_COLUMN_FIELDS`.
-  - `tests/shared/constants.py` (1 item): `EXPECTED_STATS_KEYS_BY_KIND`.
+  - Profile-local constant (1 item): `EXPECTED_STATS_KEYS_BY_KIND` remains with the profile contract tests.
 
 - **`tests/test_hierarchical_stats.py` (30 items):**
   - `test_hierarchical_stats.py` (19 items): `test_get_hierarchical_stats_returns_median_levels_and_preserves_source`, `test_get_hierarchical_stats_supports_mean_multiple_targets_and_string_hierarchy`, `test_get_hierarchical_stats_handles_null_values_and_empty_groups`, `test_get_hierarchical_stats_returns_fixed_empty_schema_for_invalid_inputs`, `test_get_hierarchical_stats_does_not_change_fill_missing_behavior`, `test_get_hierarchical_stats_supports_explicit_dataframe_and_dict_outputs`, `test_get_hierarchical_stats_supports_explicit_basedata_family_outputs`, `test_get_hierarchical_stats_preserves_custom_basedata_subclass_by_default`, `test_get_hierarchical_stats_rejects_invalid_output_type_before_aggregation`, `test_get_hierarchical_stats_returns_requested_type_for_empty_results`, `test_get_hierarchical_stats_has_no_nested_functions_or_apply_lambda`, `test_get_hierarchical_stats_deduplicates_hierarchy_columns_without_adding_levels`, `test_get_hierarchical_stats_rejects_target_hierarchy_overlap_before_aggregation`, `test_get_hierarchical_stats_supports_ordered_multiple_strategies`, `test_get_hierarchical_stats_rejects_non_string_strategy_values_before_aggregation`, `test_get_hierarchical_stats_default_fallback_requires_data_signature`, `test_get_hierarchical_stats_propagates_internal_constructor_errors`, `test_get_hierarchical_stats_all_output_types_keep_multi_strategy_schema`, `test_get_hierarchical_stats_falls_back_to_dataframe_for_incompatible_default_subclass`.
   - `test_hierarchical_stats_mode.py` (5 items): `test_get_hierarchical_stats_mode_matches_tie_breaking_and_normalizes_mod`, `test_get_hierarchical_stats_mode_returns_all_targets_at_every_hierarchy_level`, `test_get_hierarchical_stats_mode_allows_hierarchy_column_named_count`, `test_get_hierarchical_stats_mode_has_no_melt_and_keeps_null_groups`, `test_get_hierarchical_stats_mode_empty_valid_values_returns_empty_rows`.
   - `test_hierarchical_stats_flags.py` (5 items): `test_hierarchy_methods_keep_existing_return_contract_when_stats_disabled`, `test_hierarchy_methods_skip_stats_calculation_when_disabled`, `test_hierarchy_methods_return_stats_for_copy_and_inplace_modes`, `test_hierarchy_stats_are_extracted_before_drop_outliers`, `test_hierarchy_stats_are_extracted_before_progressive_fill`.
-  - `tests/shared/constants.py` (1 item): `OUTPUT_COLUMNS`.
+  - Stats-local constant (1 item): `OUTPUT_COLUMNS` remains with the statistics targets unless a future migration audit demonstrates distinct-domain reuse.
 
 - **`tests/test_phase3_transformations.py` (35 items):**
   - `tests/cross_cutting/workflows/test_fill_missing_from.py` (3 items): `test_fill_missing_from_non_numeric_target_with_numeric_strategy_raises`, `test_fill_missing_from_stats_reverse_map_match_cols`, `test_fill_missing_from_inplace_with_stats_returns_stats_and_mutates`.
@@ -1146,7 +1145,7 @@ The target suite is structured hierarchically into three distinct functional tie
   - `tests/modules/text/test_text.py` (2 items): `test_truncate_after_substring_literal_delimiters`, `test_truncate_after_substring_regex_delimiters`.
   - `tests/modules/stats/test_fill_missing.py` (3 items): `test_fill_missing_min_samples_counts_only_non_null_observations`, `test_fill_missing_uppercase_strategy_matches_lowercase`, `test_fill_missing_without_missing_values_returns_an_independent_copy`.
   - `tests/modules/enrichment/test_translate.py` (5 items): `test_impute_by_language_exact_detection_and_generated_fallback`, `test_impute_by_language_honors_target_lang`, `test_impute_by_language_skips_missing_columns`, `test_impute_by_language_inplace_matches_the_copy_result`, `fake_langdetect`.
-  - `tests/shared/` (2 items): `OUTPUT_COLUMNS` -> `constants.py`, `PARITY_DATA` -> `factories.py`.
+  - Local support items: `OUTPUT_COLUMNS` remains with the statistics targets; `PARITY_DATA` remains with `tests/cross_cutting/accessor/test_parity.py`.
 
 - **`tests/test_phase3_input_validation.py` (36 items):**
   - `tests/modules/stats/test_hierarchical_stats.py` (6 items): `test_get_hierarchical_stats_non_numeric_target_raises_typeerror`, `test_get_hierarchical_stats_non_numeric_target_mode_is_allowed`, `test_get_hierarchical_stats_skips_missing_targets`, `test_get_hierarchical_stats_rejects_non_iterable_strategy`, `test_get_hierarchical_stats_rejects_empty_strategy_iterable`, `test_get_hierarchical_stats_rejects_unknown_strategy`.
@@ -1188,8 +1187,8 @@ The target suite is structured hierarchically into three distinct functional tie
 **Planning authority and non-execution.** This plan is future planning only and MUST NOT be executed without supervisor approval. No test file was moved or renamed in this task. Each migration step below represents an independent, reviewable change with strict verification gates. [BP]
 
 1. **Step 1: Create shared infrastructure and module scaffolding.**
-   - Create `tests/shared/constants.py` only for the evidenced cross-domain `OUTPUT_COLUMNS` constant.
-   - Create `tests/modules/caching/helpers.py` for caching-only `_seed_cache_entries` and `_rows`; keep domain-specific fakes, `PARITY_DATA`, and `EXPECTED_STATS_KEYS_BY_KIND` local.
+   - Do not create a `tests/shared/` file unless the migration audit verifies a distinct-domain reusable consumer.
+   - Create `tests/modules/caching/helpers.py` for caching-only `_seed_cache_entries` and `_rows`; keep domain-specific fakes, `OUTPUT_COLUMNS`, `PARITY_DATA`, and `EXPECTED_STATS_KEYS_BY_KIND` local.
    - Create module directories under `tests/modules/` and `tests/cross_cutting/`.
    - *Verification gate:* Full suite green; collected count 528; `ruff check tests` clean.
 
@@ -1226,7 +1225,7 @@ The target suite is structured hierarchically into three distinct functional tie
 
 7. **Step 7: Dissolve `tests/test_phase3_transformations.py` and `test_phase3_input_validation.py`.**
    - Route items to `tests/modules/columns/test_columns.py`, `tests/modules/text/test_text.py`, `tests/modules/stats/test_fill_missing.py`, `tests/cross_cutting/accessor/test_parity.py`, `tests/cross_cutting/base_api/test_base.py`, and `tests/cross_cutting/workflows/test_fill_missing_from.py`.
-   - Preserve all 20 strict-xfail cases citing `docs/temb/TEST-02-phase1-audit.md` (8 in `test_base.py`, 12 in `test_stats.py`).
+   - Preserve all 20 strict-xfail cases citing `docs/temb/TEST-02-phase1-audit.md` (8 in `tests/cross_cutting/base_api/test_base.py`, 12 in `tests/modules/stats/test_fill_missing.py`).
    - Update `PHASE3_TESTS` manifest in `tools/verify_installed_wheel.py` in the same change.
    - Remove `test_phase3_transformations.py` and `test_phase3_input_validation.py`.
    - *Verification gate:* Full suite green; wheel verifier passes; collected count 528; `ruff check tests` clean.
@@ -1241,8 +1240,8 @@ The target suite is structured hierarchically into three distinct functional tie
    - Move `tests/test_accessor.py` to `tests/cross_cutting/accessor/test_accessor.py`.
    - Move `tests/test_doc_drift.py` to `tests/cross_cutting/contracts/test_doc_drift.py` and update root path resolution.
    - Move `tests/test_equivalence.py` to `tests/cross_cutting/equivalence/test_equivalence.py`.
-    - Extract the benchmark reference implementations into the approved benchmark support module and update both benchmark scripts and equivalence tests to import it.
-    - *Verification gate:* Full suite green; `pytest tests/cross_cutting/contracts/test_doc_drift.py` green; benchmark import works without importing a test module; collected count 530.
+   - Create `benchmarks/reference_impls.py`, extract the benchmark reference implementations into it, and update both benchmark scripts and equivalence tests to import it.
+   - *Verification gate:* Full suite green; `pytest tests/cross_cutting/contracts/test_doc_drift.py` green; benchmark import works without importing a test module; collected count 530.
 
 10. **Step 10: Suite-wide audit and verification.**
     - Re-run full test suite across all environments, run `tools/verify_installed_wheel.py`, and verify benchmark execution.

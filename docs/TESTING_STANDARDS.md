@@ -105,15 +105,15 @@ The table below describes the target testing architecture. It is not a claim tha
 
 | Type | Purpose | Required when | Location | Tooling | Gate |
 | --- | --- | --- | --- | --- | --- |
-| Unit | Pin one function's behavior in isolation | Every public function and every branch that can fail | `tests/test_<module>.py` | pytest | PR |
-| Integration | Pin behavior across class, accessor, shared function, cache, and files | Every public method and every cross-module path | `tests/test_<module>.py` | pytest, tmp_path, fakes | PR |
-| API/contract | Pin signatures, docstrings, stubs, schemas, return contracts | Every public API addition or change | `tests/test_doc_drift.py`, `tests/test_accessor.py`, `tests/test_hierarchical_stats.py` | pytest, inspect | PR |
-| Property-based | Pin invariants over generated inputs | Every transformation with data-shape invariants | `tests/property/` | Hypothesis | PR (fast profile), scheduled (extended) |
+| Unit | Pin one function's behavior in isolation | Every public function and every branch that can fail | `tests/modules/<module>/` | pytest | PR |
+| Integration | Pin behavior across class, accessor, shared function, cache, and files | Every public method and every cross-module path | Owning module directory or `tests/cross_cutting/<topic>/` | pytest, tmp_path, fakes | PR |
+| API/contract | Pin signatures, docstrings, stubs, schemas, return contracts | Every public API addition or change | `tests/cross_cutting/contracts/` and related cross-cutting topics | pytest, inspect | PR |
+| Property-based | Pin invariants over generated inputs | Every transformation with data-shape invariants | Corresponding module directory or cross-cutting topic | Hypothesis | PR (fast profile), scheduled (extended) |
 | Regression | Pin a specific fixed bug | Every bug fix | Next to the affected module | pytest | PR |
-| Equivalence | Prove an optimized implementation matches a reference | Every performance optimization | `tests/test_equivalence.py` | pytest | PR |
+| Equivalence | Prove an optimized implementation matches a reference | Every performance optimization | `tests/cross_cutting/equivalence/` | pytest | PR |
 | Performance | Measure and record speed at representative sizes | Every performance change | `benchmarks/` | scripts | PR (report in description) |
 | Mutation | Find test gaps by killing generated mutants | Periodic diagnostic | scheduled | Cosmic Ray | Scheduled, advisory |
-| Optional-dependency | Exercise real extras when installed | Every extra-backed method | `tests/test_integrations.py`, `tests/test_enrichment.py` | pytest.importorskip | Target extras matrix; current CI covers only `categorization` and `sql` |
+| Optional-dependency | Exercise real extras when installed | Every extra-backed method | Owning module directory, usually `tests/modules/enrichment/` | pytest.importorskip | Target extras matrix; current CI covers only `categorization` and `sql` |
 
 ### 3.2 Unit tests
 
@@ -159,7 +159,7 @@ The package-level `bynat.cleaning` namespace MUST expose only its established cl
 
 **Required.** Every transformation in §6 SHOULD have at least one property test stating its central invariant. [RP]
 
-**Tooling.** Hypothesis with the `numpy` extra for array strategies. Tests live under `tests/property/` and carry the `property` marker. [BP]
+**Tooling.** Hypothesis with the `numpy` extra for array strategies. Tests live beside the module or cross-cutting responsibility they verify and carry the `property` marker. The marker is the test-type classification; it is not a mandatory directory. [BP]
 
 **Target profiles.** Once Phase 1 is adopted, two profiles SHOULD be registered in `tests/conftest.py`: [BP]
 
@@ -801,18 +801,17 @@ At minimum, property tests SHOULD state these invariants for every transformatio
 
 ### 8.1 Layout
 
-The current layout is a topic-named `tests/` directory with module and behavior files; it does not yet contain the target shared fixtures, property directory, or marker configuration. The following is the target layout after the phased additions in §12; paths that do not yet exist MUST NOT be described as current state. [BP]
+The current layout is a flat root `tests/` directory with 15 test files and `tests/conftest.py`; it does not yet contain the target hierarchical structure, shared test infrastructure, or marker configuration. The following is the authoritative target hierarchical layout after the phased additions in §12 and the migration plan in §8.9; paths that do not yet exist MUST NOT be described as current state. [BP]
 
 | Path | Purpose |
 | --- | --- |
-| `tests/conftest.py` | Target: shared fixtures, marker registration, Hypothesis profiles |
-| `tests/helpers.py` | Target: fake providers and frame factories shared across files |
-| `tests/test_<topic>.py` | Target: unit and integration tests organized by module or behavior |
-| `tests/test_equivalence.py` | Reference implementations and equivalence tests |
-| `tests/property/` | Target: Hypothesis property tests, marked `property` |
-| `benchmarks/` | Performance scripts with equivalence checks |
+| `tests/conftest.py` | Root suite-wide configuration and genuinely suite-wide fixtures; marker registration and Hypothesis profiles are future Phase 1 additions |
+| `tests/modules/<module>/` | Module-owned unit and component-level integration tests (e.g. `caching`, `columns`, `text`, `stats`, `profile`, `io`, `enrichment`) |
+| `tests/cross_cutting/<topic>/` | Topic-oriented cross-cutting tests: class contracts, parity, doc drift, equivalence, multi-step workflows, invariant properties |
+| `tests/shared/` | Genuinely reusable test infrastructure: shared fake providers, frame factories, schema constants (2+ domain consumers) |
+| `benchmarks/` | Performance benchmark scripts with equivalence checks against reference implementations |
 
-**Splitting rule.** When a test file exceeds roughly 800 lines or the suite exceeds roughly 2000 collected tests, new tests go into topic-named files (`tests/test_caching_concurrency.py`) rather than appending to the largest file. The existing `tests/test_caching.py` exceeds this threshold; the rule applies to new work, and splitting that file is a future maintenance item rather than an immediate exception to the target standard. [BP]
+**Splitting rule.** When a test file exceeds roughly 800 lines or the suite exceeds roughly 2000 collected tests, new tests go into topic-named files rather than appending to the largest file. The rule applies to every test file, current and new, across both `tests/modules/` and `tests/cross_cutting/`. Two current files exceed it: `tests/test_caching.py` (1,774 lines) and `tests/test_profile.py` (857 lines). They are recorded as target-state violations in §8.9, not exceptions: new tests MUST NOT be appended to them, and the §8.9 migration plan brings each below the threshold. [BP]
 
 ### 8.2 Naming
 
@@ -828,6 +827,11 @@ The current layout is a topic-named `tests/` directory with module and behavior 
 - Yield fixtures are the preferred teardown mechanism. [SB] (pytest fixtures)
 - `tmp_path` is the only filesystem location tests write to. [BP]
 - No fixture mutates a module-level object. [BP]
+
+**Conftest scoping.** [BP]
+- Root `tests/conftest.py` is reserved for suite-wide configuration and fixtures genuinely applicable to the whole suite. The current file contains only the `sys.path` shim; marker registration, Hypothesis profiles, and any global safety fixture are future additions only when separately justified and adopted.
+- Module-local `conftest.py` files (e.g. `tests/modules/caching/conftest.py` or `tests/modules/enrichment/conftest.py`) are permitted only where justified by module-scoped fixtures (such as isolated database handles or mock provider lifecycles). Modules that require no special fixtures MUST NOT introduce a local `conftest.py`.
+- Fixtures used by only one test file MUST remain file-local.
 
 ### 8.4 Parametrization
 
@@ -847,7 +851,7 @@ After Phase 1, all markers MUST be registered in `pyproject.toml`. Unknown marke
 | `slow` | Takes more than a few seconds | No, when the target `addopts` excludes it (`-m "not slow"`) |
 | `extras` | Needs an optional extra | Only in extras CI, when the target job selects it explicitly |
 | `mutation` | Mutation-testing support | No, when the target `addopts` excludes it (`-m "not mutation"`) |
-| `network` | Needs network; never run in CI | Never |
+| `network` | Reserved quarantine label for externally supplied probes; no supported bynat test may access live services | Never |
 
 **Marker execution paths.** [BP]
 
@@ -856,6 +860,8 @@ After Phase 1, all markers MUST be registered in `pyproject.toml`. Unknown marke
 - Extras tests MUST be run explicitly with `python -m pytest -m extras` after the required optional extra is installed, as described in §9.2.
 - `python -m pytest -m mutation` runs tests marked as mutation support tests only; it does **not** invoke Cosmic Ray, mutmut, or another mutation engine. Actual mutation testing follows the independent §7.5 workflow.
 - Network-marked tests are not part of the supported CI architecture. bynat tests MUST use fakes or injected providers instead; a network marker MUST NOT be used to justify live service access in CI.
+
+**Orthogonality to directory hierarchy.** [BP] Markers remain the suite's independent responsibility-classification axis (`unit`, `integration`, `property`, `slow`, `extras`, `mutation`, `network`). A test under `tests/modules/` or `tests/cross_cutting/` is selected by what kind of check it performs and which gate runs it, not by which directory it resides in. The hierarchical directory structure organizes ownership and code cohesion, while markers control execution profiles.
 
 ### 8.6 pytest configuration
 
@@ -871,6 +877,8 @@ addopts = "-ra -m 'not slow and not extras and not network and not mutation'"
 - Resolve the flat-layout import ambiguity: either move the package to `src/bynat` or set `--import-mode=importlib`. Tests SHOULD exercise the installed package, not the checkout. [SB] (pytest good practices; Scientific Python guide)
 - Enable strict markers and strict config only with a pinned pytest version. [SB] (pytest good practices)
 
+**Discovery across nested directories.** [BP] The target Phase 1 configuration adds `testpaths = ["tests"]`; the current `pyproject.toml` has no pytest configuration. With that target configuration, pytest discovers `test_*.py` recursively under `tests/modules/` and `tests/cross_cutting/`. Files under `tests/shared/` (`fakes.py`, `factories.py`, `constants.py`) do not use the `test_` prefix and are not collected as tests.
+
 ### 8.7 Type checking
 
 Tests SHOULD be annotated and added to the mypy scope incrementally. Fixture and test parameters are annotated like normal function parameters. [SB] (pytest typing)
@@ -881,6 +889,373 @@ Tests SHOULD be annotated and added to the mypy scope incrementally. Fixture and
 - Use `tmp_path` for JSON, CSV, and SQLite files. [BP]
 - Do not read application data files from the repository outside `tests/` except through the public API under test. Packaging and typing-contract tests MAY inspect declared artifacts such as `bynat/py.typed` and `bynat/cleaning/accessor.pyi`, and documentation synchronization tests MAY load `tools/sync_docs.py`. [BP]
 - Do not use the default cache directory. [BP]
+
+### 8.9 TEST-ARCH-01 hierarchical test-suite architecture
+
+**Authority and status.** This section is the authoritative TEST-ARCH-01 analysis and defines binding policy for the test suite layout. It replaces the previous flat-root hybrid model with a single consistent, repository-specific hierarchical architecture and migration plan. §1.4 makes this document the detailed policy behind `docs/ROADMAP.md` §2 and §6, and this document controls on conflict. The normative apparatus of §1 (RFC 2119 keywords and the [SB]/[BP]/[RP] basis tags) applies to every statement below. Where this section and §8.1–§8.8 overlap, this section is the more specific rule and controls; where it is silent, §8.1–§8.8 control. [BP]
+
+**Current state (verified).** The repository at the reviewed revision contains 15 `tests/test_*.py` modules plus `tests/conftest.py`, 319 test function definitions, 528 collected test cases, 8,454 lines across the 15 test modules, and 8,471 lines across `tests/*.py` including `conftest.py`. `tests/conftest.py` is a 17-line `sys.path` shim with no fixtures, markers, or Hypothesis profiles. `tests/modules/`, `tests/cross_cutting/`, and `tests/shared/` do not exist. `pyproject.toml` declares no `[tool.pytest.ini_options]`, no `[tool.coverage.*]`, and no Hypothesis dependency. Four files are named after a process phase (`tests/test_phase3_file_io.py`, `tests/test_phase3_input_validation.py`, `tests/test_phase3_optional_integrations.py`, `tests/test_phase3_transformations.py`), one after a process artifact (`tests/test_inplace_deprecation.py`), and one is a cross-component grab-bag (`tests/test_cleaning.py`). Two files exceed the §8.1 800-line threshold: `tests/test_caching.py` at 1,774 lines and `tests/test_profile.py` at 857 lines. [BP]
+
+**Target state.** Everything in §8.9.1–§8.9.9 is target state, not a description of current repository files. This section establishes the authoritative hierarchical architecture and migration plan. The migration that produces it is documented in §8.9.8 and is **not authorized** (§8.9.9). §12's phases remain the adoption gates for tooling and CI; this section approves the organizational model. [BP]
+
+#### 8.9.1 Alternatives evaluated
+
+Seven architectural models were evaluated against the observed suite, the §8 policy, and the constitution's mandatory structural rules. Each model is repository-specific, evaluated against the actual codebase (`bynat/caching/`, `bynat/cleaning/`, accessor, and integrations). The mandatory rules are the constitution's hard constraints: the 800-line splitting rule (§8.1), suite-wide configuration at root `tests/conftest.py` (§8.9.6), and the prohibition on network access and test-only production hooks (§4). Markers are the suite's existing responsibility-selection mechanism (§8.5). "Files moved" and "tests moved" are quantified from the current 15-module, 319-test-function, 528-case suite. [BP]
+
+| Model | Shape | Dedicated cross-cutting ownership? | Verdict |
+| --- | --- | --- | --- |
+| F. Flat (status quo) | The current 15 topic-named files, including grab-bags and phase-named files | No | Rejected |
+| A. Module flat | One flat file per production module directly under `tests/` | No | Rejected |
+| B. Test-type nested | Nested `tests/unit/`, `tests/integration/`, `tests/contract/`, `tests/property/` | Yes (by directory) | Rejected |
+| C. Layered | Nested by dependency depth: functions → classes → accessor → cache → storage | Partial | Rejected |
+| D. Domain-only | Nested by business domain: `tests/cleaning/`, `tests/caching/`, `tests/enrichment/` | Partial | Rejected |
+| E. Flat hybrid | Flat topic files for modules + flat cross-cutting files directly under `tests/` | Yes | Rejected |
+| H. Hierarchical responsibility | Hierarchical: `tests/modules/<module>/`, `tests/cross_cutting/<topic>/`, `tests/shared/` | Yes (structural) | **Selected** |
+
+**Comparison against neutral long-term criteria.** [BP]
+
+| Criterion | F flat | A module | B type | C layered | D domain | E hybrid | H hierarchical |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Ownership clarity: where does a test for `stats.py` or `accessor` parity go? | Poor | Good for modules; poor for cross-cutting | Poor: features split across type dirs | Medium | Medium | Good | **Excellent**: clear module vs cross-cutting home |
+| Separation / cohesion | Poor | High in modules; cross-cutting scattered | Poor: splits single feature into 3+ dirs | Medium | Medium | Medium: 25+ files in root | **High**: isolated module subtrees & dedicated topics |
+| Coupling | High | Medium | Medium | Medium | Medium | Medium | **Low**: clear boundaries, reusable infrastructure in `shared/` |
+| Discoverability | Medium | High | High | Medium | Medium | Medium | **High**: intuitive filesystem mirror of package responsibilities |
+| Scalability past 800-line / 2,000-test thresholds | Poor | Medium | Medium | Medium | Medium | Medium | **High**: natural subdivision within module directories |
+| Change locality: a cross-cutting change touches how many directories? | Many | Medium | Many | Many | Many | Few | **Optimal**: localized to specific topic under `cross_cutting/` |
+| Shared infrastructure / test independence | Poor | Poor | Medium | Medium | Medium | Medium (`tests/helpers.py`) | **High**: scoped `tests/shared/` + local `conftest.py` |
+| Tooling / CI coupling | Medium | Medium | Medium | Medium | Medium | Low | **Low**: recursive discovery via `testpaths = ["tests"]` |
+| Maintenance cost / consistency | High | Medium | Medium | Medium | Medium | Medium | **Low**: self-contained modules, clear boundary rules |
+| Mandatory-rule compliance (<800 lines, root conftest) | No (violations) | Yes | Yes | Yes | Yes | Yes | **Yes**: all target files < 800 lines |
+| Files moved / tests moved | 0 / 0 | 15 / 319 | 15 / 319 | 15 / 319 | 15 / 319 | 11 / 287 | 15 / 319 |
+
+**Why F is rejected.** The status quo Flat model scores worst across all maintainability dimensions: cross-cutting contracts lack a defined home, cross-component grab-bags mix unrelated dependencies, and two files (`test_caching.py` at 1,774 lines, `test_profile.py` at 857 lines) violate the mandatory 800-line limit. [BP]
+
+**Why A is rejected.** A pure module flat model leaves cross-cutting contracts homeless. API-02 (`BaseData` new-object vs `inplace`), class/accessor parity, and multi-component input validation would either be duplicated or scattered across module files without clear ownership. [BP]
+
+**Why B is rejected.** Organizing by test type (`unit/`, `integration/`) fractures feature cohesion: testing a single function like `fill_missing` requires jumping across multiple directories. Furthermore, markers (`unit`, `integration`, `property`) already provide test-type selection without directory fragmentation. [BP]
+
+**Why C is rejected.** Layered architectures based on dependency depth become brittle and convoluted when applied to pandas-based libraries, where accessor methods, wrapper classes, and functional implementations are tightly interrelated. [BP]
+
+**Why D is rejected.** Domain-only grouping (`tests/cleaning/`, `tests/caching/`) conflates internal module unit tests with multi-component contracts (such as documentation synchronization and accessor parity), leaving cross-cutting concerns poorly separated. [BP]
+
+**Why E is rejected.** The flat hybrid model places 25+ test files directly in the root `tests/` directory. As the suite expands toward 2,000 tests, a flat root directory becomes unmanageable, obscures module cohesion, and lacks cleanly scoped infrastructure. [BP]
+
+**Why H is selected.** The Hierarchical Responsibility Architecture (Model H) establishes a clean separation of concerns: module-owned tests are grouped under `tests/modules/<module>/`, cross-cutting contracts and workflows have dedicated homes under `tests/cross_cutting/<topic>/`, genuinely reusable infrastructure is centralized in `tests/shared/`, and markers provide an orthogonal axis of responsibility selection. It satisfies every mandatory limit, scales smoothly, and minimizes long-term maintenance costs. [BP]
+
+#### 8.9.2 Selected architecture and ownership
+
+The target suite is structured hierarchically into three distinct functional tiers under `tests/`: [BP]
+
+1. `tests/modules/<module>/`: Owns unit and component-level integration tests for a specific production module. Submodules or responsibility splits within a large module live together in this directory, accompanied by a module-local `conftest.py` only if justified.
+2. `tests/cross_cutting/<topic>/`: Owns tests that span multiple components or verify system-wide contracts. Topics include base API contracts (`base_api`), accessor parity (`accessor`), documentation synchronization (`contracts`), performance equivalence against reference implementations (`equivalence`), multi-step workflows (`workflows`), and system-wide invariants (`invariants`).
+3. `tests/shared/`: Owns only genuinely reusable infrastructure whose consumers span distinct architectural domains. Domain-local fakes, factories, and helpers remain in their module or topic subtree.
+
+**Ownership rules.** [BP]
+- Module-specific behavior and contracts belong to the relevant module directory; a production package may have several focused test files within that directory. The directory is the ownership boundary, not an exactly-one-test-file rule.
+- When a module's test volume exceeds 800 lines (e.g. caching, profile, stats), the module tests are split into responsibility-focused files within that module's directory.
+- Each cross-cutting contract maps to exactly one topic directory under `tests/cross_cutting/`, and each test has one primary owner.
+- A test that verifies cross-component behavior belongs to `tests/cross_cutting/` and is referenced by the relevant module coverage matrices.
+- A helper, fake, or fixture used by two or more files across different domains belongs in `tests/shared/`. Domain-specific helpers remain within their owning module directory.
+
+**Production-module → owner table.** [BP]
+
+| Production module | Owning target directory | Owning test file(s) |
+| --- | --- | --- |
+| `bynat/caching/manager.py` | `tests/modules/caching/` | `test_persistence.py`, `test_migration.py`, `test_concurrency.py`, `conftest.py` |
+| `bynat/cleaning/columns.py` | `tests/modules/columns/` | `test_columns.py` |
+| `bynat/cleaning/text.py` | `tests/modules/text/` | `test_text.py` |
+| `bynat/cleaning/stats.py` | `tests/modules/stats/` | `test_fill_missing.py`, `test_hierarchical_stats.py`, `test_hierarchical_stats_mode.py`, `test_hierarchical_stats_flags.py` |
+| `bynat/cleaning/profile.py` | `tests/modules/profile/` | `test_profile_general.py`, `test_profile_edges.py`, `test_profile_contract.py` |
+| `bynat/cleaning/io.py` | `tests/modules/io/` | `test_io.py` |
+| `bynat/cleaning/enrich/` (all submodules) | `tests/modules/enrichment/` | `test_translate.py`, `test_geocode.py`, `test_currency.py`, `test_nlp.py`, `test_optional.py`, `conftest.py` |
+
+**Cross-cutting contract → owner table.** [BP]
+
+| Cross-cutting contract | Owning target directory | Owning test file(s) |
+| --- | --- | --- |
+| Base API & API-02 (`inplace` / copy contract) | `tests/cross_cutting/base_api/` | `test_base.py` |
+| Accessor registration & class/accessor parity | `tests/cross_cutting/accessor/` | `test_accessor.py`, `test_parity.py` |
+| Documentation & typing drift (`py.typed`, `.pyi`) | `tests/cross_cutting/contracts/` | `test_doc_drift.py` |
+| Reference equivalence (PERF invariants, benchmark imports) | `tests/cross_cutting/equivalence/` | `test_equivalence.py` |
+| Multi-dataset reference workflows (`fill_missing_from`) | `tests/cross_cutting/workflows/` | `test_fill_missing_from.py` |
+| System-wide invariant & property-based tests (Hypothesis) | `tests/cross_cutting/invariants/` | Future `test_invariants.py` only if system-wide invariants are added |
+
+**Input-validation ownership policy.** [BP] Input-validation tests belong to the component whose public API is validated: component-specific validation belongs to the module owning that component (e.g. `stats` validation in `tests/modules/stats/`, loader validation in `tests/modules/io/`). Cross-cutting validation rules that span components — such as the `min_samples` contract (§6.7), the `inplace` rejection contract (§6.1 S-4, §6.10 ML-2), and class/accessor parity of validation errors (§6.1 S-5) — belong to `tests/cross_cutting/base_api/` and `tests/cross_cutting/accessor/`.
+
+#### 8.9.3 Target tree and size budgets
+
+**Planning-estimate formula.** [BP] For a target file created by a split or move, the planning estimate is `Σ(item line ranges) + 1 separator per resulting test + H`, where item line ranges are computed from current file ASTs, separators represent single blank lines between test functions, and `H` is the deduplicated import and fixture header. These are approximate planning estimates, not verified post-migration line counts. For an unchanged kept file, the estimate is its current line count.
+
+**Target tree and per-target size arithmetic.** [BP]
+
+| Target path | Source items | Arithmetic (body + separators + header) | Estimate | Limit |
+| --- | --- | --- | ---: | ---: |
+| `tests/conftest.py` | Root suite shim | 17 current lines | 17 | 800 |
+| `tests/modules/caching/helpers.py` | Caching-only `_seed_cache_entries`, `_rows` | 40 + 0 + 5 | 45 | 800 |
+| `tests/shared/constants.py` | Cross-domain `OUTPUT_COLUMNS` | 12 + 0 + 3 | 15 | 800 |
+| `tests/modules/caching/conftest.py` | Caching local fixtures | 30 + 4 + 6 | 40 | 800 |
+| `tests/modules/caching/test_persistence.py` | `test_caching.py` (30 items) | 715 + 30 + 5 | 750 | 800 |
+| `tests/modules/caching/test_migration.py` | `test_caching.py` (21 items) | 592 + 21 + 6 | 619 | 800 |
+| `tests/modules/caching/test_concurrency.py` | `test_caching.py` (11 items) | 290 + 5 + 6 | 301 | 800 |
+| `tests/modules/columns/test_columns.py` | `cleaning` (2), `transformations` (16), `validation` (1) | 436 + 19 + 5 | 460 | 800 |
+| `tests/modules/text/test_text.py` | `cleaning` (2), `transformations` (2) | 99 + 4 + 6 | 109 | 800 |
+| `tests/modules/stats/test_fill_missing.py` | `cleaning` (8), `transformations` (3), `validation` (14) | 316 + 23 + 6 | 345 | 800 |
+| `tests/modules/stats/test_hierarchical_stats.py` | `hierarchical_stats` (19), `validation` (6) | 428 + 25 + 8 | 461 | 800 |
+| `tests/modules/stats/test_hierarchical_stats_mode.py` | `hierarchical_stats` (5 items) | 117 + 5 + 4 | 126 | 800 |
+| `tests/modules/stats/test_hierarchical_stats_flags.py` | `hierarchical_stats` (5 items) | 123 + 5 + 3 | 131 | 800 |
+| `tests/modules/profile/test_profile_general.py` | `test_profile.py` (15 items) | 358 + 14 + 13 | 385 | 800 |
+| `tests/modules/profile/test_profile_edges.py` | `test_profile.py` (8 items) | 193 + 8 + 12 | 213 | 800 |
+| `tests/modules/profile/test_profile_contract.py` | `test_profile.py` (6 items) | 190 + 3 + 11 | 204 | 800 |
+| `tests/modules/io/test_io.py` | `cleaning` (6), `validation` (2), `file_io` (24) | 391 + 32 + 8 | 431 | 800 |
+| `tests/modules/enrichment/conftest.py` | Enrichment local fixtures | 22 + 3 + 5 | 30 | 800 |
+| `tests/modules/enrichment/test_translate.py` | `cleaning` (4), `trans` (5), `val` (2), `int` (1), `enrich` (20) | 549 + 28 + 22 | 599 | 800 |
+| `tests/modules/enrichment/test_geocode.py` | `validation` (1), `integrations` (3), `enrichment` (4) | 181 + 5 + 6 | 192 | 800 |
+| `tests/modules/enrichment/test_currency.py` | `integrations` (2), `enrichment` (6) | 192 + 5 + 15 | 212 | 800 |
+| `tests/modules/enrichment/test_nlp.py` | `test_integrations.py` (18 items) | 314 + 15 + 8 | 337 | 800 |
+| `tests/modules/enrichment/test_optional.py` | `integrations` (3), `optional_integrations` (15) | 266 + 16 + 6 | 288 | 800 |
+| `tests/cross_cutting/base_api/test_base.py` | `cleaning` (4), `trans` (2), `val` (6), `deprecation` (11) | 365 + 18 + 10 | 393 | 800 |
+| `tests/cross_cutting/accessor/test_accessor.py` | `test_accessor.py` (12 items) | unchanged | 200 | 800 |
+| `tests/cross_cutting/accessor/test_parity.py` | `test_phase3_transformations.py` (2 items) | 52 + 1 + 1 | 54 | 800 |
+| `tests/cross_cutting/contracts/test_doc_drift.py` | `test_doc_drift.py` (4 items) | unchanged | 86 | 800 |
+| `tests/cross_cutting/equivalence/test_equivalence.py` | `test_equivalence.py` (19 items) | unchanged | 400 | 800 |
+| `tests/cross_cutting/workflows/test_fill_missing_from.py` | `fill_missing_from` (9), `trans` (3), `val` (4) | 393 + 84 + 9 | 486 | 800 |
+| `tests/cross_cutting/invariants/test_invariants.py` | Future system-wide Hypothesis property tests only | — | Not estimated until justified | 800 |
+
+**Planned compliance.** Every listed target is intended to remain strictly below the 800-line threshold; the largest planning estimate is `test_persistence.py` at 750 lines. Migration MUST recompute actual line counts from the resulting files and stop for a responsibility-based split if any file reaches or exceeds 800 lines. The estimates are planning evidence, not a claim that the target files already exist or that their final counts have been verified. [BP]
+
+#### 8.9.4 Responsibility and boundary rules
+
+- **Module autonomy.** Files under `tests/modules/<module>/` MUST test only the functions and classes defined in that production module. They MUST NOT test cross-module contracts or multi-step workflows across other modules. [BP]
+- **Cross-cutting ownership.** Tests that assert parity between different APIs (such as `BaseData` vs `df.bynat`), documentation drift, or end-to-end workflows MUST reside in `tests/cross_cutting/<topic>/`. [BP]
+- **Orthogonality of markers.** Directory structure defines ownership; markers define execution gates (§8.5). `unit`, `integration`, `property`, `slow`, `extras`, `mutation`, and `network` markers apply equally across module and cross-cutting tests. [BP]
+- **Property tests.** Hypothesis property tests for module invariants reside within the respective module directory (e.g. `tests/modules/stats/test_invariants_property.py`). Cross-component or system-wide invariants reside under an appropriate cross-cutting topic such as `tests/cross_cutting/invariants/`; `property` is a marker, not a mandatory directory. All property tests MUST be marked with `@pytest.mark.property`. [BP]
+- **No grab-bags.** No test file may be named after a process phase (`test_phase3_*`), work item, or generic concept (`test_cleaning.py`). Every file name states the specific behavior or component under test. [BP]
+
+#### 8.9.5 Fixture, helper, data, naming, marker, and discovery rules
+
+**Fixtures and conftest scoping.** [BP]
+- Root `tests/conftest.py` is reserved for suite-wide configuration: `sys.path` registration, marker declarations, Hypothesis settings, and global autouse safety checks (prohibiting live network calls, enforcing `tmp_path`).
+- Module-local `conftest.py` is permitted only where justified by module-scoped fixtures (e.g. `tests/modules/caching/conftest.py` for SQLite database handles and seeder fixtures; `tests/modules/enrichment/conftest.py` for mock provider lifecycles). Modules without shared fixtures MUST NOT create a local `conftest.py`.
+- Single-file fixtures remain file-local.
+
+**Shared infrastructure.** [BP]
+- Genuinely reusable infrastructure is placed in `tests/shared/` only when there are two or more consumers across distinct architectural domains and centralization improves maintainability.
+- `tests/shared/constants.py`: the cross-domain `OUTPUT_COLUMNS` schema constant. `EXPECTED_STATS_KEYS_BY_KIND` remains local to the profile contract tests.
+- Caching-only helpers (`_seed_cache_entries`, `_rows`) remain in `tests/modules/caching/helpers.py`; enrichment provider fakes and installers remain in the enrichment subtree; `PARITY_DATA` remains with accessor parity tests.
+- Domain-specific helpers (such as `_Location`, `_install_geopy`, `_install_fake_spacy`) remain local to their owning module directory.
+
+**Naming and discovery.** [BP]
+- Test files MUST be named `test_<topic>.py`.
+- Shared infrastructure files in `tests/shared/` MUST NOT start with `test_` (`fakes.py`, `factories.py`, `constants.py`), ensuring pytest never attempts to collect them as test modules.
+- The future Phase 1 configuration in `pyproject.toml` adds `testpaths = ["tests"]`. Pytest then discovers test files recursively across all nested module and cross-cutting directories without manual path enumeration; the current configuration has no pytest section.
+
+#### 8.9.6 Verified structural constraints versus temporary implementation dependencies
+
+**Structural constraints (permanent architecture invariants).** [BP]
+1. Root `tests/conftest.py` MUST remain at the `tests/` root to configure the suite, provide the `sys.path` shim, and establish global test execution policies.
+2. The 800-line per-file limit is an absolute constraint across all target directories.
+3. The prohibition on network access, test-only production hooks, and modifying production code to satisfy tests is absolute (§4, §10).
+4. Test-type markers (`unit`, `integration`, `property`, `extras`, `slow`) remain the execution filter mechanism in CI, independent of directory location.
+
+**Temporary implementation dependencies (resolved during migration).** [BP]
+1. `tools/verify_installed_wheel.py`: Currently hardcodes `PHASE3_TESTS` pointing at the four `test_phase3_*.py` files. When these files are dissolved, `PHASE3_TESTS` MUST be updated to reference representative target verification files (e.g., `tests/modules/io/test_io.py`, `tests/modules/enrichment/test_optional.py`, `tests/modules/columns/test_columns.py`, and `tests/cross_cutting/accessor/test_parity.py`).
+2. `benchmarks/_common.py`: Adds `ROOT / "tests"` to `sys.path`, and the benchmark scripts import reference implementations from `test_equivalence.py`. The preferred future solution is to extract those benchmark reference implementations into a proper benchmark support module such as `benchmarks/reference_impls.py`, then have both equivalence tests and benchmarks import that module. Updating benchmark imports and the equivalence-test imports is a separate migration dependency; adding a nested test directory to `sys.path` is not the preferred permanent architecture.
+3. `tests/test_doc_drift.py`: Computes `ROOT = Path(__file__).resolve().parent.parent`. When moved to `tests/cross_cutting/contracts/test_doc_drift.py`, its root path resolution MUST be updated to `.parents[2]`.
+4. Strict xfail reason references: The 20 strict-xfail cases (8 in `test_base.py`, 12 in `test_stats.py`) point to `docs/temb/TEST-02-phase1-audit.md` via reason strings. That tracked file MUST NOT be moved.
+5. Pandas-2 skips: The 17 version-conditional skips in `test_equivalence.py` are preserved in place.
+
+#### 8.9.7 Complete mapping of current test and support files
+
+**Item definition.** An item is a test function, module-level helper function, class, or constant defined in a current test module. Fixtures and parametrization IDs are internal to items. All 15 current test modules, 319 test functions, and supporting items are mapped completely below. [BP]
+
+**File-level migration mapping.** Legend: **K** = keep in place, **S** = split, **M** = merge into another file, **A** = absorb/dissolve, **C** = create, **U** = update in same change. [BP]
+
+| Current path | Action | Target path(s) | Reason |
+| --- | --- | --- | --- |
+| `tests/conftest.py` | **K** | `tests/conftest.py` | Root suite-wide configuration and `sys.path` shim |
+| `tests/test_accessor.py` | **K** | `tests/cross_cutting/accessor/test_accessor.py` | Accessor contracts and signatures |
+| `tests/test_caching.py` | **S** | `tests/modules/caching/test_persistence.py`, `test_migration.py`, `test_concurrency.py`, `conftest.py` | 1,774 lines exceeds 800-line limit; split by responsibility |
+| `tests/test_cleaning.py` | **S** | `tests/modules/columns/test_columns.py`, `text/test_text.py`, `stats/test_fill_missing.py`, `io/test_io.py`, `enrichment/test_translate.py`, `cross_cutting/base_api/test_base.py` | 471-line cross-component grab-bag dissolved by component |
+| `tests/test_doc_drift.py` | **M** | `tests/cross_cutting/contracts/test_doc_drift.py` | API and documentation drift contract gate |
+| `tests/test_enrichment.py` | **S** | `tests/modules/enrichment/test_translate.py`, `test_geocode.py`, `test_currency.py` | Split by enrichment submodule to avoid 800-line violation |
+| `tests/test_equivalence.py` | **M** | `tests/cross_cutting/equivalence/test_equivalence.py` | Reference implementations and optimization parity |
+| `tests/test_fill_missing_from.py` | **M** | `tests/cross_cutting/workflows/test_fill_missing_from.py` | Multi-dataset reference imputation workflow |
+| `tests/test_hierarchical_stats.py` | **S** | `tests/modules/stats/test_hierarchical_stats.py`, `test_hierarchical_stats_mode.py`, `test_hierarchical_stats_flags.py` | 710 lines; split by strategy and flags to prevent threshold breach |
+| `tests/test_inplace_deprecation.py` | **M** | `tests/cross_cutting/base_api/test_base.py` | API-02 mutability contracts; process-named file dissolved |
+| `tests/test_integrations.py` | **S** | `tests/modules/enrichment/test_nlp.py`, `test_geocode.py`, `test_currency.py`, `test_optional.py` | Dissolved by target integration submodule |
+| `tests/test_phase3_file_io.py` | **M** | `tests/modules/io/test_io.py` | File I/O contracts; process-named file dissolved |
+| `tests/test_phase3_input_validation.py` | **A** | `tests/modules/stats/`, `columns/`, `io/`, `enrichment/`, `cross_cutting/base_api/`, `workflows/` | Input validation dissolved by component validated |
+| `tests/test_phase3_optional_integrations.py` | **M** | `tests/modules/enrichment/test_optional.py` | Real optional dependency tests; process name dissolved |
+| `tests/test_phase3_transformations.py` | **A** | `tests/modules/columns/`, `text/`, `stats/`, `enrichment/`, `cross_cutting/accessor/test_parity.py`, `base_api/` | Transformations dissolved by component and parity owner |
+| `tests/test_profile.py` | **S** | `tests/modules/profile/test_profile_general.py`, `test_profile_edges.py`, `test_profile_contract.py` | 857 lines exceeds 800-line limit; split by responsibility |
+| — | **C** | `tests/modules/caching/helpers.py`, `tests/shared/constants.py` | Caching-local helpers plus the one currently evidenced cross-domain constant |
+
+**Support-item migration mapping.** [BP]
+
+| Support path | Action | Target update | Reason |
+| --- | --- | --- | --- |
+| `tools/sync_docs.py` | **K** | Unchanged | Imported by `test_doc_drift.py` |
+| `tools/verify_installed_wheel.py` | **U** | Update `PHASE3_TESTS` manifest | Target paths replace dissolved `test_phase3_*` files |
+| `benchmarks/_common.py` | **U** | Prefer no test-directory path addition; consume the future benchmark reference module | Removes benchmark dependence on importing a test module |
+| `benchmarks/bench_extract_keywords.py` | **U** | Import the future benchmark reference module | Keeps benchmark/reference code outside `tests/` |
+| `benchmarks/bench_outliers.py` | **U** | Import the future benchmark reference module | Keeps benchmark/reference code outside `tests/` |
+| `.github/workflows/test.yml` | **K** | Unchanged | Runs `pytest -q` which discovers all nested tests recursively |
+| `.github/workflows/publish.yml` | **K** | Unchanged | Packaging workflow; no test path coupling |
+| `pyproject.toml` | **U** | Add target `[tool.pytest.ini_options]` during the separately adopted Phase 1 | Enables recursive discovery and marker configuration; current file has no pytest section |
+| `docs/temb/TEST-02-phase1-audit.md` | **K** | Unchanged | Referenced by 20 strict-xfail cases; do not move |
+| `docs/ROADMAP.md` | **K** | Unchanged | Aligned with hierarchical architecture |
+
+**Test-level routing details.** Every test and helper is routed to exactly one target. Tests marked `#part` represent the single multi-concept test split into three focused tests. Shared infrastructure is extracted only where distinct-domain consumers are evidenced; same-domain helpers remain in their module or topic subtree. [BP]
+
+- **Shared/local support items:**
+  - `OUTPUT_COLUMNS` (`tests/test_hierarchical_stats.py:10`, duplicate in `test_phase3_transformations.py:29`) -> `tests/shared/constants.py`, because it is consumed across statistics and transformation responsibilities.
+  - `_seed_cache_entries` (`tests/test_caching.py:1146`) and `_rows` (`tests/test_caching.py:1500`) -> `tests/modules/caching/helpers.py`, because both are reused only within caching responsibilities.
+  - `_install`, provider fakes, `EXPECTED_STATS_KEYS_BY_KIND`, and `PARITY_DATA` remain local to their owning enrichment, profile, or accessor-parity targets unless migration evidence demonstrates distinct-domain reuse.
+
+- **`tests/test_caching.py` (64 items):**
+  - `test_persistence.py` (30 items): `test_cache_round_trip_via_sqlite`, `test_save_persists_added_changed_and_removed_entries`, `test_save_persists_entirely_removed_buckets`, `test_save_handles_deletion_only_transaction`, `test_failed_removal_transaction_rolls_back_and_retries`, `test_save_advances_baseline_after_removal`, `test_cache_rejects_empty_and_path_like_keys`, `test_corrupt_cache_is_quarantined_and_replaced_with_empty_dict`, `test_save_unserializable_value_reports_error_without_raising`, `test_cache_directory_is_created_on_save_not_construction`, `test_failed_db_save_keeps_baseline_and_rows_intact_for_retry`, `test_save_transaction_rolls_back_on_commit_failure`, `test_save_serialization_failure_keeps_prior_checkpoint_readable`, `test_cache_dir_defaults_to_environment_variable_then_legacy_path`, `test_rebuild_function_cache_from_sqlite`, `test_rebuild_function_cache_from_sqlite_is_empty_without_rows`, `test_load_function_cache_migrates_legacy_json_through_public_path`, `test_load_function_cache_missing_function_returns_empty_and_builds_backend`, `test_load_function_cache_reads_sqlite_authoritatively`, `test_load_function_cache_memoizes_and_preserves_mutations`, `test_get_column_cache_returns_existing_bucket_identity`, `test_get_column_cache_creates_missing_bucket`, `test_get_column_cache_preserves_explicit_none_value`, `test_get_column_cache_missing_function_creates_empty_bucket`, `test_load_function_cache_records_baseline_matching_loaded_state`, `test_baseline_is_deep_copy_and_survives_nested_mutation`, `test_separate_functions_have_separate_baselines`, `test_save_detects_nested_mutation_and_writes_only_changed_entries`, `test_save_advances_baseline_after_success`, `test_save_conflict_update_last_writer_wins_and_disjoint_merge`.
+  - `test_migration.py` (21 items): `test_delete_column_cache_persists_existing_bucket_removal`, `test_delete_column_cache_leaves_unrelated_buckets_intact`, `test_delete_column_cache_leaves_unrelated_function_intact`, `test_delete_column_cache_missing_bucket_is_a_no_op`, `test_delete_column_cache_failed_transaction_is_retryable`, `test_sqlite_initialization_is_lazy_until_explicitly_requested`, `test_sqlite_schema_has_required_tables_columns_keys_and_index`, `test_sqlite_connection_configures_timeout_wal_and_full_synchronous`, `test_sqlite_connection_closes_when_pragma_configuration_fails`, `test_sqlite_initialization_rolls_back_and_closes_on_failure`, `test_sqlite_initialization_rolls_back_real_ddl_on_later_schema_failure`, `test_sqlite_initialization_rolls_back_and_closes_when_commit_fails`, `test_repeated_sqlite_initialization_is_safe`, `test_legacy_migration_imports_supported_values_and_maps_filename`, `test_legacy_migration_is_idempotent_and_existing_rows_win`, `test_missing_legacy_source_does_not_create_database_or_marker`, `test_legacy_migration_quarantines_corrupt_source_without_marker`, `test_legacy_migration_preserves_unsupported_source_for_retry`, `test_legacy_migration_rolls_back_and_can_retry_after_partial_insert_failure`, `test_legacy_migration_rolls_back_and_can_retry_after_marker_insert_failure`, `test_legacy_migration_rolls_back_and_can_retry_after_commit_failure`.
+  - `test_concurrency.py` (11 items): `test_legacy_migration_is_safe_for_concurrent_sources`, `_concurrent_save_worker`, `test_save_function_cache_is_safe_for_concurrent_disjoint_saves`, `_first_writer_worker`, `_second_writer_worker`, `test_save_function_cache_last_committed_writer_wins_same_key_across_processes`, `test_delete_column_cache_stale_manager_preserves_concurrent_additions`, `_add_key_after_baseline_worker`, `_load_baseline_then_delete_worker`, `test_delete_column_cache_across_processes_preserves_concurrent_addition`, `_run_legacy_migration`.
+  - `tests/modules/caching/helpers.py` (2 items): `_seed_cache_entries`, `_rows`.
+
+- **`tests/test_cleaning.py` (24 items):**
+  - `tests/cross_cutting/base_api/test_base.py` (4 items): `test_public_cleaning_imports_use_the_bundled_cache_manager`, `test_basedata_boundary_errors_and_inplace_return`, `test_json_and_csv_constructors_read_local_files`, `test_file_constructors_raise_for_missing_paths`.
+  - `tests/modules/columns/test_columns.py` (2 items): `test_basedata_core_column_transformations_preserve_subclass_and_cache`, `test_basedata_text_list_reshape_and_imputation_helpers#split_list_objects`.
+  - `tests/modules/text/test_text.py` (2 items): `test_translate_conditional_safe_partition_does_not_import_deep_translator`, `test_basedata_text_list_reshape_and_imputation_helpers#extract_keywords`.
+  - `tests/modules/stats/test_fill_missing.py` (8 items): `test_hierarchy_methods_support_named_multi_and_duplicate_indexes`, `test_fill_missing_rejects_unknown_strategy`, `test_fill_missing_min_samples_and_fallback_global_reproduction`, `test_fill_missing_validates_min_samples`, `test_fill_missing_hierarchical_fallthrough_multi_level`, `test_fill_missing_all_strategies_with_fallbacks`, `test_fill_missing_all_nan_column`, `test_basedata_text_list_reshape_and_imputation_helpers#fill_missing`.
+  - `tests/modules/io/test_io.py` (6 items): `test_save_to_json_writes_local_output`, `test_save_to_json_append_keeps_existing_rows_with_list_columns`, `test_save_to_json_append_deduplicates_plain_columns_without_json_keys`, `test_save_to_json_append_refuses_to_overwrite_unreadable_file`, `test_save_to_json_requires_file_path`, `test_save_to_sql_rejects_invalid_arguments_before_connecting`.
+  - `tests/modules/enrichment/test_translate.py` (4 items): `test_impute_by_language_missing_reference_returns_before_optional_import`, `test_translate_conditional_missing_langdetect_raises_documented_import_error`, `test_optional_integration_reports_missing_dependency_at_method_use`, `test_optional_categorization_reports_missing_dependency_at_method_use`.
+
+- **`tests/test_profile.py` (30 items):**
+  - `test_profile_general.py` (15 items): `test_public_entry_points`, `test_profiling_does_not_modify_input`, `test_report_structure_and_access_patterns`, `test_output_type_parameter`, `test_column_selection_and_errors`, `test_missing_values_and_proportions`, `test_duplicate_rows_counting_semantics`, `test_duplicate_rows_with_unhashable_cells`, `test_numeric_statistics`, `test_categorical_and_text_statistics`, `test_boolean_statistics`, `test_datetime_statistics`, `test_mixed_and_other_statistics`, `test_nullable_dtypes`, `_SINGLE_TYPE_INFERRED_LABELS`.
+  - `test_profile_edges.py` (8 items): `test_empty_dataframe_edge_cases`, `test_all_missing_column_edge_cases`, `test_single_row_statistics`, `test_duplicate_column_names_handling`, `test_clean_scalar_bool_before_int`, `test_timedelta_columns_and_clean_scalar`, `test_categorical_pd_categorical`, `test_tz_aware_datetime`.
+  - `test_profile_contract.py` (6 items): `test_contract_stability_key_sets`, `test_contract_stability_value_types`, `test_contract_json_dumps_mixed_dataframe`, `EXPECTED_TOP_LEVEL_KEYS`, `EXPECTED_DATASET_FIELDS`, `EXPECTED_COLUMN_FIELDS`.
+  - `tests/shared/constants.py` (1 item): `EXPECTED_STATS_KEYS_BY_KIND`.
+
+- **`tests/test_hierarchical_stats.py` (30 items):**
+  - `test_hierarchical_stats.py` (19 items): `test_get_hierarchical_stats_returns_median_levels_and_preserves_source`, `test_get_hierarchical_stats_supports_mean_multiple_targets_and_string_hierarchy`, `test_get_hierarchical_stats_handles_null_values_and_empty_groups`, `test_get_hierarchical_stats_returns_fixed_empty_schema_for_invalid_inputs`, `test_get_hierarchical_stats_does_not_change_fill_missing_behavior`, `test_get_hierarchical_stats_supports_explicit_dataframe_and_dict_outputs`, `test_get_hierarchical_stats_supports_explicit_basedata_family_outputs`, `test_get_hierarchical_stats_preserves_custom_basedata_subclass_by_default`, `test_get_hierarchical_stats_rejects_invalid_output_type_before_aggregation`, `test_get_hierarchical_stats_returns_requested_type_for_empty_results`, `test_get_hierarchical_stats_has_no_nested_functions_or_apply_lambda`, `test_get_hierarchical_stats_deduplicates_hierarchy_columns_without_adding_levels`, `test_get_hierarchical_stats_rejects_target_hierarchy_overlap_before_aggregation`, `test_get_hierarchical_stats_supports_ordered_multiple_strategies`, `test_get_hierarchical_stats_rejects_non_string_strategy_values_before_aggregation`, `test_get_hierarchical_stats_default_fallback_requires_data_signature`, `test_get_hierarchical_stats_propagates_internal_constructor_errors`, `test_get_hierarchical_stats_all_output_types_keep_multi_strategy_schema`, `test_get_hierarchical_stats_falls_back_to_dataframe_for_incompatible_default_subclass`.
+  - `test_hierarchical_stats_mode.py` (5 items): `test_get_hierarchical_stats_mode_matches_tie_breaking_and_normalizes_mod`, `test_get_hierarchical_stats_mode_returns_all_targets_at_every_hierarchy_level`, `test_get_hierarchical_stats_mode_allows_hierarchy_column_named_count`, `test_get_hierarchical_stats_mode_has_no_melt_and_keeps_null_groups`, `test_get_hierarchical_stats_mode_empty_valid_values_returns_empty_rows`.
+  - `test_hierarchical_stats_flags.py` (5 items): `test_hierarchy_methods_keep_existing_return_contract_when_stats_disabled`, `test_hierarchy_methods_skip_stats_calculation_when_disabled`, `test_hierarchy_methods_return_stats_for_copy_and_inplace_modes`, `test_hierarchy_stats_are_extracted_before_drop_outliers`, `test_hierarchy_stats_are_extracted_before_progressive_fill`.
+  - `tests/shared/constants.py` (1 item): `OUTPUT_COLUMNS`.
+
+- **`tests/test_phase3_transformations.py` (35 items):**
+  - `tests/cross_cutting/workflows/test_fill_missing_from.py` (3 items): `test_fill_missing_from_non_numeric_target_with_numeric_strategy_raises`, `test_fill_missing_from_stats_reverse_map_match_cols`, `test_fill_missing_from_inplace_with_stats_returns_stats_and_mutates`.
+  - `tests/cross_cutting/accessor/test_parity.py` (2 items): `test_accessor_and_basedata_produce_equal_results`, `PARITY_CASES`.
+  - `tests/cross_cutting/base_api/test_base.py` (2 items): `test_inplace_true_matches_the_copy_result_and_returns_none`, `INPLACE_CASES`.
+  - `tests/modules/columns/test_columns.py` (16 items): `test_drop_CLASS_columns_drops_only_matching_columns`, `test_rename_by_substring_renames_every_occurrence_and_keeps_the_rest`, `test_rename_by_substring_without_matches_returns_an_independent_copy`, `test_reorder_columns_moves_named_columns_to_the_front`, `test_reorder_columns_with_no_valid_names_returns_an_independent_copy`, `test_align_lat_lng_moves_longitude_after_latitude`, `test_split_list_objects_remove_source_col_drops_the_original_column`, `test_split_list_objects_joined_extraction_ignores_missing_elements`, `test_split_list_objects_parallel_explode_resets_the_index`, `test_split_list_objects_cartesian_explode_builds_the_cross_product`, `test_split_list_objects_all_index_copies_the_source_list`, `test_melt_transform_pivot_defaults_and_kwargs`, `test_melt_transform_pivot_custom_layout`, `test_melt_transform_pivot_resets_the_index_and_preserves_the_subclass`, `test_melt_transform_pivot_derives_pivot_layout_defaults`, `test_melt_transform_pivot_supports_a_non_default_aggfunc`.
+  - `tests/modules/text/test_text.py` (2 items): `test_truncate_after_substring_literal_delimiters`, `test_truncate_after_substring_regex_delimiters`.
+  - `tests/modules/stats/test_fill_missing.py` (3 items): `test_fill_missing_min_samples_counts_only_non_null_observations`, `test_fill_missing_uppercase_strategy_matches_lowercase`, `test_fill_missing_without_missing_values_returns_an_independent_copy`.
+  - `tests/modules/enrichment/test_translate.py` (5 items): `test_impute_by_language_exact_detection_and_generated_fallback`, `test_impute_by_language_honors_target_lang`, `test_impute_by_language_skips_missing_columns`, `test_impute_by_language_inplace_matches_the_copy_result`, `fake_langdetect`.
+  - `tests/shared/` (2 items): `OUTPUT_COLUMNS` -> `constants.py`, `PARITY_DATA` -> `factories.py`.
+
+- **`tests/test_phase3_input_validation.py` (36 items):**
+  - `tests/modules/stats/test_hierarchical_stats.py` (6 items): `test_get_hierarchical_stats_non_numeric_target_raises_typeerror`, `test_get_hierarchical_stats_non_numeric_target_mode_is_allowed`, `test_get_hierarchical_stats_skips_missing_targets`, `test_get_hierarchical_stats_rejects_non_iterable_strategy`, `test_get_hierarchical_stats_rejects_empty_strategy_iterable`, `test_get_hierarchical_stats_rejects_unknown_strategy`.
+  - `tests/cross_cutting/workflows/test_fill_missing_from.py` (4 items): `test_fill_missing_from_non_numeric_all_nan_target_is_exempt`, `test_fill_missing_from_skips_missing_targets_and_fills_valid_ones`, `test_fill_missing_from_duplicate_targets_are_deduplicated`, `test_fill_missing_from_rejects_empty_match_cols_strings`.
+  - `tests/cross_cutting/base_api/test_base.py` (6 items): `test_accessor_rejects_inplace_for_variadic_methods`, `test_shared_functions_reject_inplace_for_variadic_methods`, `test_accessor_rejects_inplace_for_non_variadic_methods`, `test_inplace_is_accepted_by_the_class_api_and_rejected_by_the_accessor`, `_variadic_frame`, `INPLACE_XFAIL` (8 strict xfail cases).
+  - `tests/modules/columns/test_columns.py` (1 item): `test_melt_transform_pivot_rejects_invalid_arguments`.
+  - `tests/modules/stats/test_fill_missing.py` (14 items): `test_handle_outliers_rejects_invalid_min_samples`, `test_drop_outliers_rejects_invalid_min_samples`, `test_fill_missing_and_fill_missing_from_reject_invalid_min_samples`, `test_handle_outliers_min_samples_boundary`, `test_min_samples_counts_only_non_null_observations`, `test_outlier_methods_warn_and_return_an_unchanged_copy_without_hierarchy`, `test_outlier_methods_raise_keyerror_for_a_missing_named_hierarchy`, `test_fill_missing_non_numeric_target_with_hierarchy_raises_typeerror`, `test_fill_missing_non_numeric_target_with_fallback_global_raises_typeerror`, `test_fill_missing_non_numeric_target_without_hierarchy_is_unchanged`, `test_fill_missing_non_numeric_all_nan_target_does_not_raise`, `test_fill_missing_skips_missing_targets_and_fills_valid_ones`, `MIN_SAMPLES_XFAIL` (12 strict xfail cases), `INVALID_MIN_SAMPLES`.
+  - `tests/modules/io/test_io.py` (2 items): `test_read_json_missing_key_raises_keyerror`, `test_read_json_key_on_non_dict_payload_raises_typeerror`.
+  - `tests/modules/enrichment/test_translate.py` (2 items): `test_translate_conditional_column_rejects_out_of_range_threshold`, `test_translate_conditional_column_rejects_non_positive_integer_parameters`.
+  - `tests/modules/enrichment/test_geocode.py` (1 item): `test_fill_missing_coordinates_rejects_non_positive_integer_save_every`.
+
+- **`tests/test_integrations.py` (28 items):**
+  - `tests/modules/enrichment/test_translate.py` (1 item): `test_translate_categorical_column_translates_each_unique_value_once`.
+  - `tests/modules/enrichment/test_geocode.py` (3 items): `test_fill_missing_coordinates_shortens_queries_and_caches_misses`, `_Location`, `_install_geopy`.
+  - `tests/modules/enrichment/test_currency.py` (2 items): `test_convert_to_usd_looks_back_and_caches_missing_years`, `_install_currency`.
+  - `tests/modules/enrichment/test_nlp.py` (18 items): `test_extract_entities_nlp_default_disable_reaches_both_pipe_calls`, `test_extract_entities_nlp_skips_unused_pipes_and_reuses_cache`, `test_extract_entities_nlp_custom_disable_reaches_both_pipe_calls`, `test_extract_entities_nlp_normalizes_single_string_and_none`, `test_extract_entities_nlp_rejects_required_disable_before_spacy_load`, `test_extract_entities_nlp_reports_all_required_disabled_components`, `test_extract_entities_nlp_warns_for_unknown_disable_and_continues`, `test_extract_entities_nlp_different_disable_configs_do_not_reuse_cache`, `test_extract_entities_nlp_different_models_do_not_reuse_cache`, `test_extract_entities_nlp_equivalent_disable_configs_reuse_cache`, `test_extract_entities_nlp_noisy_terms_filters_matched_terms`, `test_extract_entities_nlp_signature_exposes_noisy_terms_only`, `test_extract_entities_nlp_rejects_the_noisey_terms_spelling`, `test_free_enrichment_extract_entities_nlp_rejects_noisey_terms_spelling`, `test_extract_entities_nlp_raises_for_bad_configuration`, `_install_fake_spacy`, `_install_matching_spacy`, `_run_fake_nlp`.
+  - `tests/modules/enrichment/test_optional.py` (3 items): `test_categorize_by_reference_with_real_pyahocorasick`, `test_save_to_sql_with_real_sqlalchemy_and_sqlite`, `test_save_to_sql_propagates_database_errors`.
+  - Enrichment-local helper (1 item): `_install` remains local to the enrichment targets; it is not promoted to shared infrastructure because both current consumers are within the same domain.
+
+- **`tests/test_enrichment.py` (31 items):**
+  - `tests/modules/enrichment/test_translate.py` (20 items): `test_default_providers_satisfy_the_protocols`, `test_documented_enrich_exports_include_the_default_providers`, `test_translate_categorical_column_constructs_the_default_google_translator`, `test_translate_categorical_column_accepts_a_plain_provider`, `test_translate_skips_and_does_not_cache_empty_translations`, `test_translate_batch_is_used_in_save_every_chunks`, `test_default_google_provider_uses_one_translator_per_thread`, `test_translate_conditional_column_sampling_is_reproducible`, `test_translate_conditional_column_translates_only_foreign_partitions`, `test_translate_conditional_column_accepts_a_generator`, `test_rate_limited_map_runs_calls_concurrently`, `test_rate_limited_map_spaces_call_starts`, `test_rate_limited_map_returns_exceptions_in_place`, `test_cached_map_checkpoints_skips_and_retries_failures`, `test_cached_map_multi_bucket_requires_every_bucket`, `test_cached_map_batch_failure_leaves_the_chunk_uncached`, `test_cached_map_rejects_batches_with_the_wrong_length`, `DictTranslator`, `BatchTranslator`, `_install_langdetect`.
+  - `tests/modules/enrichment/test_geocode.py` (4 items): `test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder`, `test_fill_missing_coordinates_accepts_a_plain_provider`, `test_geocoding_errors_are_not_cached`, `DictGeocoder`.
+  - `tests/modules/enrichment/test_currency.py` (6 items): `test_convert_to_usd_constructs_the_default_yfinance_rate_source`, `test_convert_to_usd_downloads_once_per_currency`, `test_convert_to_usd_does_not_cache_provider_failures`, `test_yfinance_rate_source_computes_yearly_means_from_one_download`, `FakeRates`, `_install_currency_lookup`.
+  - Enrichment-local helper (1 item): `_install` remains local to the enrichment targets; it is not promoted to shared infrastructure because both current consumers are within the same domain.
+
+- **Files kept or moved whole (7 files):**
+  - `tests/test_accessor.py` -> `tests/cross_cutting/accessor/test_accessor.py` (12 items: 11 tests + `_Translator`, unchanged)
+  - `tests/test_fill_missing_from.py` -> `tests/cross_cutting/workflows/test_fill_missing_from.py` (9 tests, unchanged base)
+  - `tests/test_doc_drift.py` -> `tests/cross_cutting/contracts/test_doc_drift.py` (4 items: 3 tests + `ROOT`, unchanged)
+  - `tests/test_equivalence.py` -> `tests/cross_cutting/equivalence/test_equivalence.py` (19 items: 9 tests, 8 helpers, 2 constants, unchanged)
+  - `tests/test_phase3_file_io.py` -> `tests/modules/io/test_io.py` (24 tests, all moved)
+  - `tests/test_phase3_optional_integrations.py` -> `tests/modules/enrichment/test_optional.py` (15 items: 13 tests + `_sqlite_arguments`, `_fetch_rows`, all moved)
+  - `tests/test_inplace_deprecation.py` -> `tests/cross_cutting/base_api/test_base.py` (11 items: 9 tests + `_frame`, `EARLY_EXITS`, all moved)
+
+**Collection and definition-count reconciliation.** [BP] The current suite collects 528 test cases and defines 319 test functions. The split of `test_basedata_text_list_reshape_and_imputation_helpers` (in `tests/test_cleaning.py`) produces 3 focused single-assertion test functions (one for `split_list_objects` in `columns`, one for `extract_keywords` in `text`, and one for `fill_missing` in `stats`), increasing the collected test count by +2 and the function-definition count by +2. The expected post-migration suite therefore collects exactly 530 cases and defines 321 test functions, assuming no other parametrization or test-function changes. All 528 original cases, scenarios, parametrized combinations, and assertions are preserved in full.
+
+#### 8.9.8 Phased migration plan with verification gates
+
+**Planning authority and non-execution.** This plan is future planning only and MUST NOT be executed without supervisor approval. No test file was moved or renamed in this task. Each migration step below represents an independent, reviewable change with strict verification gates. [BP]
+
+1. **Step 1: Create shared infrastructure and module scaffolding.**
+   - Create `tests/shared/constants.py` only for the evidenced cross-domain `OUTPUT_COLUMNS` constant.
+   - Create `tests/modules/caching/helpers.py` for caching-only `_seed_cache_entries` and `_rows`; keep domain-specific fakes, `PARITY_DATA`, and `EXPECTED_STATS_KEYS_BY_KIND` local.
+   - Create module directories under `tests/modules/` and `tests/cross_cutting/`.
+   - *Verification gate:* Full suite green; collected count 528; `ruff check tests` clean.
+
+2. **Step 2: Split `tests/test_caching.py` into `tests/modules/caching/`.**
+   - Move persistence tests to `tests/modules/caching/test_persistence.py` (30 items).
+   - Move migration and schema tests to `tests/modules/caching/test_migration.py` (21 items).
+   - Move concurrency tests to `tests/modules/caching/test_concurrency.py` (11 items).
+   - Create `tests/modules/caching/conftest.py` for isolated cache directory fixtures.
+   - Remove original `tests/test_caching.py`.
+   - *Verification gate:* Full suite green; collected count 528; `ruff check tests` clean; actual caching files < 800 lines.
+
+3. **Step 3: Split `tests/test_profile.py` into `tests/modules/profile/`.**
+   - Move general statistics and reports to `tests/modules/profile/test_profile_general.py` (15 items).
+   - Move edge cases to `tests/modules/profile/test_profile_edges.py` (8 items).
+   - Move contract stability tests to `tests/modules/profile/test_profile_contract.py` (6 items).
+   - Remove original `tests/test_profile.py`.
+   - *Verification gate:* Full suite green; collected count 528; `ruff check tests` clean; actual profile files < 800 lines.
+
+4. **Step 4: Split hierarchical stats and migrate stats module.**
+   - Split `tests/test_hierarchical_stats.py` into `test_hierarchical_stats.py`, `test_hierarchical_stats_mode.py`, and `test_hierarchical_stats_flags.py` under `tests/modules/stats/`.
+   - Relocate `tests/test_fill_missing_from.py` to `tests/cross_cutting/workflows/test_fill_missing_from.py`.
+   - *Verification gate:* Full suite green; collected count 528; `ruff check tests` clean; actual stats files < 800 lines.
+
+5. **Step 5: Split enrichment and integrations into `tests/modules/enrichment/`.**
+   - Split `tests/test_enrichment.py` and `tests/test_integrations.py` into `test_translate.py`, `test_geocode.py`, `test_currency.py`, `test_nlp.py`, and `test_optional.py`.
+   - Create `tests/modules/enrichment/conftest.py` for mock provider fixtures.
+   - Remove original `test_enrichment.py` and `test_integrations.py`.
+   - *Verification gate:* Full suite green; extras job green; collected count 528; `ruff check tests` clean; actual enrichment files < 800 lines.
+
+6. **Step 6: Dissolve `tests/test_phase3_file_io.py` into `tests/modules/io/`.**
+   - Move all 24 tests from `tests/test_phase3_file_io.py` to `tests/modules/io/test_io.py`.
+   - Remove `tests/test_phase3_file_io.py`.
+   - *Verification gate:* Full suite green; collected count 528; `ruff check tests` clean; `test_io.py` < 800 lines.
+
+7. **Step 7: Dissolve `tests/test_phase3_transformations.py` and `test_phase3_input_validation.py`.**
+   - Route items to `tests/modules/columns/test_columns.py`, `tests/modules/text/test_text.py`, `tests/modules/stats/test_fill_missing.py`, `tests/cross_cutting/accessor/test_parity.py`, `tests/cross_cutting/base_api/test_base.py`, and `tests/cross_cutting/workflows/test_fill_missing_from.py`.
+   - Preserve all 20 strict-xfail cases citing `docs/temb/TEST-02-phase1-audit.md` (8 in `test_base.py`, 12 in `test_stats.py`).
+   - Update `PHASE3_TESTS` manifest in `tools/verify_installed_wheel.py` in the same change.
+   - Remove `test_phase3_transformations.py` and `test_phase3_input_validation.py`.
+   - *Verification gate:* Full suite green; wheel verifier passes; collected count 528; `ruff check tests` clean.
+
+8. **Step 8: Split `tests/test_cleaning.py` and merge `tests/test_inplace_deprecation.py`.**
+   - Merge `test_inplace_deprecation.py` into `tests/cross_cutting/base_api/test_base.py`.
+   - Split `test_cleaning.py` into its component targets. Multi-concept test `test_basedata_text_list_reshape_and_imputation_helpers` is partitioned into 3 tests (+2 collected items).
+   - Remove `test_cleaning.py` and `test_inplace_deprecation.py`.
+   - *Verification gate:* Full suite green; collected count reaches exactly 530 (528 + 2 from split); 321 test functions defined (319 original definitions plus 2 from the split); 990 `assert` statements preserved; 100 `pytest.param` cases preserved; `ruff check tests` clean; actual target files < 800 lines.
+
+9. **Step 9: Relocate contracts, accessor, and equivalence to `tests/cross_cutting/`.**
+   - Move `tests/test_accessor.py` to `tests/cross_cutting/accessor/test_accessor.py`.
+   - Move `tests/test_doc_drift.py` to `tests/cross_cutting/contracts/test_doc_drift.py` and update root path resolution.
+   - Move `tests/test_equivalence.py` to `tests/cross_cutting/equivalence/test_equivalence.py`.
+    - Extract the benchmark reference implementations into the approved benchmark support module and update both benchmark scripts and equivalence tests to import it.
+    - *Verification gate:* Full suite green; `pytest tests/cross_cutting/contracts/test_doc_drift.py` green; benchmark import works without importing a test module; collected count 530.
+
+10. **Step 10: Suite-wide audit and verification.**
+    - Re-run full test suite across all environments, run `tools/verify_installed_wheel.py`, and verify benchmark execution.
+    - Verify line counts across all test files (`wc -l tests/modules/*/*.py tests/cross_cutting/*/*.py tests/shared/*.py`) confirming 100% compliance with the 800-line limit.
+    - Confirm 20 strict-xfail cases and 17 pandas-2 skips are intact.
+    - *Verification gate:* 530 collected cases; 0 warnings/errors; wheel verification green; benchmarks green; clean git diff; no stale test-path or test-module imports.
+
+**Preservation invariants.** [BP] The migration plan preserves every test function, helper, class, and constant; all 990 `assert` statements; all 100 `pytest.param` cases; and all 20 strict `xfail` cases with `strict=True`. Redundancy cleanup MUST NOT be used to eliminate tests or assertions.
+
+#### 8.9.9 Non-authorization of migration
+
+The migration described in §8.9.8 is future design and planning only and is **not authorized**. It MUST NOT be performed until explicitly approved by the supervisor. Until authorization is granted, all 15 test files remain in their current flat layout directly under `tests/`, and the hierarchical architecture approved here serves as the authoritative design model for all new work. No test file was created, moved, renamed, or deleted by this documentation update, and no production code, configuration, CI workflow, or dependency was modified. [BP]
+
 
 ---
 
@@ -914,7 +1289,7 @@ A PR MUST pass every required gate before merge. [BP]
 | Property (extended) | scheduled | `python -m pytest -m property --hypothesis-profile=extended` | Yes, from Phase 2 | Scheduled, not a PR gate |
 | Mutation | scheduled | Cosmic Ray on the §7.5 scope | Advisory, from Phase 3 | Weekly or pre-release |
 | Compile | push, PR | `python -m compileall -q bynat tests` | Yes | Existing (package only); extend to tests |
-| Doc drift | push, PR | `python -m pytest tests/test_doc_drift.py` | Yes | Existing |
+| Doc drift | push, PR | `python -m pytest tests/cross_cutting/contracts/test_doc_drift.py` after the hierarchical migration | Yes | Existing contract test; current pre-migration path is `tests/test_doc_drift.py` |
 
 ### 9.3 Windows and mutation tooling
 

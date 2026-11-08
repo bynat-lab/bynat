@@ -18,7 +18,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 4. **Minimal footprint.** Core dependencies stay `numpy` and `pandas`. Heavy integrations stay optional and are imported lazily with `_import_optional`. Prefer the standard library (`sqlite3`, `logging`, `tempfile`) over new dependencies.
 5. **Tests do not touch the network.** External services are replaced with fake modules (`tests/test_integrations.py`). Light extras with offline behavior (`pyahocorasick`, SQLAlchemy with SQLite) are also tested for real when installed.
 
-## 3. Current state (`0.6.5`)
+## 3. Current state (`0.6.6`)
 
 - **Python:** `>=3.11`. CI runs Ubuntu and Windows on 3.11 and 3.13, a Ruff lint job, and an extras job (`.[categorization,sql]`).
 - **Tests:** 315 full-suite tests pass on pandas 3 (pandas 2 skips the comparisons against the `0.3.0` outlier merge, which mishandles null keys there). Six are skipped unless the `categorization` and `sql` extras are installed. Equivalence tests for the optimized methods live in `tests/test_equivalence.py`.
@@ -59,6 +59,8 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 | 0.6.0 | `QA-01` mypy for the cache manager and the cleaning helpers, CI job; supported class wrappers remain a separate gradual-typing boundary | `pyproject.toml`, `.github/workflows/test.yml` |
 | 0.6.5 | `DQ-01` DataFrame quality profiling API producing non-mutating structured reports (`ProfileReport`, `DatasetProfile`, `ColumnProfile`) with dataset metrics, per-kind statistics, and DataFrame/dict conversion | `bynat/cleaning/profile.py`, `tests/test_profile.py` |
 | 0.6.5 | `DX-01` static typing preservation and editor hover support: generic `_shares_doc` decorator preserving signatures, literal `BaseData` docstrings, PEP 484 stub (`bynat/cleaning/accessor.pyi`), PEP 561 marker (`bynat/py.typed`), and docstring synchronizer | `bynat/cleaning/`, `tools/sync_docs.py`, `tests/test_doc_drift.py` |
+| 0.6.6 | `STATS-01` safer hierarchical imputation fallbacks: `min_samples` group threshold and `fallback_global` column-wide fallback in `fill_missing` | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `tests/test_cleaning.py` |
+| 0.6.6 | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/test_fill_missing_from.py` |
 
 ### Public API policy
 
@@ -90,12 +92,6 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Done when:** the analytics functionality is accessible through the documented package API, existing behavior is preserved, and tests cover public interfaces and output contracts.
 
 ### Milestone 8 (`0.8.0`): data quality
-
-#### `DQ-01`: DataFrame quality profiling (P1, M)
-- **Status:** done (0.6.5).
-- **Problem:** users need a structured way to assess data quality before cleaning or analysis without manually combining checks for missing values, duplicates, column types, and descriptive statistics.
-- **Plan:** add a profiling API that produces a structured report covering missing values, duplicate rows, column types, and relevant descriptive statistics. Keep profiling non-mutating and make its output suitable for programmatic use.
-- **Done when:** the report has a documented, stable structure, covers supported data types and edge cases, and tests verify its results without modifying the input.
 
 #### `DQ-02`: declarative DataFrame quality checks (P1, M)
 - **Problem:** users need to define and evaluate data quality requirements consistently instead of implementing ad hoc validation logic for every dataset.

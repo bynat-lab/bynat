@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.6]
+
+### Added
+
+- Reference-based missing value imputation via `fill_missing_from` (`STATS-02`), computing imputation statistics exclusively from a separate reference DataFrame (e.g., training data) to prevent data leakage in train/test workflows. Available via `bynat.cleaning.stats.fill_missing_from`, `df.bynat.fill_missing_from`, and `BaseData.fill_missing_from`.
+- Schema column mapping via `match_cols` (dict mapping target column names to reference column names) in `fill_missing_from` for datasets with divergent column naming conventions.
+- `min_samples` parameter in `fill_missing` and `fill_missing_from` (`STATS-01`), requiring a minimum threshold of non-null observations within a hierarchical group before supplying an imputation statistic, falling through to coarser hierarchy levels when not met.
+- `fallback_global` parameter in `fill_missing` and `fill_missing_from` (`STATS-01`), optionally applying column-wide imputation when hierarchy levels are exhausted or when `hierarchy_cols=None`.
+
 ## 0.6.5
 
 This release introduces the DataFrame data quality profiling API (`DQ-01`), providing non-mutating profiling reports with dataset-level metrics, per-column quality summaries, kind detection, and descriptive statistics across pandas data types. It also introduces static typing preservation and editor hover support (`DX-01`), providing PEP 484 stub files, PEP 561 packaging marker, docstring synchronization tooling, and formal project branding.

@@ -2,6 +2,7 @@ import json
 import sys
 import types
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -324,3 +325,122 @@ def test_save_to_sql_rejects_invalid_arguments_before_connecting(monkeypatch, tm
 
     with pytest.raises(ValueError, match=message):
         BaseData({"a": [1]}, cache_dir=tmp_path).save_to_sql(**arguments)
+
+
+def test_fill_missing_min_samples_and_fallback_global_reproduction(tmp_path):
+    from bynat.cleaning import stats
+
+    # 1) A group with no observed values stays NaN by default, filled when fallback_global=True
+    df1 = pd.DataFrame({
+        "country": ["EG", "EG", "EG", "US", "US", "DE"],
+        "salary":  [10.0, 14.0, np.nan, 70.0, 90.0, np.nan],
+    })
+    default_res = stats.fill_missing(df1, "salary", strategy="median", hierarchy_cols=["country"])
+    assert pd.isna(default_res.loc[5, "salary"])
+    assert default_res.loc[2, "salary"] == 12.0
+
+    fallback_res = stats.fill_missing(
+        df1, "salary", strategy="median", hierarchy_cols=["country"], fallback_global=True
+    )
+    assert fallback_res.loc[2, "salary"] == 12.0
+    # Global median of observed [10, 14, 70, 90] is 42.0
+    assert fallback_res.loc[5, "salary"] == 42.0
+
+    # 2) A single-value group is trusted fully by default (min_samples=1), skipped when min_samples=2
+    df2 = pd.DataFrame({
+        "country": ["EG", "EG", "US", "US"],
+        "salary":  [10.0, np.nan, 1000.0, np.nan],
+    })
+    res_min1 = stats.fill_missing(df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=1)
+    assert res_min1.loc[1, "salary"] == 10.0
+    assert res_min1.loc[3, "salary"] == 1000.0
+
+    res_min2 = stats.fill_missing(df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=2)
+    assert pd.isna(res_min2.loc[1, "salary"])
+    assert pd.isna(res_min2.loc[3, "salary"])
+
+    res_min2_fallback = stats.fill_missing(
+        df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=2, fallback_global=True
+    )
+    # Global median of [10.0, 1000.0] is 505.0
+    assert res_min2_fallback.loc[1, "salary"] == 505.0
+    assert res_min2_fallback.loc[3, "salary"] == 505.0
+
+    # 3) hierarchy_cols=None: nothing filled when fallback_global=False, plain imputation when fallback_global=True
+    res_none_default = stats.fill_missing(df1, "salary", strategy="median")
+    assert pd.isna(res_none_default.loc[2, "salary"])
+    assert pd.isna(res_none_default.loc[5, "salary"])
+
+    res_none_global = stats.fill_missing(df1, "salary", strategy="median", fallback_global=True)
+    assert res_none_global.loc[2, "salary"] == 42.0
+    assert res_none_global.loc[5, "salary"] == 42.0
+
+
+def test_fill_missing_validates_min_samples(tmp_path):
+    frame = BaseData({"g": ["a", "a"], "v": [1.0, None]}, cache_dir=tmp_path)
+
+    with pytest.raises(ValueError, match="min_samples must be an integer greater than or equal to 1"):
+        frame.fill_missing("v", hierarchy_cols="g", min_samples=0)
+
+    with pytest.raises(ValueError, match="min_samples must be an integer greater than or equal to 1"):
+        frame.fill_missing("v", hierarchy_cols="g", min_samples=-3)
+
+    with pytest.raises(ValueError, match="min_samples must be an integer greater than or equal to 1"):
+        frame.fill_missing("v", hierarchy_cols="g", min_samples=True)
+
+    with pytest.raises(ValueError, match="min_samples must be an integer greater than or equal to 1"):
+        frame.fill_missing("v", hierarchy_cols="g", min_samples="2")  # type: ignore[arg-type]
+
+
+def test_fill_missing_hierarchical_fallthrough_multi_level(tmp_path):
+    df = pd.DataFrame({
+        "country": ["EG", "EG", "EG", "EG", "US", "US"],
+        "city":    ["Cairo", "Cairo", "Alex", "Alex", "NYC", "NYC"],
+        "salary":  [100.0, np.nan, 20.0, 40.0, 500.0, np.nan],
+    })
+
+    res_no_global = df.bynat.fill_missing(
+        "salary", strategy="median", hierarchy_cols=["country", "city"], min_samples=2
+    )
+    assert res_no_global.loc[1, "salary"] == 40.0
+    assert pd.isna(res_no_global.loc[5, "salary"])
+
+    res_global = df.bynat.fill_missing(
+        "salary", strategy="median", hierarchy_cols=["country", "city"], min_samples=2, fallback_global=True
+    )
+    assert res_global.loc[1, "salary"] == 40.0
+    assert res_global.loc[5, "salary"] == 70.0
+
+
+def test_fill_missing_all_strategies_with_fallbacks(tmp_path):
+    df = pd.DataFrame({
+        "group": ["A", "A", "B", "B"],
+        "num":   [10.0, np.nan, 50.0, np.nan],
+        "cat":   ["x", None, "y", None],
+    })
+
+    res_mean = df.bynat.fill_missing(
+        "num", strategy="mean", hierarchy_cols=["group"], min_samples=2, fallback_global=True
+    )
+    assert res_mean["num"].tolist() == [10.0, 30.0, 50.0, 30.0]
+
+    res_mode = df.bynat.fill_missing(
+        "cat", strategy="mode", hierarchy_cols=["group"], min_samples=2, fallback_global=True
+    )
+    assert res_mode["cat"].tolist() == ["x", "x", "y", "x"]
+
+    res_mod = df.bynat.fill_missing(
+        "cat", strategy="mod", hierarchy_cols=["group"], min_samples=2, fallback_global=True
+    )
+    assert res_mod["cat"].tolist() == ["x", "x", "y", "x"]
+
+
+def test_fill_missing_all_nan_column(tmp_path):
+    df = pd.DataFrame({
+        "group": ["A", "A", "B", "B"],
+        "val":   [np.nan, np.nan, np.nan, np.nan],
+    })
+    res = df.bynat.fill_missing(
+        "val", strategy="median", hierarchy_cols=["group"], min_samples=2, fallback_global=True
+    )
+    assert res["val"].isna().all()

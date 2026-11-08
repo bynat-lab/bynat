@@ -15,7 +15,7 @@
 </p>
 
 <div align="center">
-  Python <code>&gt;=3.11</code> &nbsp;·&nbsp; MIT license &nbsp;·&nbsp; version <code>0.6.5</code>
+  Python <code>&gt;=3.11</code> &nbsp;·&nbsp; MIT license &nbsp;·&nbsp; version <code>0.6.6</code>
 
   [Overview](#what-is-bynat) ·
   [Installation](#installation) ·
@@ -56,7 +56,7 @@ New here? [Install bynat](#installation), then go to the [Quick start](#quick-st
 
 ### Project status
 
-`0.6.5` is the version declared in `pyproject.toml`. See [CHANGELOG.md](https://github.com/bynat-lab/bynat/blob/main/CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](https://github.com/bynat-lab/bynat/blob/main/docs/ROADMAP.md) for planned work.
+`0.6.6` is the version declared in `pyproject.toml`. See [CHANGELOG.md](https://github.com/bynat-lab/bynat/blob/main/CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](https://github.com/bynat-lab/bynat/blob/main/docs/ROADMAP.md) for planned work.
 
 ---
 

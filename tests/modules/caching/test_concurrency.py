@@ -7,6 +7,9 @@ import pytest
 from bynat.caching import CacheManager
 from tests.modules.caching.helpers import _rows, _seed_cache_entries
 
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
+
+
 
 def _run_legacy_migration(cache_dir, func_name, start_event, result_queue):
     try:

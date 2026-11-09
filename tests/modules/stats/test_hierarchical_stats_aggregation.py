@@ -10,6 +10,9 @@ import pytest
 from bynat.cleaning import BaseData, stats
 from tests.shared.constants import OUTPUT_COLUMNS
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_get_hierarchical_stats_returns_median_levels_and_preserves_source(tmp_path):
     frame = BaseData(

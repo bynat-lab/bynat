@@ -9,6 +9,9 @@ import pytest
 from bynat.cleaning import BaseData, columns, text
 from tests.shared.constants import PARITY_DATA
 
+pytestmark = pytest.mark.integration
+
+
 INPLACE_CASES = [
     pytest.param(
         lambda frame: frame.drop_CLASS_columns(),

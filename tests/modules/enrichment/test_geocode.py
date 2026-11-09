@@ -11,6 +11,9 @@ from bynat.cleaning import BaseData
 from bynat.cleaning.enrich import geocode
 from tests.modules.enrichment.helpers import install_fake_module
 
+pytestmark = pytest.mark.unit
+
+
 _install = install_fake_module
 
 

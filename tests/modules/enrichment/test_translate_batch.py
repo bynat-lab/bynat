@@ -19,6 +19,9 @@ from tests.modules.enrichment.helpers import (
     install_fake_module,
 )
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_default_providers_satisfy_the_protocols():
     assert issubclass(GoogleTranslatorProvider, Translator)

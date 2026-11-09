@@ -5,6 +5,9 @@ import pytest
 from bynat.caching import CacheManager
 from tests.modules.caching.helpers import _seed_cache_entries
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_failed_removal_transaction_rolls_back_and_retries(tmp_path, monkeypatch, caplog):
     cache_dir = tmp_path / "cache"

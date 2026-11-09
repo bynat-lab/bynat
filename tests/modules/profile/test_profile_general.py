@@ -16,6 +16,9 @@ from bynat.cleaning.profile import (
     profile,
 )
 
+pytestmark = pytest.mark.unit
+
+
 _SINGLE_TYPE_INFERRED_LABELS: set[str] = {
     "integer",
     "floating",

@@ -1,7 +1,12 @@
 import sqlite3
 
+import pytest
+
 from bynat.caching import CacheManager
 from tests.modules.caching.helpers import _seed_cache_entries
+
+pytestmark = pytest.mark.integration
+
 
 
 def test_load_function_cache_records_baseline_matching_loaded_state(tmp_path):

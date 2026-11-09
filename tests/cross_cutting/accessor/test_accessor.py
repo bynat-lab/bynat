@@ -12,6 +12,9 @@ from bynat.caching import CacheManager
 from bynat.cleaning import BaseData, CsvFile, JsonFile
 from bynat.cleaning.accessor import BynatAccessor
 
+pytestmark = pytest.mark.integration
+
+
 
 class _Translator:
     def __init__(self, mapping):

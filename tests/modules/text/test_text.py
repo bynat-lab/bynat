@@ -2,8 +2,12 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from bynat.cleaning import BaseData
+
+pytestmark = pytest.mark.unit
+
 
 
 def test_truncate_after_substring_literal_delimiters():

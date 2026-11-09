@@ -7,6 +7,9 @@ import pytest
 from bynat.cleaning import text
 from tests.cross_cutting.equivalence._bench_refs import _legacy_extract_keywords
 
+pytestmark = pytest.mark.integration
+
+
 _WORDS = ["red", "blue", "c++", ".net", "data", "data analyst", "analyst", "Ünïcode", "x_y", "big data"]
 
 
@@ -97,6 +100,7 @@ def test_extract_keywords_repeated_calls_into_existing_column_match_legacy(keywo
     pd.testing.assert_frame_equal(keyword_frame, original)
 
 
+@pytest.mark.extras
 def test_extract_keywords_aho_corasick_and_regex_paths_agree(monkeypatch, keyword_frame):
     pytest.importorskip("ahocorasick")
     original = keyword_frame.copy(deep=True)

@@ -6,6 +6,9 @@ import pytest
 from bynat.caching import CacheManager
 from tests.modules.caching.helpers import _seed_cache_entries
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_cache_round_trip_via_sqlite(tmp_path):
     manager = CacheManager(tmp_path / "cache")
@@ -315,3 +318,53 @@ def test_get_column_cache_missing_function_creates_empty_bucket(tmp_path):
     bucket["pending"] = "Pending"
     assert manager.get_column_cache("ghost", "status") is bucket
     assert manager.load_function_cache("ghost") == {"status": {"pending": "Pending"}}
+
+
+def test_cache_manager_constructor_validation_rejects_non_string_and_empty():
+    with pytest.raises(TypeError, match="cache_dir must be a string or path-like object"):
+        CacheManager(12345)
+
+    with pytest.raises(ValueError, match="cache_dir cannot be empty"):
+        CacheManager("   ")
+
+
+def test_save_function_cache_handles_untracked_and_invalid_bucket_structures(tmp_path):
+    manager = CacheManager(tmp_path / "cache")
+    manager.save_function_cache("never_registered")
+    assert "never_registered" in manager.caches
+
+    manager.caches["corrupt_func"] = {"bad_bucket": "not_a_dict"}
+    manager.save_function_cache("corrupt_func")
+
+    manager.caches["baseline_corrupt"] = {"valid_bucket": {"k": "v"}}
+    manager._baselines["baseline_corrupt"] = {"bad_bucket": "not_a_dict"}
+    manager.save_function_cache("baseline_corrupt")
+    assert manager._baselines["baseline_corrupt"]["valid_bucket"] == {"k": "v"}
+
+
+def test_save_function_cache_handles_failing_rollback_during_commit_error(tmp_path, monkeypatch):
+    manager = CacheManager(tmp_path / "cache")
+    bucket = manager.get_column_cache("translate", "status")
+    bucket["k"] = "v"
+
+    class FailingConnection:
+        def execute(self, *args, **kwargs):
+            pass
+
+        def executemany(self, *args, **kwargs):
+            pass
+
+        def commit(self):
+            raise sqlite3.OperationalError("commit failed")
+
+        def rollback(self):
+            raise sqlite3.OperationalError("rollback failed too")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(manager, "_connect_sqlite", lambda: FailingConnection())
+    manager.save_function_cache("translate")
+    assert manager._baselines["translate"] == {}
+    assert manager.caches["translate"]["status"] == {"k": "v"}
+

@@ -8,6 +8,9 @@ import pytest
 
 from bynat.cleaning import BaseData, io
 
+pytestmark = pytest.mark.integration
+
+
 
 @pytest.mark.parametrize(
     ("orient", "expected"),

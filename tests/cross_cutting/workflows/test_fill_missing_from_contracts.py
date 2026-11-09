@@ -9,6 +9,9 @@ import pytest
 from bynat.cleaning import BaseData, stats
 from tests.shared.constants import OUTPUT_COLUMNS
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_fill_missing_from_validation():
     """Test validation of dataset, match_cols, hierarchy, types, and parameters."""
@@ -167,3 +170,54 @@ def test_fill_missing_from_rejects_empty_match_cols_strings(match_cols):
 
     with pytest.raises(ValueError, match="cannot be empty strings"):
         stats.fill_missing_from(target, reference, "v", match_cols=match_cols)
+
+
+def test_fill_missing_from_target_specification_shapes_and_empty_edge_cases():
+    ref = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0], "m": ["x", "y"]})
+    tgt = pd.DataFrame({"g": ["a", "b"], "v": [np.nan, np.nan], "m": [None, None]})
+
+    res_list = stats.fill_missing_from(tgt, ref, ["v"], hierarchy_cols=["g"])
+    assert res_list["v"].tolist() == [1.0, 2.0]
+
+    res_str = stats.fill_missing_from(tgt, ref, targets="v", hierarchy_cols=["g"])
+    assert res_str["v"].tolist() == [1.0, 2.0]
+
+    res_scalar = stats.fill_missing_from(tgt, ref, targets="v", hierarchy_cols=["g"])
+    assert res_scalar["v"].tolist() == [1.0, 2.0]
+
+    res_no_targets = stats.fill_missing_from(tgt, ref, hierarchy_cols=["g"])
+    pd.testing.assert_frame_equal(res_no_targets, tgt)
+
+    res_no_targets_stats, stat_df = stats.fill_missing_from(tgt, ref, hierarchy_cols=["g"], get_hierarchical_stats=True)
+    pd.testing.assert_frame_equal(res_no_targets_stats, tgt)
+    assert stat_df.empty
+
+    res_invalid_targets_stats, stat_df2 = stats.fill_missing_from(tgt, ref, "nonexistent", hierarchy_cols=["g"], get_hierarchical_stats=True)
+    pd.testing.assert_frame_equal(res_invalid_targets_stats, tgt)
+    assert stat_df2.empty
+
+    empty_tgt = pd.DataFrame(columns=["g", "v"])
+    res_empty, stat_empty = stats.fill_missing_from(empty_tgt, ref, "v", hierarchy_cols=["g"], get_hierarchical_stats=True)
+    assert res_empty.empty
+    assert not stat_empty.empty
+
+
+def test_fill_missing_from_mode_strategy_edge_cases():
+    ref = pd.DataFrame({"g": ["a", "b"], "v": [None, None], "ref_cat": ["X", "Y"]})
+    tgt = pd.DataFrame({"g": ["a", "b"], "v": [None, None], "tgt_cat": [None, None]})
+
+    res_all_nan = stats.fill_missing_from(tgt, ref, "v", strategy="mode", hierarchy_cols=["g"])
+    assert res_all_nan["v"].isna().all()
+
+    ref2 = pd.DataFrame({"g": ["a", "b"], "ref_cat": ["cat1", "cat2"]})
+    tgt2 = pd.DataFrame({"g": ["a", "b"], "tgt_cat": [None, None]})
+    res_insufficient = stats.fill_missing_from(
+        tgt2, ref2, "tgt_cat", strategy="mode", hierarchy_cols=["g"], match_cols={"tgt_cat": "ref_cat"}, min_samples=5
+    )
+    assert res_insufficient["tgt_cat"].isna().all()
+
+    res_match_mode = stats.fill_missing_from(
+        tgt2, ref2, "tgt_cat", strategy="mode", hierarchy_cols=["g"], match_cols={"tgt_cat": "ref_cat"}, min_samples=1
+    )
+    assert res_match_mode["tgt_cat"].tolist() == ["cat1", "cat2"]
+

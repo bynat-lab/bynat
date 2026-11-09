@@ -24,6 +24,8 @@ def _fetch_rows(database, query):
         return connection.execute(query).fetchall()
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_appends_rows_with_the_default_if_exists(tmp_path):
     pytest.importorskip("sqlalchemy")
     database = tmp_path / "append.db"
@@ -36,6 +38,8 @@ def test_save_to_sql_appends_rows_with_the_default_if_exists(tmp_path):
     assert _fetch_rows(database, "SELECT a FROM items ORDER BY a") == [(1,), (2,), (3,)]
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_replaces_rows_with_if_exists_replace(tmp_path):
     pytest.importorskip("sqlalchemy")
     database = tmp_path / "replace.db"
@@ -50,6 +54,8 @@ def test_save_to_sql_replaces_rows_with_if_exists_replace(tmp_path):
     ]
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_chunk_size_writes_every_row(tmp_path):
     pytest.importorskip("sqlalchemy")
     database = tmp_path / "chunked.db"
@@ -62,6 +68,8 @@ def test_save_to_sql_chunk_size_writes_every_row(tmp_path):
     ]
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_columns_types_controls_sql_column_types(tmp_path):
     sqlalchemy = pytest.importorskip("sqlalchemy")
     database = tmp_path / "typed.db"
@@ -84,6 +92,8 @@ def test_save_to_sql_columns_types_controls_sql_column_types(tmp_path):
     ]
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_index_true_persists_the_index_column(tmp_path):
     pytest.importorskip("sqlalchemy")
     database = tmp_path / "indexed.db"
@@ -107,6 +117,8 @@ def test_save_to_sql_index_true_persists_the_index_column(tmp_path):
     assert [row[1] for row in _fetch_rows(database, "PRAGMA table_info(plain)")] == ["a"]
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_normalizes_timezone_aware_datetimes(tmp_path):
     pytest.importorskip("sqlalchemy")
     database = tmp_path / "events.db"
@@ -125,6 +137,8 @@ def test_save_to_sql_normalizes_timezone_aware_datetimes(tmp_path):
     pd.testing.assert_frame_equal(frame, before)
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_returns_none_and_leaves_the_source_frame_unchanged(tmp_path):
     pytest.importorskip("sqlalchemy")
     database = tmp_path / "plain.db"
@@ -137,6 +151,7 @@ def test_save_to_sql_returns_none_and_leaves_the_source_frame_unchanged(tmp_path
     pd.testing.assert_frame_equal(frame, before)
 
 
+@pytest.mark.unit
 def test_save_to_sql_reports_missing_sqlalchemy_dependency(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "sqlalchemy", None)
     frame = BaseData({"a": [1]}, cache_dir=tmp_path)
@@ -145,6 +160,8 @@ def test_save_to_sql_reports_missing_sqlalchemy_dependency(tmp_path, monkeypatch
         frame.save_to_sql("items", **_sqlite_arguments(tmp_path / "missing.db"))
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_with_real_sqlalchemy_and_sqlite(tmp_path):
     sqlalchemy = pytest.importorskip("sqlalchemy")
     database = tmp_path / "out.db"
@@ -168,6 +185,8 @@ def test_save_to_sql_with_real_sqlalchemy_and_sqlite(tmp_path):
     assert [tuple(row) for row in rows] == [(1, "x"), (2, "y")]
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_save_to_sql_propagates_database_errors(tmp_path):
     pytest.importorskip("sqlalchemy")
     frame = BaseData({"a": [1]}, cache_dir=tmp_path)

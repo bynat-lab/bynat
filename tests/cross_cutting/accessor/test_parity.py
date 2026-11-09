@@ -6,6 +6,9 @@ import pytest
 from bynat.cleaning import BaseData
 from tests.shared.constants import PARITY_DATA
 
+pytestmark = pytest.mark.integration
+
+
 PARITY_CASES = [
     pytest.param(lambda obj, data: obj.drop_by_substring("user"), id="drop_by_substring"),
     pytest.param(lambda obj, data: obj.drop_CLASS_columns(), id="drop_CLASS_columns"),

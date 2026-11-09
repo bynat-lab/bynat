@@ -7,6 +7,9 @@ import pytest
 from bynat.caching import CacheManager
 from tests.modules.caching.helpers import _rows, _seed_cache_entries
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_legacy_migration_imports_supported_values_and_maps_filename(tmp_path):
     cache_dir = tmp_path / "cache"
@@ -386,3 +389,71 @@ def test_delete_column_cache_failed_transaction_is_retryable(tmp_path, monkeypat
 
     assert _rows(manager) == []
     assert manager._baselines["translate"] == {}
+
+
+def test_quarantine_corrupt_cache_file_fallbacks(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    source_file = cache_dir / "translate_cache.json"
+    source_file.write_text("corrupted content", encoding="utf-8")
+    manager = CacheManager(cache_dir)
+
+    monkeypatch.setattr("os.open", lambda *a, **k: (_ for _ in ()).throw(FileExistsError()))
+    assert manager._quarantine_corrupt_cache_file(str(source_file)) is None
+
+    monkeypatch.undo()
+    monkeypatch.setattr("os.replace", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
+    assert manager._quarantine_corrupt_cache_file(str(source_file)) is None
+
+    monkeypatch.undo()
+    monkeypatch.setattr("os.replace", lambda *a, **k: (_ for _ in ()).throw(OSError("disk error")))
+    assert manager._quarantine_corrupt_cache_file(str(source_file)) is None
+
+
+def test_legacy_migration_quarantine_and_read_errors(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    source_file = cache_dir / "translate_cache.json"
+    source_file.write_text("invalid json {", encoding="utf-8")
+    manager = CacheManager(cache_dir)
+
+    monkeypatch.setattr(manager, "_quarantine_corrupt_cache_file", lambda f: (_ for _ in ()).throw(OSError("perm error")))
+    manager._migrate_legacy_json_cache("translate")
+
+    monkeypatch.undo()
+    source_file.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("builtins.open", lambda *a, **k: (_ for _ in ()).throw(OSError("cannot read")))
+    manager._migrate_legacy_json_cache("translate")
+
+    monkeypatch.undo()
+    source_file.write_text("[1, 2, 3]", encoding="utf-8")
+    monkeypatch.setattr(manager, "_quarantine_corrupt_cache_file", lambda f: (_ for _ in ()).throw(OSError("perm error")))
+    manager._migrate_legacy_json_cache("translate")
+
+
+def test_legacy_migration_unsupported_serialization_and_locking_retry(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    source_file = cache_dir / "translate_cache.json"
+    source_file.write_text('{"bucket": {"key": "val"}}', encoding="utf-8")
+    manager = CacheManager(cache_dir)
+
+    monkeypatch.setattr("json.dumps", lambda *a, **k: (_ for _ in ()).throw(TypeError("unsupported type")))
+    manager._migrate_legacy_json_cache("translate")
+
+    monkeypatch.undo()
+    attempts = {"count": 0}
+    real_init = manager._initialize_sqlite
+
+    def flaky_init():
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise sqlite3.OperationalError("database is locked")
+        real_init()
+
+    monkeypatch.setattr(manager, "_initialize_sqlite", flaky_init)
+    manager._migrate_legacy_json_cache("translate")
+    assert attempts["count"] == 2
+
+    manager._migrate_legacy_cache("translate")
+

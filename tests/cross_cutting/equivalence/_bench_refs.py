@@ -18,15 +18,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from benchmarks.reference_impls import (  # noqa: E402
+    _legacy_convert_to_usd,
     _legacy_drop_outliers,
     _legacy_extract_keywords,
     _legacy_handle_outliers,
     _legacy_outlier_masks,
+    _legacy_translate_categorical,
+    _legacy_translate_conditional_column,
 )
 
 __all__ = [
+    "_legacy_convert_to_usd",
     "_legacy_drop_outliers",
     "_legacy_extract_keywords",
     "_legacy_handle_outliers",
     "_legacy_outlier_masks",
+    "_legacy_translate_categorical",
+    "_legacy_translate_conditional_column",
 ]

@@ -10,6 +10,7 @@ script, and invocation from a working directory other than the repository
 root) instead of silently dropping the doc-drift gate or the equivalence tests.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -17,3 +18,14 @@ ROOT = Path(__file__).resolve().parent.parent
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+try:
+    from hypothesis import settings
+
+    settings.register_profile("default", max_examples=25, deadline=None, derandomize=True)
+    settings.register_profile("fast", max_examples=25, deadline=None, derandomize=True)
+    settings.register_profile("extended", max_examples=200, deadline=None, derandomize=False, print_blob=True)
+    settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
+except ImportError:
+    pass
+

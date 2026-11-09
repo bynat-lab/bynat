@@ -3,6 +3,9 @@ import pytest
 from bynat.cleaning import BaseData
 from tests.shared.constants import OUTPUT_COLUMNS
 
+pytestmark = pytest.mark.unit
+
+
 
 @pytest.mark.parametrize(
     "method_name",

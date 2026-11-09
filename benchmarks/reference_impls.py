@@ -142,3 +142,127 @@ def _legacy_drop_outliers(df, *target_cols, hierarchy_cols, min_samples=5):
         result.index = original_index[~drop_mask]
 
     return result
+
+
+def _legacy_translate_categorical(df, target_col, target_lang="en", provider=None):
+    result = df.copy()
+    if target_col not in result.columns:
+        return result
+    unique_vals = result[target_col].dropna().unique()
+    mapping = {}
+    for val in unique_vals:
+        if provider is not None:
+            if hasattr(provider, "mapping"):
+                translated = provider.mapping.get(val)
+            else:
+                translated = provider.translate(str(val), target_lang)
+            if translated:
+                mapping[val] = translated
+        else:
+            mapping[val] = str(val)
+    result[target_col] = result[target_col].map(mapping).fillna(result[target_col])
+    return result
+
+
+def _legacy_convert_to_usd(
+    df,
+    *target_cols,
+    country_col,
+    year_col,
+    rate_source=None,
+    country_to_currency=None,
+    new_cols=False,
+    round_decimals=None,
+):
+    result = df.copy()
+    valid_cols = [c for c in target_cols if c in result.columns]
+    if not valid_cols or country_col not in result.columns or year_col not in result.columns:
+        return result
+    rates_mapping = {}
+    for _, row in result[[country_col, year_col]].drop_duplicates().dropna().iterrows():
+        country = str(row[country_col]).strip()
+        try:
+            year = int(float(row[year_col]))
+        except (TypeError, ValueError):
+            year = None
+        curr_code = country_to_currency.get(country) if country_to_currency else None
+        rate = None
+        if curr_code and curr_code.upper() == "USD":
+            rate = 1.0
+        elif curr_code and year is not None and rate_source is not None:
+            rates = rate_source.yearly_rates(curr_code, year, year)
+            rate = rates.get(year)
+        rates_mapping[(row[country_col], row[year_col])] = rate
+
+    rates_df = pd.Series(rates_mapping).reset_index()
+    if not rates_df.empty:
+        rates_df.columns = [country_col, year_col, "_conversion_rate"]
+        temp_df = _left_merge_aligned(result, rates_df, [country_col, year_col])
+        for col in valid_cols:
+            col_name = f"{col}_usd" if new_cols else col
+            result[col_name] = result[col] / temp_df["_conversion_rate"]
+            if round_decimals is not None:
+                result[col_name] = result[col_name].round(round_decimals)
+    return result
+
+
+def _legacy_translate_conditional_column(
+    df,
+    partition_col,
+    detect_col,
+    target_col,
+    target_lang="en",
+    sample_size=10,
+    number_of_samples=3,
+    threshold=0.5,
+    random_state=0,
+    provider=None,
+    detect=None,
+):
+    result = df.copy()
+    if not all(col in result.columns for col in [partition_col, detect_col, target_col]):
+        return result
+    if detect is None:
+        import langdetect
+        detect = langdetect.detect
+
+    if isinstance(random_state, (np.random.Generator, np.random.RandomState)):
+        rng = random_state
+    else:
+        rng = np.random.default_rng(random_state)
+
+    safe_partitions = []
+    unique_partitions = result[partition_col].dropna().unique()
+    for partition in unique_partitions:
+        texts = result.loc[result[partition_col] == partition, detect_col]
+        available_texts = texts.dropna().drop_duplicates()
+        if available_texts.empty:
+            continue
+        actual_sample_size = min(sample_size, len(available_texts))
+        lang_match_count = 0
+        for _ in range(number_of_samples):
+            sample_texts = available_texts.sample(n=actual_sample_size, random_state=rng)
+            combined_text = " . ".join(sample_texts.astype(str).tolist())
+            try:
+                if detect(str(combined_text)) == target_lang:
+                    lang_match_count += 1
+            except Exception:
+                pass
+        if lang_match_count >= (number_of_samples * threshold):
+            safe_partitions.append(partition)
+
+    mask_foreign = ~result[partition_col].isin(safe_partitions)
+    foreign_values = result.loc[mask_foreign, target_col].dropna().unique()
+    mapping = {}
+    for val in foreign_values:
+        if provider is not None:
+            translated = provider.translate(str(val), target_lang)
+            if translated:
+                mapping[val] = translated
+        else:
+            mapping[val] = str(val)
+
+    result[target_col] = result[target_col].map(mapping).fillna(result[target_col])
+    mask_translated = result[target_col].notna()
+    result.loc[mask_translated, target_col] = result.loc[mask_translated, target_col].astype(str).str.title()
+    return result

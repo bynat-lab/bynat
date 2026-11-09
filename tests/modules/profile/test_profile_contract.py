@@ -5,9 +5,13 @@ from dataclasses import asdict
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from bynat.cleaning.profile import profile
 from tests.modules.profile.helpers import EXPECTED_STATS_KEYS_BY_KIND
+
+pytestmark = pytest.mark.unit
+
 
 EXPECTED_TOP_LEVEL_KEYS: set[str] = {"dataset", "columns"}
 

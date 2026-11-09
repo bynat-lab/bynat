@@ -7,6 +7,9 @@ import pytest
 
 from bynat.cleaning import BaseData
 
+pytestmark = pytest.mark.integration
+
+
 
 def _frame(tmp_path, data=None):
     return BaseData(

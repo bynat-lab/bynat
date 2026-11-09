@@ -5,6 +5,9 @@ import pytest
 
 from bynat.cleaning import BaseData, columns
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_melt_transform_pivot_defaults_and_kwargs():
     frame = pd.DataFrame(

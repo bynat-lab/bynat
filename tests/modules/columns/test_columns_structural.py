@@ -1,8 +1,12 @@
 """Structural column transformations: drop, rename, reorder, and coordinate alignment."""
 
 import pandas as pd
+import pytest
 
 from bynat.cleaning import BaseData
+
+pytestmark = pytest.mark.unit
+
 
 
 def test_drop_CLASS_columns_drops_only_matching_columns():
@@ -151,3 +155,21 @@ def test_basedata_core_column_transformations_preserve_subclass_and_cache(tmp_pa
 
     frame.move_column("value", "user_id", position="before", inplace=True)
     assert list(frame.columns) == ["user.name", "value", "user_id"]
+
+
+def test_reorder_columns_supports_non_string_column_names_and_substring_rejects_them():
+    frame = pd.DataFrame({2: [10, 20], 0: [30, 40], 1: [50, 60]})
+    before = frame.copy(deep=True)
+
+    result = frame.bynat.reorder_columns(0, 1)
+
+    assert list(result.columns) == [0, 1, 2]
+    assert result is not frame
+    pd.testing.assert_frame_equal(frame, before)
+
+    with pytest.raises(TypeError):
+        frame.bynat.rename_by_substring("sub", "rep")
+
+    with pytest.raises(TypeError):
+        frame.bynat.drop_by_substring("sub")
+

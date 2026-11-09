@@ -6,6 +6,8 @@ import pytest
 from bynat.cleaning import BaseData
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_categorize_by_reference_prefers_the_longest_matching_keyword(tmp_path):
     pytest.importorskip("ahocorasick")
     frame = BaseData(
@@ -25,6 +27,8 @@ def test_categorize_by_reference_prefers_the_longest_matching_keyword(tmp_path):
     pd.testing.assert_frame_equal(frame, before)
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_categorize_by_reference_respects_word_boundaries_and_case(tmp_path):
     pytest.importorskip("ahocorasick")
     frame = BaseData(
@@ -50,6 +54,8 @@ def test_categorize_by_reference_respects_word_boundaries_and_case(tmp_path):
     pd.testing.assert_frame_equal(frame, before)
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_categorize_by_reference_combines_multiple_source_columns(tmp_path):
     pytest.importorskip("ahocorasick")
     frame = BaseData(
@@ -73,6 +79,8 @@ def test_categorize_by_reference_combines_multiple_source_columns(tmp_path):
     pd.testing.assert_frame_equal(frame, before)
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_categorize_by_reference_overwrites_an_existing_target_column(tmp_path):
     pytest.importorskip("ahocorasick")
     frame = BaseData(
@@ -91,6 +99,8 @@ def test_categorize_by_reference_overwrites_an_existing_target_column(tmp_path):
     pd.testing.assert_frame_equal(frame, before)
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_categorize_by_reference_ignores_blank_keywords(tmp_path):
     pytest.importorskip("ahocorasick")
     frame = BaseData(
@@ -109,6 +119,8 @@ def test_categorize_by_reference_ignores_blank_keywords(tmp_path):
     pd.testing.assert_frame_equal(frame, before)
 
 
+@pytest.mark.integration
+@pytest.mark.extras
 def test_categorize_by_reference_with_real_pyahocorasick(tmp_path):
     pytest.importorskip("ahocorasick")
     frame = BaseData(
@@ -127,6 +139,7 @@ def test_categorize_by_reference_with_real_pyahocorasick(tmp_path):
     pd.testing.assert_frame_equal(frame, original)
 
 
+@pytest.mark.unit
 def test_optional_categorization_reports_missing_dependency_at_method_use(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "ahocorasick", None)
     frame = BaseData({"description": ["python developer"]}, cache_dir=tmp_path)

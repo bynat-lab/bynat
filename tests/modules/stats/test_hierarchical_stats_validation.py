@@ -1,9 +1,13 @@
 """Hierarchical statistics validation contracts: invalid output types, target/hierarchy overlap, and strategy validation."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData, stats
+
+pytestmark = pytest.mark.unit
+
 
 
 def test_get_hierarchical_stats_rejects_invalid_output_type_before_aggregation(tmp_path):
@@ -82,3 +86,45 @@ def test_get_hierarchical_stats_rejects_unknown_strategy():
 
     with pytest.raises(ValueError, match="Invalid strategy 'bogus'"):
         stats.get_hierarchical_stats(frame, "v", strategy="bogus", hierarchy_cols=["g"])
+
+
+def test_get_hierarchical_stats_empty_or_no_hierarchy_explicit_output_type():
+    empty_df = pd.DataFrame({"g": pd.Series([], dtype="object"), "v": pd.Series([], dtype="float64")})
+    res_df = stats.get_hierarchical_stats(empty_df, "v", hierarchy_cols=["g"], output_type=pd.DataFrame)
+    assert isinstance(res_df, pd.DataFrame)
+    assert res_df.empty
+
+    res_dict = stats.get_hierarchical_stats(pd.DataFrame({"v": [1.0]}), "v", hierarchy_cols=[], output_type=dict)
+    assert isinstance(res_dict, dict)
+
+
+def test_get_hierarchical_stats_internal_count_column_collision():
+    df = pd.DataFrame(
+        {
+            "g": ["a", "a", "b"],
+            "v": ["x", "x", "y"],
+            "_hierarchical_stats_count": [10, 20, 30],
+        }
+    )
+    result = stats.get_hierarchical_stats(df, "v", strategy="mode", hierarchy_cols=["g"])
+    assert not result.empty
+
+
+def test_fill_missing_nonexistent_target_with_hierarchical_stats():
+    df = pd.DataFrame({"g": ["a", "b"], "v": [1.0, np.nan]})
+    result, stat_df = stats.fill_missing(df, "nonexistent", hierarchy_cols=["g"], get_hierarchical_stats=True)
+    pd.testing.assert_frame_equal(result, df)
+    assert stat_df.empty
+
+
+def test_fill_missing_mode_all_nan_col():
+    df = pd.DataFrame({"g": ["a", "b"], "v": [np.nan, np.nan]})
+    result = stats.fill_missing(df, "v", strategy="mode", hierarchy_cols=["g"])
+    pd.testing.assert_frame_equal(result, df)
+
+
+def test_outlier_masks_skips_missing_target_columns():
+    df = pd.DataFrame({"g": ["a"] * 10, "val": [10.0] * 10})
+    result = stats.handle_outliers(df, "missing_col", hierarchy_cols=["g"])
+    pd.testing.assert_frame_equal(result, df)
+

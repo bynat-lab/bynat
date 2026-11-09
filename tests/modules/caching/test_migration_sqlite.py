@@ -5,6 +5,9 @@ import pytest
 
 from bynat.caching import CacheManager
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_sqlite_initialization_is_lazy_until_explicitly_requested(tmp_path):
     cache_dir = tmp_path / "cache"

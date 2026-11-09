@@ -3,6 +3,9 @@ name: Test
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 0"
 
 permissions:
   contents: read
@@ -37,7 +40,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install package and type-checking tools
-        run: python -m pip install . mypy pandas-stubs
+        run: python -m pip install . mypy pandas-stubs pytest hypothesis
 
       - name: Type check
         run: python -m mypy
@@ -59,19 +62,25 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package and test tooling
-        run: python -m pip install . pytest build
+        run: python -m pip install . pytest pytest-cov hypothesis build
 
       - name: Build wheel and source distribution
         run: python -m build
 
-      - name: Compile package
+      - name: Compile package and tests
         run: python -m compileall -q bynat tests
 
-      - name: Run tests
+      - name: Run test suite with branch coverage and wheel verification (Ubuntu 3.11)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: |
+          python -m pytest --cov=bynat --cov-branch --cov-report=term-missing --cov-report=xml
+          python tools/verify_installed_wheel.py
+
+      - name: Run test suite (matrix leg)
+        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.11'
         run: python -m pytest -q
 
   test-extras:
-    # Light, offline-capable extras; network-backed integrations are covered by fakes.
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -82,8 +91,43 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install package with extras
-        run: python -m pip install ".[categorization,sql]" pytest
+      - name: Install package with all extras
+        run: python -m pip install ".[translation,geocoding,currency,categorization,nlp,sql]" pytest hypothesis
 
-      - name: Run tests
-        run: python -m pytest -q -rs
+      - name: Run optional-dependency tests
+        run: python -m pytest -m extras -rs
+
+  scheduled-quality:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package with dev and optional dependencies
+        run: python -m pip install ".[dev,translation,geocoding,currency,categorization,nlp,sql]"
+
+      - name: Run extended Hypothesis property tests
+        run: python -m pytest -m property --hypothesis-profile=extended
+
+      - name: Run slow concurrency suite
+        run: python -m pytest -m slow
+
+      - name: Run advisory Cosmic Ray mutation session
+        continue-on-error: true
+        run: |
+          cosmic-ray init cosmic-ray.toml session.sqlite
+          cosmic-ray exec cosmic-ray.toml session.sqlite
+          cr-report session.sqlite > mutation_report.txt
+
+      - name: Upload mutation report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: mutation_report.txt

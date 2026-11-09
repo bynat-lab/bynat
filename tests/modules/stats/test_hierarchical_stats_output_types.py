@@ -6,6 +6,9 @@ import pytest
 from bynat.cleaning import BaseData, CsvFile, JsonFile
 from tests.shared.constants import OUTPUT_COLUMNS
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_get_hierarchical_stats_supports_explicit_dataframe_and_dict_outputs(tmp_path):
     frame = BaseData(

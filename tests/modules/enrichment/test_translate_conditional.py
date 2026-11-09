@@ -8,6 +8,9 @@ import pytest
 from bynat.cleaning import BaseData
 from tests.modules.enrichment.helpers import DictTranslator, _install_langdetect
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_translate_conditional_column_sampling_is_reproducible(monkeypatch, tmp_path):
     seen = []

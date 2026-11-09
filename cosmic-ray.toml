@@ -1,0 +1,11 @@
+[cosmic-ray]
+module-path = [
+    "bynat/cleaning/stats.py",
+    "bynat/cleaning/enrich/engine.py",
+    "bynat/caching/manager.py",
+]
+test-command = "python -m pytest -q -x --import-mode=importlib tests/modules/enrichment/test_enrich_engine.py tests/modules/stats/test_fill_missing.py tests/modules/caching/test_persistence_core.py"
+timeout = 30.0
+
+[cosmic-ray.distributor]
+name = "local"

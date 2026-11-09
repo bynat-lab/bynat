@@ -5,6 +5,9 @@ import pytest
 
 from bynat.cleaning import BaseData
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_split_list_objects_remove_source_col_drops_the_original_column():
     frame = pd.DataFrame(

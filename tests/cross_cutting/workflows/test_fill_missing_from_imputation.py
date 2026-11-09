@@ -2,8 +2,12 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from tests.shared.constants import OUTPUT_COLUMNS
+
+pytestmark = pytest.mark.integration
+
 
 
 def test_fill_missing_from_basic_imputation():

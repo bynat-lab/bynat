@@ -4,6 +4,9 @@ import pytest
 from bynat.cleaning import BaseData
 from tests.shared.constants import OUTPUT_COLUMNS
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_get_hierarchical_stats_mode_matches_tie_breaking_and_normalizes_mod(tmp_path):
     frame = BaseData(

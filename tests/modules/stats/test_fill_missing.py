@@ -6,6 +6,9 @@ import pytest
 
 from bynat.cleaning import BaseData, stats
 
+pytestmark = pytest.mark.unit
+
+
 INVALID_MIN_SAMPLES = [
     pytest.param(True, id="bool-true"),
     pytest.param(False, id="bool-false"),

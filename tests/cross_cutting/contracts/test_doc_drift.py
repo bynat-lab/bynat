@@ -4,10 +4,14 @@ import inspect
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from bynat.cleaning import BaseData
 from bynat.cleaning.accessor import BynatAccessor
 from tools.sync_docs import check
+
+pytestmark = pytest.mark.integration
+
 
 ROOT = Path(__file__).resolve().parents[3]
 

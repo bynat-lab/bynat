@@ -1,10 +1,14 @@
 import threading
 
 import pandas as pd
+import pytest
 
 from bynat.caching import CacheManager
 from bynat.cleaning.enrich import engine
 from bynat.cleaning.enrich.engine import SKIP, _cached_map, _rate_limited_map
+
+pytestmark = pytest.mark.unit
+
 
 
 def test_rate_limited_map_runs_calls_concurrently():
@@ -137,5 +141,27 @@ def test_cached_map_rejects_batches_with_the_wrong_length(tmp_path):
     cache = _cached_map(
         ["a", "b"], None, "bucket", 5, cache_manager=manager, func_name="demo", fetch_many=lambda chunk: ["A"]
     )
-
     assert cache == {}
+
+
+@pytest.mark.mutation
+def test_cached_map_rejects_batches_with_surplus_length(tmp_path):
+    manager = CacheManager(tmp_path)
+
+    cache = _cached_map(
+        ["a", "b"], None, "bucket", 5, cache_manager=manager, func_name="demo", fetch_many=lambda chunk: ["A", "B", "C"]
+    )
+    assert cache == {}
+
+
+@pytest.mark.mutation
+def test_cached_map_does_not_save_when_nothing_unprocessed(tmp_path, monkeypatch):
+    manager = CacheManager(tmp_path)
+    saves = []
+    monkeypatch.setattr(manager, "save_function_cache", lambda name: saves.append(name))
+
+    cache = _cached_map(
+        [], lambda v: v, "bucket", 5, cache_manager=manager, func_name="demo"
+    )
+    assert cache == {}
+    assert saves == []

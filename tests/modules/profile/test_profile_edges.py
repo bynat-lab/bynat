@@ -10,6 +10,9 @@ import pytest
 from bynat.cleaning.profile import ColumnProfile, profile
 from tests.modules.profile.helpers import EXPECTED_STATS_KEYS_BY_KIND
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_empty_dataframe_edge_cases():
     empty_df = pd.DataFrame()

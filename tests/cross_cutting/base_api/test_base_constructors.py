@@ -8,6 +8,9 @@ import pytest
 from bynat.caching import CacheManager
 from bynat.cleaning import BaseData, CsvFile, JsonFile
 
+pytestmark = pytest.mark.integration
+
+
 
 def _frame(tmp_path, data=None):
     return BaseData(

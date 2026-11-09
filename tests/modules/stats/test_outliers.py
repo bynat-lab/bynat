@@ -7,6 +7,9 @@ import pytest
 
 from bynat.cleaning import stats
 
+pytestmark = pytest.mark.unit
+
+
 MIN_SAMPLES_XFAIL = pytest.mark.xfail(
     strict=True,
     reason="PD-02: handle_outliers/drop_outliers do not validate min_samples; "

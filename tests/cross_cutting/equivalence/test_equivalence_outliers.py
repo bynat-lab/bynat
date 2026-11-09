@@ -12,6 +12,9 @@ from tests.cross_cutting.equivalence._bench_refs import (
     _legacy_handle_outliers,
 )
 
+pytestmark = pytest.mark.integration
+
+
 
 def _outlier_frame(seed):
     rng = np.random.default_rng(seed)

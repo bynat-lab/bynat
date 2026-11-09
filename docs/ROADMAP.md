@@ -16,14 +16,14 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 2. **Fail loudly on caller errors, stay lenient on data.** Invalid arguments raise. Missing columns are skipped with a logged warning (the documented contract, see README). Per-item external failures are logged and skipped, never cached.
 3. **Backward compatibility is explicit.** Behavior changes are listed in `CHANGELOG.md` under *Breaking changes* and ship in a new minor version (`0.x`). Prefer a deprecation path when it is cheap.
 4. **Minimal footprint.** Core dependencies stay `numpy` and `pandas`. Heavy integrations stay optional and are imported lazily with `_import_optional`. Prefer the standard library (`sqlite3`, `logging`, `tempfile`) over new dependencies.
-5. **Tests do not touch the network.** External services are replaced with fake modules (`tests/test_integrations.py`). Light extras with offline behavior (`pyahocorasick`, SQLAlchemy with SQLite) are also tested for real when installed.
+5. **Tests do not touch the network.** External services are replaced with fake modules (`tests/modules/enrichment/`). Light extras with offline behavior (`pyahocorasick`, SQLAlchemy with SQLite) are also tested for real when installed.
 
-## 3. Current state (`0.6.6`)
+## 3. Current state (`0.6.5`)
 
-- **Python:** `>=3.11`. CI runs Ubuntu and Windows on 3.11 and 3.13, a Ruff lint job, and an extras job (`.[categorization,sql]`).
-- **Tests:** 337 tests are collected and pass in the local pandas 3 environment (a measured local result, not proof for every CI matrix combination; the passing set depends on the pandas version). pandas 2 skips the comparisons against the `0.3.0` outlier merge, which mishandles null keys there. Six are skipped unless the `categorization` and `sql` extras are installed. Equivalence tests for the optimized methods live in `tests/test_equivalence.py`.
+- **Python:** `>=3.11`. CI runs Ubuntu and Windows on 3.11 and 3.13, a Ruff lint job, an extras job, and scheduled quality/mutation runs.
+- **Tests:** Test suite is structured hierarchically (`tests/modules/` for unit/integration tests and `tests/cross_cutting/` for contracts, equivalence, property, and workflow tests) adhering to `docs/TESTING_STANDARDS.md`. Equivalence tests for the optimized methods live in `tests/cross_cutting/equivalence/` (`test_equivalence_keywords.py`, `test_equivalence_outliers.py`, `test_equivalence_enrichment.py`).
 - **Lint:** `ruff check bynat tests benchmarks` is clean with `E`, `F`, `W`, `I`, `UP` (`E501` ignored; see `pyproject.toml`).
-- **Types:** `python -m mypy` is clean for the scope in `[tool.mypy]`: the cache manager and the cleaning helpers. The supported class wrappers in `bynat/cleaning/base.py` may remain outside the initial scope while the remaining helper modules are brought into coverage incrementally; this is not a removal plan.
+- **Types:** `python -m mypy` is clean across all production and test files (`files = [..., "tests"]` in `pyproject.toml`).
 - **Row-wise iteration audit:** no `apply(axis=1)`, `iterrows`, or `itertuples` in `bynat/`. Unique-value loops exist in the enrichment methods by design (Principle 1).
 
 ### Done
@@ -39,28 +39,28 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 | 0.1.2 | spaCy `parser` and `ner` disabled for input texts | `extract_entities_nlp` |
 | 0.1.2 | Bare `except:` removed | `impute_by_language`, `translate_conditional_column`, `convert_to_usd` |
 | 0.1.2 | `get_hierarchical_stats` documented in the README | `README.md` |
-| 0.1.2 | Fake-module tests for every external-service method; Ruff; Windows and extras CI | `tests/test_integrations.py`, `.github/workflows/test.yml` |
+| 0.1.2 | Fake-module tests for every external-service method; Ruff; Windows and extras CI | `tests/modules/enrichment/`, `.github/workflows/test.yml` |
 | 0.2.0 | `logging` under the `bynat` logger replaces `print` | both modules |
 | 0.2.0 | Caller errors raise: unknown `strategy`, `save_to_json` path and unreadable append target, `save_to_sql` settings and database errors, `extract_entities_nlp` configuration | see `CHANGELOG.md` |
 | 0.2.0 | Corrupted cache files are quarantined as `<name>.corrupt.<timestamp>` instead of being overwritten | `CacheManager.load_function_cache` |
 | 0.2.0 | `BYNAT_CACHE_DIR`, with the old relative default kept as the fallback | `bynat.caching.Caching.resolve_cache_dir` |
 | 0.2.0 | `save_to_sql` disposes its engine | `save_to_sql` |
-| 0.3.0 | `handle_outliers`, `drop_outliers`, and `fill_missing` optionally return original-data hierarchical statistics without changing their default return contracts | `BaseData.handle_outliers`, `BaseData.drop_outliers`, `BaseData.fill_missing`, `tests/test_hierarchical_stats.py` |
-| 0.3.0 | `extract_entities_nlp` accepts configurable spaCy pipeline components, validates required components, warns on unknown names, and isolates configuration-specific caches | `BaseData.extract_entities_nlp`, `tests/test_integrations.py` |
-| 0.3.0 | `CACHE-01` SQLite cache backend: per-directory key-value store that replaces full-file JSON rewrites, one-time legacy `*_cache.json` migration, delta-only checkpoint saves against deep baselines, `BEGIN IMMEDIATE` + WAL busy-timeout concurrency, and baseline-scoped `delete_column_cache` | `bynat/caching/Caching.py` (`CacheManager`), `tests/test_caching.py` |
-| 0.6.0 | `ENRICH-01` one cached-lookup engine (`_cached_map`) for the translation, geocoding, currency-code, and NLP lookups, with `Translator`, `Geocoder`, and `RateSource` protocols accepted through `provider=` | `bynat/cleaning/enrich/`, `tests/test_enrichment.py` |
+| 0.3.0 | `handle_outliers`, `drop_outliers`, and `fill_missing` optionally return original-data hierarchical statistics without changing their default return contracts | `BaseData.handle_outliers`, `BaseData.drop_outliers`, `BaseData.fill_missing`, `tests/modules/stats/test_hierarchical_stats_aggregation.py` |
+| 0.3.0 | `extract_entities_nlp` accepts configurable spaCy pipeline components, validates required components, warns on unknown names, and isolates configuration-specific caches | `BaseData.extract_entities_nlp`, `tests/modules/enrichment/test_nlp.py` |
+| 0.3.0 | `CACHE-01` SQLite cache backend: per-directory key-value store that replaces full-file JSON rewrites, one-time legacy `*_cache.json` migration, delta-only checkpoint saves against deep baselines, `BEGIN IMMEDIATE` + WAL busy-timeout concurrency, and baseline-scoped `delete_column_cache` | `bynat/caching/Caching.py` (`CacheManager`), `tests/modules/caching/` |
+| 0.6.0 | `ENRICH-01` one cached-lookup engine (`_cached_map`) for the translation, geocoding, currency-code, and NLP lookups, with `Translator`, `Geocoder`, and `RateSource` protocols accepted through `provider=` | `bynat/cleaning/enrich/`, `tests/modules/enrichment/` |
 | 0.6.0 | `PERF-01` translation batches or a rate-limited thread pool instead of `sleep(0.2)` per value; one rate download per currency | `enrich/translate.py`, `enrich/currency.py`, `enrich/providers.py` |
-| 0.6.0 | `PERF-02` `extract_keywords` on unique texts with one combined pattern (Aho-Corasick for ASCII text when installed) | `bynat/cleaning/text.py`, `tests/test_equivalence.py`, `benchmarks/bench_extract_keywords.py` |
+| 0.6.0 | `PERF-02` `extract_keywords` on unique texts with one combined pattern (Aho-Corasick for ASCII text when installed) | `bynat/cleaning/text.py`, `tests/cross_cutting/equivalence/test_equivalence_keywords.py`, `benchmarks/bench_extract_keywords.py` |
 | 0.6.0 | `PERF-03` `translate_conditional_column` partitions through one `groupby`, reproducible `random_state` | `enrich/translate.py` |
-| 0.6.0 | `PERF-04` one generator of per-level outlier masks, one grouped `quantile([0.25, 0.75])` per level, no merge | `bynat/cleaning/stats.py`, `tests/test_equivalence.py`, `benchmarks/bench_outliers.py` |
-| 0.6.0 | `API-01` optional `df.bynat` accessor and `bynat.read_json` / `bynat.read_csv`, alongside the supported `BaseData` / `JsonFile` / `CsvFile` class API and lazily created/shared `CacheManager` | `bynat/cleaning/accessor.py`, `bynat/cleaning/base.py`, `tests/test_accessor.py` |
-| 0.6.0 | `API-02` transformations return new objects by default; where meaningful, `inplace=True` mutates the original object and returns `None` (or the documented statistics result) | `bynat/cleaning/base.py`, `tests/test_inplace_deprecation.py` |
+| 0.6.0 | `PERF-04` one generator of per-level outlier masks, one grouped `quantile([0.25, 0.75])` per level, no merge | `bynat/cleaning/stats.py`, `tests/cross_cutting/equivalence/test_equivalence_outliers.py`, `benchmarks/bench_outliers.py` |
+| 0.6.0 | `API-01` optional `df.bynat` accessor and `bynat.read_json` / `bynat.read_csv`, alongside the supported `BaseData` / `JsonFile` / `CsvFile` class API and lazily created/shared `CacheManager` | `bynat/cleaning/accessor.py`, `bynat/cleaning/base.py`, `tests/cross_cutting/accessor/test_accessor.py` |
+| 0.6.0 | `API-02` transformations return new objects by default; where meaningful, `inplace=True` mutates the original object and returns `None` (or the documented statistics result) | `bynat/cleaning/base.py`, `tests/cross_cutting/base_api/test_base_inplace.py` |
 | 0.6.0 | `ARCH-01` `Cleaning.py` split into modules, `Caching.py` renamed to `manager.py`, legacy module paths kept as aliases | `bynat/cleaning/`, `bynat/caching/` |
 | 0.6.0 | `QA-01` mypy for the cache manager and the cleaning helpers, CI job; supported class wrappers remain a separate gradual-typing boundary | `pyproject.toml`, `.github/workflows/test.yml` |
-| 0.6.5 | `DQ-01` DataFrame quality profiling API producing non-mutating structured reports (`ProfileReport`, `DatasetProfile`, `ColumnProfile`) with dataset metrics, per-kind statistics, and DataFrame/dict conversion | `bynat/cleaning/profile.py`, `tests/test_profile.py` |
-| 0.6.5 | `DX-01` static typing preservation and editor hover support: generic `_shares_doc` decorator preserving signatures, literal `BaseData` docstrings, PEP 484 stub (`bynat/cleaning/accessor.pyi`), PEP 561 marker (`bynat/py.typed`), and docstring synchronizer | `bynat/cleaning/`, `tools/sync_docs.py`, `tests/test_doc_drift.py` |
-| 0.6.6 | `STATS-01` safer hierarchical imputation fallbacks: `min_samples` group threshold and `fallback_global` column-wide fallback in `fill_missing` | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `tests/test_cleaning.py` |
-| 0.6.6 | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/test_fill_missing_from.py` |
+| 0.6.5 | `DQ-01` DataFrame quality profiling API producing non-mutating structured reports (`ProfileReport`, `DatasetProfile`, `ColumnProfile`) with dataset metrics, per-kind statistics, and DataFrame/dict conversion | `bynat/cleaning/profile.py`, `tests/modules/profile/` |
+| 0.6.5 | `DX-01` static typing preservation and editor hover support: generic `_shares_doc` decorator preserving signatures, literal `BaseData` docstrings, PEP 484 stub (`bynat/cleaning/accessor.pyi`), PEP 561 marker (`bynat/py.typed`), and docstring synchronizer | `bynat/cleaning/`, `tools/sync_docs.py`, `tests/cross_cutting/contracts/test_doc_drift.py` |
+| Unreleased | `STATS-01` safer hierarchical imputation fallbacks: `min_samples` group threshold and `fallback_global` column-wide fallback in `fill_missing` | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `tests/modules/stats/test_fill_missing.py` |
+| Unreleased | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/cross_cutting/workflows/test_fill_missing_from_imputation.py` |
 
 ### Public API policy
 
@@ -116,10 +116,11 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** standardize `inplace` behavior according to `API-02`, without deleting `BaseData`, `JsonFile`, `CsvFile`, or `bynat/cleaning/base.py`. Add the remaining helper modules to the mypy scope; the class wrappers may remain a separate gradual-typing boundary. Keep the `bynat.cleaning.Cleaning` and `bynat.caching.Caching` aliases for at least one additional minor release.
 - **Done when:** the `inplace` mutation and return behavior is documented and tested consistently, the supported class API and imports continue to work, the remaining helper modules are covered by mypy, the aliases remain available for the stated period, and the full test suite and mypy checks pass.
 
-#### `QA-02`: mutation testing tooling and first advisory run (P2, S)
+#### `QA-02`: mutation testing tooling and first advisory run (P2, S) [DONE]
 - **Problem:** the testing policy names Cosmic Ray as the primary mutation tool and plans a scheduled advisory run, but the tool is not declared in the `dev` extra and no session configuration or scheduled job exists, so the policy cannot be executed.
 - **Plan:** declare Cosmic Ray (and optionally mutmut for POSIX/WSL runs) in the `dev` extra, add the Cosmic Ray session configuration for the core scope (`bynat/cleaning/stats.py`, `bynat/cleaning/enrich/engine.py`, `bynat/caching/manager.py`), and add a scheduled advisory run that uploads the report. Keep the run advisory, not a merge gate.
 - **Done when:** the tool and configuration are committed, a scheduled advisory run produces a report, and the first survivor set is triaged.
+- **Status:** Done in TEST-05. `cosmic-ray` added to `dev` extras and installed; `cosmic-ray.toml` configured at repository root targeting the core scope (`stats.py`, `engine.py`, `manager.py`); `.github/workflows/test.yml` scheduled-quality job configured with advisory mutation testing and report upload; bounded run executed and first survivor set triaged in `assets/plan/evidence/test-05/mutation_triage.md` with missing-test mutants killed via `@pytest.mark.mutation` tests.
 
 #### `PERF-05`: rates through the engine (P3, S)
 - **Problem:** `convert_to_usd` resolves currency codes through `_cached_map`, but year-range rate downloads remain a dedicated loop because each fetch populates multiple `CODE_YEAR` keys.
@@ -127,9 +128,10 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Done when:** the existing implementation remains documented as intentional or a multi-key engine integration is implemented with equivalent results and tests.
 
 #### `PERF-06`: equivalence and benchmark evidence for `PERF-01` and `PERF-03` (P2, M)
-- **Problem:** `PERF-01` (translation batching/rate limiting and one rate download per currency) and `PERF-03` (`translate_conditional_column` single-`groupby` partitioning) are marked done, but unlike `PERF-02` and `PERF-04` they have no equivalence test in `tests/test_equivalence.py` and no benchmark in `benchmarks/`. The general performance rule requires both; this is a missing-evidence gap, not a known production defect.
+- **Problem:** `PERF-01` (translation batching/rate limiting and one rate download per currency) and `PERF-03` (`translate_conditional_column` single-`groupby` partitioning) are marked done, but unlike `PERF-02` and `PERF-04` they have no equivalence test in `tests/cross_cutting/equivalence/` and no benchmark in `benchmarks/`. The general performance rule requires both; this is a missing-evidence gap, not a known production defect.
 - **Plan:** add an equivalence test against a clear reference (the pre-optimization behavior or a brute-force equivalent) and a benchmark at representative sizes for each optimization, following the `PERF-02`/`PERF-04` pattern. Record the numbers in the PR description, not in the code.
-- **Done when:** `tests/test_equivalence.py` covers both optimizations, `benchmarks/` has a script for each, and the equivalence tests pass.
+- **Done when:** `tests/cross_cutting/equivalence/` covers both optimizations, `benchmarks/` has a script for each, and the equivalence tests pass.
+- **Status:** Partially complete (equivalence tests done in TEST-05 in `tests/cross_cutting/equivalence/test_equivalence_enrichment.py` with reference implementations in `benchmarks/reference_impls.py` and `tests/cross_cutting/equivalence/_bench_refs.py`; benchmark scripts remain tracked outside test-suite scope).
 
 ### Milestone 10 (`1.0.0`): I/O and compatibility
 
@@ -145,7 +147,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 
 ## 5. Decisions
 
-- **D-01: `group_key` is always a tuple.** One value per hierarchy column, including single-column levels (`("EG",)`), as pinned by `tests/test_hierarchical_stats.py`. Resolved: keep it.
+- **D-01: `group_key` is always a tuple.** One value per hierarchy column, including single-column levels (`("EG",)`), as pinned by `tests/modules/stats/test_hierarchical_stats_aggregation.py`. Resolved: keep it.
 - **D-02: `mean` and `median` on non-numeric targets raise pandas' `TypeError`.** Resolved: keep failing fast.
 - **D-03: return convention with supported `inplace`.** Resolved: class-based callers remain supported, and transformations return a new object by default, including from early exits. Where an operation supports in-place behavior, `inplace=True` mutates the original object and returns `None`; methods that produce an additional documented result return that result instead. `inplace` is not scheduled for deprecation or removal.
 - **D-04: concurrency for the cache.** Resolved in favor of `sqlite3` (`CACHE-01`) over a lock-directory protocol or a `portalocker` dependency. It gives locking and atomic commits from the standard library.

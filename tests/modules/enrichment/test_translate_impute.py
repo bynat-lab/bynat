@@ -6,6 +6,9 @@ import pytest
 
 from bynat.cleaning import BaseData
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_impute_by_language_exact_detection_and_generated_fallback(fake_langdetect):
     fake_langdetect.detect = lambda text: "en" if text == "Pear (FR)" else "ar"

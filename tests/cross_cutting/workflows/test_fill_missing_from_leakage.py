@@ -2,6 +2,10 @@
 
 import numpy as np
 import pandas as pd
+import pytest
+
+pytestmark = pytest.mark.integration
+
 
 
 def test_fill_missing_from_prevents_statistical_leakage():

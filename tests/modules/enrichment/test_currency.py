@@ -5,10 +5,14 @@ import sqlite3
 import types
 
 import pandas as pd
+import pytest
 
 from bynat.cleaning import BaseData
 from bynat.cleaning.enrich import YFinanceRateSource
 from tests.modules.enrichment.helpers import install_fake_module
+
+pytestmark = pytest.mark.unit
+
 
 _install = install_fake_module
 

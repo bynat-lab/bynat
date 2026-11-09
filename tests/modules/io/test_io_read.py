@@ -8,6 +8,9 @@ from pandas.errors import EmptyDataError, ParserError
 
 from bynat.cleaning import CsvFile, JsonFile, io
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_read_json_round_trip_preserves_records_unicode_and_flattened_keys(tmp_path):
     frame = pd.DataFrame(

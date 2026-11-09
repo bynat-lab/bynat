@@ -95,3 +95,10 @@ def test_outlier_methods_raise_keyerror_for_a_missing_named_hierarchy(method_nam
 
     with pytest.raises(KeyError, match="missing_hierarchy"):
         getattr(stats, method_name)(frame, "v", hierarchy_cols=["missing_hierarchy"])
+
+
+def test_outlier_masks_skips_missing_target_columns():
+    df = pd.DataFrame({"g": ["a"] * 10, "val": [10.0] * 10})
+    result = stats.handle_outliers(df, "missing_col", hierarchy_cols=["g"])
+    pd.testing.assert_frame_equal(result, df)
+

@@ -4,7 +4,7 @@ module-path = [
     "bynat/cleaning/enrich/engine.py",
     "bynat/caching/manager.py",
 ]
-test-command = "python -m pytest -q -x tests/modules/enrichment/test_enrich_engine.py tests/modules/stats/test_fill_missing.py tests/modules/caching/test_persistence_core.py"
+test-command = "python -m pytest -q -x tests/modules/enrichment/test_enrich_engine.py tests/modules/stats/test_fill_missing.py tests/modules/caching/persistence"
 timeout = 30.0
 
 [cosmic-ray.distributor]

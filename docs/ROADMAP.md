@@ -45,7 +45,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 | 0.2.0 | Corrupted cache files are quarantined as `<name>.corrupt.<timestamp>` instead of being overwritten | `CacheManager.load_function_cache` |
 | 0.2.0 | `BYNAT_CACHE_DIR`, with the old relative default kept as the fallback | `bynat.caching.Caching.resolve_cache_dir` |
 | 0.2.0 | `save_to_sql` disposes its engine | `save_to_sql` |
-| 0.3.0 | `handle_outliers`, `drop_outliers`, and `fill_missing` optionally return original-data hierarchical statistics without changing their default return contracts | `BaseData.handle_outliers`, `BaseData.drop_outliers`, `BaseData.fill_missing`, `tests/modules/stats/test_hierarchical_stats_aggregation.py` |
+| 0.3.0 | `handle_outliers`, `drop_outliers`, and `fill_missing` optionally return original-data hierarchical statistics without changing their default return contracts | `BaseData.handle_outliers`, `BaseData.drop_outliers`, `BaseData.fill_missing`, `tests/modules/stats/hierarchical_stats/test_hierarchical_stats_aggregation.py` |
 | 0.3.0 | `extract_entities_nlp` accepts configurable spaCy pipeline components, validates required components, warns on unknown names, and isolates configuration-specific caches | `BaseData.extract_entities_nlp`, `tests/modules/enrichment/test_nlp.py` |
 | 0.3.0 | `CACHE-01` SQLite cache backend: per-directory key-value store that replaces full-file JSON rewrites, one-time legacy `*_cache.json` migration, delta-only checkpoint saves against deep baselines, `BEGIN IMMEDIATE` + WAL busy-timeout concurrency, and baseline-scoped `delete_column_cache` | `bynat/caching/Caching.py` (`CacheManager`), `tests/modules/caching/` |
 | 0.6.0 | `ENRICH-01` one cached-lookup engine (`_cached_map`) for the translation, geocoding, currency-code, and NLP lookups, with `Translator`, `Geocoder`, and `RateSource` protocols accepted through `provider=` | `bynat/cleaning/enrich/`, `tests/modules/enrichment/` |
@@ -147,7 +147,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 
 ## 5. Decisions
 
-- **D-01: `group_key` is always a tuple.** One value per hierarchy column, including single-column levels (`("EG",)`), as pinned by `tests/modules/stats/test_hierarchical_stats_aggregation.py`. Resolved: keep it.
+- **D-01: `group_key` is always a tuple.** One value per hierarchy column, including single-column levels (`("EG",)`), as pinned by `tests/modules/stats/hierarchical_stats/test_hierarchical_stats_aggregation.py`. Resolved: keep it.
 - **D-02: `mean` and `median` on non-numeric targets raise pandas' `TypeError`.** Resolved: keep failing fast.
 - **D-03: return convention with supported `inplace`.** Resolved: class-based callers remain supported, and transformations return a new object by default, including from early exits. Where an operation supports in-place behavior, `inplace=True` mutates the original object and returns `None`; methods that produce an additional documented result return that result instead. `inplace` is not scheduled for deprecation or removal.
 - **D-04: concurrency for the cache.** Resolved in favor of `sqlite3` (`CACHE-01`) over a lock-directory protocol or a `portalocker` dependency. It gives locking and atomic commits from the standard library.

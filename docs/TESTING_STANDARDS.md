@@ -235,6 +235,7 @@ This section contains mandatory, enforceable requirements specific to the `bynat
 - **BYNAT-ARCH-8: Benchmark Reference Isolation.** Pre-optimization reference implementations MUST reside in `benchmarks/reference_impls.py` and be re-exported for testing through `tests/cross_cutting/equivalence/_bench_refs.py`. Benchmark scripts under `benchmarks/` MUST NOT import from `tests/`, and test modules MUST NOT import benchmark execution scripts. [BP]
 - **BYNAT-ARCH-9: Test Data Management.** All test files, databases, and serialization outputs MUST be written to `tmp_path`. Tests MUST NOT read application data from the repository checkout except for declared static packaging artifacts (`bynat/py.typed`, `bynat/cleaning/accessor.pyi`) and docstring tooling (`tools/sync_docs.py`). [BP]
 - **BYNAT-ARCH-10: Prohibition of Row-Wise Iteration in Data Paths.** Production transformation and cleaning paths MUST NOT use row-wise iteration (`apply(axis=1)`, `iterrows()`, `itertuples()`). Where row-wise iteration is an architectural concern, tests MUST enforce vectorized execution via AST inspection or execution guards. [BP]
+- **BYNAT-ARCH-11: Functionality-Oriented Subdirectory Grouping.** When multiple test files cover the same function, type, or closely related functionality within a module or topic directory, they MUST be grouped inside a dedicated subdirectory named after the functionality being tested (e.g. `persistence/` and `migration/` under `tests/modules/caching/`, `migration/legacy/` for legacy cache migration files, `translate/` and `optional/` under `tests/modules/enrichment/`, and `hierarchical_stats/` under `tests/modules/stats/`). Directory names MUST reflect the target functionality, and single test files that already cover a distinct responsibility MUST remain directly in their parent directory without introducing unnecessary nesting. [BP]
 
 ### 3.2 Required DataFrame Cases and Assertion Standards (DF and BYNAT-ASSERT)
 
@@ -559,9 +560,9 @@ python tools/verify_installed_wheel.py
 The examples in this section demonstrate how established rules from Authority Levels 1 and 2 apply to real, existing files in this repository. Every example explicitly cites its governing Rule ID(s). Zero independent normative requirements exist in this section.
 
 ### 5.1 Example 1: Hierarchical Directory Mapping and Decomposed Responsibility Files
-*Governing Rules:* `BYNAT-ARCH-1`, `BYNAT-ARCH-2`, `BYNAT-ARCH-3`, `BYNAT-ARCH-4`
+*Governing Rules:* `BYNAT-ARCH-1`, `BYNAT-ARCH-2`, `BYNAT-ARCH-3`, `BYNAT-ARCH-4`, `BYNAT-ARCH-11`
 
-Under TEST-ARCH-01, tests are organized strictly by owning module and cross-cutting responsibility, with no single file exceeding 800 lines. When a domain expands, it decomposes into single-responsibility files:
+Under TEST-ARCH-01 and `BYNAT-ARCH-11`, tests are organized strictly by owning module and cross-cutting responsibility, with no single file exceeding 800 lines. When multiple test files cover the same function, type, or closely related functionality, they are grouped in a dedicated functionality subdirectory without introducing unnecessary nesting for single-file responsibilities:
 
 ```
 tests/
@@ -573,15 +574,40 @@ tests/
 │   │   ├── conftest.py                           # Caching-isolated autouse tmp_path fixture (BYNAT-API-6)
 │   │   ├── helpers.py                            # Caching-local test helpers (BYNAT-ARCH-5)
 │   │   ├── test_concurrency.py                   # Multi-process SQLite concurrency tests (BYNAT-ARCH-2)
-│   │   ├── test_migration_legacy.py              # Legacy JSON cache migration (BYNAT-ARCH-2)
-│   │   ├── test_migration_sqlite.py              # SQLite DDL and schema migration (BYNAT-ARCH-2)
-│   │   ├── test_persistence_core.py             # Core CacheManager persistence (BYNAT-ARCH-2)
-│   │   ├── test_persistence_eviction.py         # Bucket eviction and deletion (BYNAT-ARCH-2)
-│   │   └── test_persistence_recovery.py         # SQLite corruption recovery (BYNAT-ARCH-2)
-│   └── columns/
-│       ├── test_columns_pivot.py                 # Reshaping and pivot operations (BYNAT-ARCH-2)
-│       ├── test_columns_split.py                 # List splitting and exploding (BYNAT-ARCH-2)
-│       └── test_columns_structural.py            # Renaming, reordering, non-string labels (BYNAT-ARCH-2)
+│   │   ├── migration/                            # Migration tests grouped by functionality (BYNAT-ARCH-11)
+│   │   │   ├── test_migration_sqlite.py          # SQLite DDL and schema migration (BYNAT-ARCH-2)
+│   │   │   └── legacy/                           # Legacy JSON cache migration sub-group (BYNAT-ARCH-11)
+│   │   │       ├── test_legacy_import.py         # Legacy JSON import and idempotency (BYNAT-ARCH-4)
+│   │   │       ├── test_legacy_quarantine.py     # Corrupt legacy cache quarantine (BYNAT-ARCH-4)
+│   │   │       └── test_legacy_rollback.py       # Transactional rollback and locking retry (BYNAT-ARCH-4)
+│   │   └── persistence/                          # Persistence tests grouped by functionality (BYNAT-ARCH-11)
+│   │       ├── test_persistence_core.py          # Core CacheManager constructor and buckets (BYNAT-ARCH-4)
+│   │       ├── test_persistence_delete_column.py # Column bucket deletion persistence (BYNAT-ARCH-4)
+│   │       ├── test_persistence_eviction.py      # Baseline tracking and conflict merge (BYNAT-ARCH-2)
+│   │       ├── test_persistence_load.py          # SQLite cache loading and memoization (BYNAT-ARCH-4)
+│   │       ├── test_persistence_recovery.py      # SQLite failure and corruption recovery (BYNAT-ARCH-2)
+│   │       └── test_persistence_save.py          # Delta checkpoint writes and removals (BYNAT-ARCH-4)
+│   ├── columns/
+│   │   ├── test_columns_pivot.py                 # Reshaping and pivot operations (BYNAT-ARCH-2)
+│   │   ├── test_columns_split.py                 # List splitting and exploding (BYNAT-ARCH-2)
+│   │   └── test_columns_structural.py            # Renaming, reordering, non-string labels (BYNAT-ARCH-2)
+│   ├── enrichment/
+│   │   ├── translate/                            # Translation tests grouped by functionality (BYNAT-ARCH-11)
+│   │   │   ├── test_translate_batch.py           # Batch translation and rate limiting (BYNAT-ARCH-2)
+│   │   │   ├── test_translate_conditional.py     # Conditional translation partitioning (BYNAT-ARCH-2)
+│   │   │   └── test_translate_impute.py          # Missing-value translation imputation (BYNAT-ARCH-2)
+│   │   └── optional/                             # Optional dependency enrichment tests (BYNAT-ARCH-11)
+│   │       ├── test_optional_ahocorasick.py      # Real pyahocorasick keyword matching (BYNAT-MARK-3)
+│   │       └── test_optional_sqlalchemy.py       # Real SQLAlchemy SQLite export (BYNAT-MARK-3)
+│   └── stats/
+│       ├── test_fill_missing.py                  # Hierarchical missing-value imputation (BYNAT-ARCH-2)
+│       ├── test_outliers.py                      # Outlier handling and dropping contracts (BYNAT-ARCH-2)
+│       └── hierarchical_stats/                   # get_hierarchical_stats suite group (BYNAT-ARCH-11)
+│           ├── test_hierarchical_stats_aggregation.py
+│           ├── test_hierarchical_stats_flags.py
+│           ├── test_hierarchical_stats_mode.py
+│           ├── test_hierarchical_stats_output_types.py
+│           └── test_hierarchical_stats_validation.py
 └── cross_cutting/
     ├── base_api/
     │   └── test_base_inplace.py                  # API-02 inplace copy/mutation contracts (BYNAT-ARCH-3)
@@ -637,12 +663,12 @@ def isolate_cache_dir(tmp_path, monkeypatch):
 ```
 
 ### 5.4 Example 4: Offline Provider Fakes vs Real Optional-Dependency Tests
-*Governing Rules:* `A-2`, `A-10`, `BYNAT-API-5`, `BYNAT-MARK-3`
+*Governing Rules:* `A-2`, `A-10`, `BYNAT-API-5`, `BYNAT-MARK-3`, `BYNAT-ARCH-11`
 
-In `tests/modules/enrichment/test_translate_batch.py`, network-backed translation is verified offline using an injected `DictTranslator` test double:
+In `tests/modules/enrichment/translate/test_translate_batch.py`, network-backed translation is verified offline using an injected `DictTranslator` test double:
 
 ```python
-# tests/modules/enrichment/test_translate_batch.py
+# tests/modules/enrichment/translate/test_translate_batch.py
 from tests.modules.enrichment.helpers import DictTranslator
 
 def test_translate_categorical_column_uses_injected_provider(tmp_path):
@@ -655,10 +681,10 @@ def test_translate_categorical_column_uses_injected_provider(tmp_path):
     assert translator.calls == [("مكتمل", "en")]
 ```
 
-In contrast, offline-capable extras such as SQLAlchemy execute real integration tests when installed (`tests/modules/enrichment/test_optional_sqlalchemy.py`):
+In contrast, offline-capable extras such as SQLAlchemy execute real integration tests when installed (`tests/modules/enrichment/optional/test_optional_sqlalchemy.py`):
 
 ```python
-# tests/modules/enrichment/test_optional_sqlalchemy.py
+# tests/modules/enrichment/optional/test_optional_sqlalchemy.py
 import pytest
 pytest.importorskip("sqlalchemy")
 from sqlalchemy import create_engine
@@ -788,6 +814,7 @@ Reviewers of testing pull requests MUST verify the following criteria prior to a
 - [ ] The 20 required DataFrame edge cases (`DF-1`…`DF-20`) and transformation rules (`S-*`, `FM-*`, `FF-*`, `HO-*`, `DO-*`, `HF-*`, `MS-*`, `UG-*`, `MK-*`, `ML-*`) are satisfied.
 - [ ] Every test carries appropriate orthogonal markers (`unit`, `integration`, `property`, `extras`, `slow`) (`BYNAT-MARK-1`).
 - [ ] The 800-line per-file limit is respected across all test files (`BYNAT-ARCH-4`).
+- [ ] Related test files covering the same function, type, or functionality are grouped into dedicated functionality subdirectories without unnecessary nesting (`BYNAT-ARCH-11`).
 - [ ] All CI matrix legs, lint checks, type checks, and coverage gates pass cleanly.
 
 ### 6.3 Authoritative References

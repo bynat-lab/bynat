@@ -312,3 +312,10 @@ def test_basedata_fill_missing_helper(tmp_path):
     assert imputed["score"].tolist() == [1.0, 1.0]
 
     pd.testing.assert_frame_equal(frame, original)
+
+
+def test_fill_missing_mode_all_nan_col():
+    df = pd.DataFrame({"g": ["a", "b"], "v": [np.nan, np.nan]})
+    result = stats.fill_missing(df, "v", strategy="mode", hierarchy_cols=["g"])
+    pd.testing.assert_frame_equal(result, df)
+

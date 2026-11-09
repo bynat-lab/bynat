@@ -117,14 +117,3 @@ def test_fill_missing_nonexistent_target_with_hierarchical_stats():
     assert stat_df.empty
 
 
-def test_fill_missing_mode_all_nan_col():
-    df = pd.DataFrame({"g": ["a", "b"], "v": [np.nan, np.nan]})
-    result = stats.fill_missing(df, "v", strategy="mode", hierarchy_cols=["g"])
-    pd.testing.assert_frame_equal(result, df)
-
-
-def test_outlier_masks_skips_missing_target_columns():
-    df = pd.DataFrame({"g": ["a"] * 10, "val": [10.0] * 10})
-    result = stats.handle_outliers(df, "missing_col", hierarchy_cols=["g"])
-    pd.testing.assert_frame_equal(result, df)
-

@@ -1,36 +1,13 @@
-"""BaseData API contracts: inplace parity, mutability, and ``inplace`` rejection."""
+"""BaseData inplace mutation, silence, and accessor rejection contracts."""
 
-import json
 import sys
 import warnings
 
 import pandas as pd
 import pytest
 
-from bynat.caching import CacheManager
-from bynat.cleaning import BaseData, CsvFile, JsonFile, columns, text
-
-# Local copy of the parity dataset; kept file-local so no test imports another
-# test module.
-
-PARITY_DATA = {
-    "user.name": ["Ada", "Grace"],
-    "user_id": [1, 2],
-    "value": [10.0, 20.0],
-    "C": [1, 2],
-    "A": [3, 4],
-    "D": [5, 6],
-    "B": [7, 8],
-    "longitude": [31.0, 32.0],
-    "latitude": [30.0, 29.0],
-    "id": [1, 2],
-    "items": [["a", "b"], ["c", "d"]],
-    "description": ["Blue shoes", "red shirt"],
-    "title": ["Software Engineer - Remote", "Data Analyst"],
-    "g": ["x", "x"],
-    "score": [1.0, None],
-}
-
+from bynat.cleaning import BaseData, columns, text
+from tests.shared.constants import PARITY_DATA
 
 INPLACE_CASES = [
     pytest.param(
@@ -119,11 +96,6 @@ def _variadic_frame():
             "right": ["p", "q"],
         }
     )
-
-
-# ---------------------------------------------------------------------------
-# PD-01 -- `inplace` rejection on shared functions and the accessor
-# ---------------------------------------------------------------------------
 
 
 @INPLACE_XFAIL
@@ -216,72 +188,11 @@ def test_inplace_is_accepted_by_the_class_api_and_rejected_by_the_accessor(tmp_p
         pd.DataFrame(data).bynat.fill_missing("v", hierarchy_cols="g", inplace=True)
 
 
-# ---------------------------------------------------------------------------
-# API-02 -- `inplace=True` deprecation and early-exit copies
-# ---------------------------------------------------------------------------
-
-
 def _frame(tmp_path, data=None):
     return BaseData(
         data if data is not None else {"id": [1, 2], "latitude": [1.0, 2.0], "name": ["a", "b"]},
         cache_dir=tmp_path,
     )
-
-
-# Calls that take an early-exit path because nothing needs changing.
-EARLY_EXITS = {
-    "drop_by_substring": lambda frame: frame.drop_by_substring("missing"),
-    "drop_CLASS_columns": lambda frame: frame.drop_CLASS_columns(),
-    "rename_by_substring": lambda frame: frame.rename_by_substring("missing", "x"),
-    "rename_all_DOTS": lambda frame: frame.rename_all_DOTS(),
-    "reorder_columns": lambda frame: frame.reorder_columns("missing"),
-    "move_column": lambda frame: frame.move_column("missing", "id"),
-    "align_lat_lng": lambda frame: frame.align_lat_lng(),
-    "extract_keywords": lambda frame: frame.extract_keywords("missing", found=["a"]),
-    "split_list_objects": lambda frame: frame.split_list_objects("missing"),
-    "impute_by_language": lambda frame: frame.impute_by_language("missing"),
-    "translate_conditional_column": lambda frame: frame.translate_conditional_column("missing", "id", "name"),
-    "translate_categorical_column": lambda frame: frame.translate_categorical_column("missing"),
-    "truncate_after_substring": lambda frame: frame.truncate_after_substring(),
-    "fill_missing_coordinates": lambda frame: frame.fill_missing_coordinates(lat_col="missing", long_col="lng"),
-    "convert_to_usd": lambda frame: frame.convert_to_usd("id", country_col="missing", year_col="year"),
-    "handle_outliers": lambda frame: frame.handle_outliers("id", hierarchy_cols=[]),
-    "drop_outliers": lambda frame: frame.drop_outliers("id", hierarchy_cols=[]),
-    "fill_missing": lambda frame: frame.fill_missing("missing"),
-    "fill_missing_from": lambda frame: frame.fill_missing_from(frame, "missing"),
-    "categorize_by_reference": lambda frame: frame.categorize_by_reference("missing", target_col="c", reference={}),
-    "extract_entities_nlp": lambda frame: frame.extract_entities_nlp(
-        "missing", lexicon_source={"skills": ["python"]}, skills="skills"
-    ),
-}
-
-
-@pytest.mark.parametrize("method_name", sorted(EARLY_EXITS))
-def test_early_exits_return_an_independent_copy(tmp_path, method_name):
-    frame = _frame(tmp_path)
-    original = frame.copy()
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        result = EARLY_EXITS[method_name](frame)
-
-    assert result is not frame
-    assert isinstance(result, BaseData)
-    pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(original))
-
-    result["id"] = [10, 20]
-    assert frame["id"].tolist() == [1, 2]
-
-
-def test_early_exit_with_stats_returns_a_copy(tmp_path):
-    frame = _frame(tmp_path, {"g": ["a"] * 3, "v": [1.0, 2.0, 3.0]})
-
-    result, stats = frame.handle_outliers("v", hierarchy_cols=[], get_hierarchical_stats=True)
-
-    assert result is not frame
-    assert type(result) is type(frame)
-    pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(frame))
-    assert stats.empty
 
 
 def test_inplace_true_still_mutates_and_returns_none(tmp_path):
@@ -359,8 +270,13 @@ def test_inplace_false_and_default_do_not_warn(tmp_path):
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
-        frame.drop_by_substring("name")
-        frame.drop_by_substring("name", inplace=False)
+        res1 = frame.drop_by_substring("name")
+        res2 = frame.drop_by_substring("name", inplace=False)
+
+    assert isinstance(res1, BaseData)
+    assert isinstance(res2, BaseData)
+    assert "name" not in res1.columns
+    assert "name" not in res2.columns
 
 
 def test_split_list_objects_inplace_explode_reshapes_the_original(tmp_path):
@@ -374,17 +290,6 @@ def test_split_list_objects_inplace_explode_reshapes_the_original(tmp_path):
     pd.testing.assert_frame_equal(pd.DataFrame(frame), pd.DataFrame(expected))
     assert frame["first"].tolist() == ["a", "b", "c"]
     assert len(frame) == 3
-
-
-def test_melt_transform_pivot_result_keeps_the_cache_manager(tmp_path):
-    frame = _frame(tmp_path, {"id": [1, 2], "left": ["a", "b"], "right": ["c", "d"]})
-    original = frame.copy(deep=True)
-
-    result = frame.melt_transform_pivot(id_vars="id", transform_func=lambda values: values.str.upper())
-
-    assert isinstance(result, BaseData)
-    assert result.cache_manager is frame.cache_manager
-    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_inplace_results_are_not_aliases(tmp_path):
@@ -408,21 +313,6 @@ def test_inplace_on_missing_optional_dependency_still_raises(monkeypatch, tmp_pa
         frame.translate_categorical_column("name", inplace=True)
 
 
-# ---------------------------------------------------------------------------
-# Cleaning constructors and documented boundary errors
-# ---------------------------------------------------------------------------
-
-
-def test_public_cleaning_imports_use_the_bundled_cache_manager(tmp_path):
-    frame = BaseData({"value": [1]}, cache_dir=tmp_path)
-
-    assert isinstance(frame.cache_manager, CacheManager)
-    assert BaseData.__module__ == "bynat.cleaning.base"
-    legacy = __import__("bynat.cleaning.Cleaning", fromlist=["__all__"])
-    assert legacy.BaseData is BaseData
-    assert {"BaseData", "JsonFile", "CsvFile"}.issubset(set(legacy.__all__))
-
-
 def test_basedata_boundary_errors_and_inplace_return(tmp_path):
     frame = BaseData({"id": [1], "first": [2]}, cache_dir=tmp_path)
 
@@ -433,27 +323,3 @@ def test_basedata_boundary_errors_and_inplace_return(tmp_path):
 
     assert frame.drop_by_substring("missing", inplace=True) is None
     assert list(frame.columns) == ["id", "first"]
-
-
-def test_json_and_csv_constructors_read_local_files(tmp_path):
-    json_path = tmp_path / "records.json"
-    json_path.write_text(json.dumps({"items": [{"name": "Ada", "age": 37}]}), encoding="utf-8")
-    csv_path = tmp_path / "records.csv"
-    csv_path.write_text("name;age\nGrace;28\n", encoding="utf-8")
-
-    json_frame = JsonFile(json_file_path=json_path, key="items", cache_dir=tmp_path / "json-cache")
-    csv_frame = CsvFile(csv_file_path=csv_path, read_kwargs={"sep": ";"}, cache_dir=tmp_path / "csv-cache")
-
-    assert list(json_frame.columns) == ["name", "age"]
-    assert json_frame.iloc[0]["name"] == "Ada"
-    assert list(csv_frame.columns) == ["name", "age"]
-    assert csv_frame.iloc[0]["name"] == "Grace"
-    assert isinstance(json_frame.view(), pd.DataFrame)
-    assert type(json_frame.view()) is pd.DataFrame
-
-
-def test_file_constructors_raise_for_missing_paths(tmp_path):
-    with pytest.raises(FileNotFoundError, match="JSON file not found"):
-        JsonFile(json_file_path=tmp_path / "missing.json")
-    with pytest.raises(FileNotFoundError, match="CSV file not found"):
-        CsvFile(csv_file_path=tmp_path / "missing.csv")

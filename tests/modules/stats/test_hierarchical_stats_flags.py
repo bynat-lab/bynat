@@ -1,15 +1,7 @@
 import pytest
 
 from bynat.cleaning import BaseData
-
-OUTPUT_COLUMNS = [
-    "hierarchy_level",
-    "hierarchy_columns",
-    "group_key",
-    "target_column",
-    "strategy",
-    "statistic",
-]
+from tests.shared.constants import OUTPUT_COLUMNS
 
 
 @pytest.mark.parametrize(

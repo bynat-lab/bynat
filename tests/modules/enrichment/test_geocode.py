@@ -2,13 +2,16 @@
 
 import json
 import sqlite3
-import sys
-import types
 
 import pandas as pd
 import pytest
 
+from bynat.caching import CacheManager
 from bynat.cleaning import BaseData
+from bynat.cleaning.enrich import geocode
+from tests.modules.enrichment.helpers import install_fake_module
+
+_install = install_fake_module
 
 
 class DictGeocoder:
@@ -19,14 +22,6 @@ class DictGeocoder:
     def geocode(self, query):
         self.calls.append(query)
         return self.known.get(query)
-
-
-def _install(monkeypatch, name, **attrs):
-    module = types.ModuleType(name)
-    for key, value in attrs.items():
-        setattr(module, key, value)
-    monkeypatch.setitem(sys.modules, name, module)
-    return module
 
 
 def test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder(monkeypatch, tmp_path):
@@ -67,9 +62,50 @@ def test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder(monk
     pd.testing.assert_frame_equal(frame, original)
 
 
-# ---------------------------------------------------------------------------
-# geocoding
-# ---------------------------------------------------------------------------
+def test_fill_missing_coordinates_defaults_to_nominatim_geocoder(monkeypatch, tmp_path):
+    geolocators = []
+
+    class FakeLocation:
+        latitude = 48.8566
+        longitude = 2.3522
+
+    class FakeNominatim:
+        def __init__(self, user_agent):
+            self.user_agent = user_agent
+            geolocators.append(self)
+
+        def geocode(self, query):
+            return FakeLocation() if query == "Paris" else None
+
+    class FakeRateLimiter:
+        def __init__(self, function, min_delay_seconds):
+            self.function = function
+            self.min_delay_seconds = min_delay_seconds
+
+        def __call__(self, query):
+            return self.function(query)
+
+    _install(monkeypatch, "geopy.geocoders", Nominatim=FakeNominatim)
+    _install(monkeypatch, "geopy.extra.rate_limiter", RateLimiter=FakeRateLimiter)
+    manager = CacheManager(cache_dir=tmp_path / "cache")
+    frame = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]})
+    original = frame.copy(deep=True)
+
+    located = geocode.fill_missing_coordinates(
+        frame,
+        "city",
+        lat_col="lat",
+        long_col="lng",
+        provider=None,
+        cache_manager=manager,
+    )
+
+    assert located[["lat", "lng"]].iloc[0].tolist() == [48.8566, 2.3522]
+    assert len(geolocators) == 1
+    assert geolocators[0].user_agent == "data_cleaning_core_geocoder"
+    pd.testing.assert_frame_equal(frame, original)
+
+
 
 
 def test_fill_missing_coordinates_accepts_a_plain_provider(tmp_path):
@@ -172,7 +208,6 @@ def test_fill_missing_coordinates_shortens_queries_and_caches_misses(monkeypatch
     )
 
     assert agents == ["bynat-tests"]
-    # The leftmost part is dropped one step at a time; the known row is never queried.
     assert calls == [
         "1 Main St, Springfield, USA",
         "Springfield, USA",
@@ -202,9 +237,6 @@ def test_fill_missing_coordinates_shortens_queries_and_caches_misses(monkeypatch
     pd.testing.assert_frame_equal(frame, original)
 
 
-# ---------------------------------------------------------------------------
-# fill_missing_coordinates -- documented argument validation
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

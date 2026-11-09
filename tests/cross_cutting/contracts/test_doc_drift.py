@@ -35,7 +35,6 @@ def test_runtime_inspect_signature_and_help_preserved():
 
     df = pd.DataFrame({"a": [1.0, None], "country": ["US", "US"], "year": [2020, 2020]})
 
-    # BaseData runtime inspection
     base_sig = inspect.signature(BaseData.fill_missing)
     assert "strategy" in base_sig.parameters
     assert "hierarchy_cols" in base_sig.parameters
@@ -44,7 +43,6 @@ def test_runtime_inspect_signature_and_help_preserved():
     assert BaseData.fill_missing.__doc__ is not None
     assert "Impute missing values by progressively relaxing" in BaseData.fill_missing.__doc__
 
-    # Accessor runtime inspection
     class_sig = inspect.signature(BynatAccessor.fill_missing)
     assert list(class_sig.parameters.keys()) == [
         "self", "target_cols", "strategy", "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
@@ -58,7 +56,6 @@ def test_runtime_inspect_signature_and_help_preserved():
     assert df.bynat.convert_to_usd.__doc__ == currency.convert_to_usd.__doc__
     assert df.bynat.fill_missing.__doc__ == stats.fill_missing.__doc__
 
-    # fill_missing_from runtime inspection
     base_from_sig = inspect.signature(BaseData.fill_missing_from)
     assert "dataset" in base_from_sig.parameters
     assert "match_cols" in base_from_sig.parameters
@@ -84,3 +81,22 @@ def test_runtime_inspect_signature_and_help_preserved():
         "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
     ]
     assert df.bynat.fill_missing_from.__doc__ == stats.fill_missing_from.__doc__
+
+
+def test_documented_caching_exports_and_cleaning_namespace_boundary():
+    """Verify caching package exports and strict cleaning namespace boundaries."""
+    import bynat.cleaning
+    from bynat.caching import (
+        CACHE_DIR_ENV_VAR,
+        DEFAULT_CACHE_DIR,
+        CacheManager,
+        shared_cache_manager,
+    )
+
+    assert CACHE_DIR_ENV_VAR == "BYNAT_CACHE_DIR"
+    assert isinstance(DEFAULT_CACHE_DIR, (Path, str))
+    assert DEFAULT_CACHE_DIR == "Settings/Cache Data/Automated"
+    mgr = shared_cache_manager()
+    assert isinstance(mgr, CacheManager)
+    assert sorted(bynat.cleaning.__all__) == ["BaseData", "CsvFile", "JsonFile"]
+

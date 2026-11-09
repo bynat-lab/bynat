@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from bynat.cleaning.profile import profile
+from tests.modules.profile.helpers import EXPECTED_STATS_KEYS_BY_KIND
 
 EXPECTED_TOP_LEVEL_KEYS: set[str] = {"dataset", "columns"}
 
@@ -37,45 +38,6 @@ EXPECTED_COLUMN_FIELDS: set[str] = {
     "stats",
 }
 
-EXPECTED_STATS_KEYS_BY_KIND: dict[str, set[str]] = {
-    "numeric": {
-        "min",
-        "max",
-        "mean",
-        "std",
-        "median",
-        "q25",
-        "q75",
-        "iqr",
-        "zeros_count",
-        "zeros_proportion",
-        "outliers_count",
-    },
-    "categorical": {
-        "top",
-        "top_frequency",
-        "top_proportion",
-        "min_length",
-        "max_length",
-        "mean_length",
-    },
-    "boolean": {
-        "true_count",
-        "false_count",
-        "true_proportion",
-    },
-    "datetime": {
-        "min",
-        "max",
-        "range_days",
-    },
-    "other": {
-        "top",
-        "top_frequency",
-        "top_proportion",
-    },
-}
-
 
 def test_contract_stability_key_sets():
     df = pd.DataFrame(
@@ -89,21 +51,17 @@ def test_contract_stability_key_sets():
     )
     rep = profile(df)
 
-    # 1. Top-level keys
     rep_dict = rep.to_dict()
     assert set(rep_dict.keys()) == EXPECTED_TOP_LEVEL_KEYS
     assert set(rep.keys()) == EXPECTED_TOP_LEVEL_KEYS
 
-    # 2. DatasetProfile fields
     assert set(asdict(rep.dataset).keys()) == EXPECTED_DATASET_FIELDS
     assert set(rep_dict["dataset"].keys()) == EXPECTED_DATASET_FIELDS
 
-    # 3. ColumnProfile fields
     for col_name, col_prof in rep.columns.items():
         assert set(asdict(col_prof).keys()) == EXPECTED_COLUMN_FIELDS
         assert set(rep_dict["columns"][col_name].keys()) == EXPECTED_COLUMN_FIELDS
 
-    # 4. Stats keys per kind
     for col_name, expected_kind in [
         ("num", "numeric"),
         ("cat", "categorical"),
@@ -116,7 +74,6 @@ def test_contract_stability_key_sets():
         assert set(col.stats.keys()) == EXPECTED_STATS_KEYS_BY_KIND[expected_kind]
         assert set(rep_dict["columns"][col_name]["stats"].keys()) == EXPECTED_STATS_KEYS_BY_KIND[expected_kind]
 
-    # Empty columns of each kind retain identical stats keys
     empty_df = pd.DataFrame(
         {
             "num_empty": pd.Series([], dtype="float64"),
@@ -151,7 +108,6 @@ def test_contract_stability_value_types():
     )
     rep = profile(df)
 
-    # Dataset field types
     ds = rep.dataset
     assert isinstance(ds.row_count, int)
     assert isinstance(ds.column_count, int)
@@ -164,7 +120,6 @@ def test_contract_stability_value_types():
     assert isinstance(ds.memory_bytes, int)
     assert isinstance(ds.dtype_counts, dict)
 
-    # ColumnProfile field types
     for col in rep.columns.values():
         assert isinstance(col.name, str)
         assert isinstance(col.dtype, str)
@@ -178,7 +133,6 @@ def test_contract_stability_value_types():
         assert isinstance(col.is_unique, bool)
         assert isinstance(col.stats, dict)
 
-    # Specific stats value types
     num_stats = rep.columns["num"].stats
     assert isinstance(num_stats["zeros_count"], int)
     assert isinstance(num_stats["zeros_proportion"], float)
@@ -212,7 +166,6 @@ def test_contract_stability_value_types():
 
 
 def test_contract_json_dumps_mixed_dataframe():
-    # Frame mixing every kind plus NaN/None, nullable dtypes, datetimes, timedeltas, and list/dict cells
     df = pd.DataFrame(
         {
             "num_standard": [1.5, 2.5, np.nan, 4.5],
@@ -234,11 +187,9 @@ def test_contract_json_dumps_mixed_dataframe():
     report = profile(df)
     raw_dict = report.to_dict()
 
-    # Must serialize to JSON without throwing TypeError or ValueError
     dumped = json.dumps(raw_dict)
     assert isinstance(dumped, str)
 
-    # Re-parse to verify round-trip integrity
     parsed = json.loads(dumped)
     assert set(parsed.keys()) == {"dataset", "columns"}
     assert parsed["dataset"]["row_count"] == 4

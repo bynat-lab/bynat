@@ -9,14 +9,9 @@ import pytest
 
 from bynat.cleaning import BaseData
 from bynat.cleaning.enrich import nlp
+from tests.modules.enrichment.helpers import install_fake_module
 
-
-def _install(monkeypatch, name, **attrs):
-    module = types.ModuleType(name)
-    for key, value in attrs.items():
-        setattr(module, key, value)
-    monkeypatch.setitem(sys.modules, name, module)
-    return module
+_install = install_fake_module
 
 
 def _install_fake_spacy(monkeypatch, pipe_calls, load_calls=None, pipe_names=None):
@@ -64,7 +59,6 @@ def _install_matching_spacy(monkeypatch):
         pass
 
     class Nlp:
-        # ``vocab.strings`` maps the matcher id back to the target column name.
         vocab = types.SimpleNamespace(strings={"skills": "skills"})
         pipe_names = ["tok2vec", "tagger", "parser", "ner"]
 
@@ -300,8 +294,6 @@ def test_extract_entities_nlp_noisy_terms_filters_matched_terms(monkeypatch, tmp
     _install_matching_spacy(monkeypatch)
     lexicon = {"skills": ["python", "sql"]}
 
-    # `noisy_terms` is not part of the cache key, so the baseline and the
-    # filtered run use separate cache directories to avoid a cache hit.
     baseline = BaseData({"text": ["python sql"]}, cache_dir=tmp_path / "baseline")
     result = baseline.extract_entities_nlp("text", lexicon_source=lexicon, skills="skills")
     assert set(result["skills"].iloc[0]) == {"Python", "Sql"}
@@ -325,9 +317,6 @@ def test_extract_entities_nlp_rejects_the_noisey_terms_spelling(monkeypatch, tmp
     _install_matching_spacy(monkeypatch)
     lexicon = {"skills": ["python", "sql"]}
 
-    # The misspelled keyword is not a named parameter, so the public method
-    # raises a TypeError pointing at the correct spelling instead of silently
-    # swallowing it and keeping the matched "Sql" term.
     frame = BaseData({"text": ["python sql"]}, cache_dir=tmp_path / "misspelled")
     with pytest.raises(TypeError, match="did you mean 'noisy_terms'"):
         frame.extract_entities_nlp(
@@ -336,8 +325,6 @@ def test_extract_entities_nlp_rejects_the_noisey_terms_spelling(monkeypatch, tmp
 
 
 def test_free_enrichment_extract_entities_nlp_rejects_noisey_terms_spelling(tmp_path):
-    # The shared enrichment function carries its own guard (it also backs the
-    # `df.bynat` accessor), so it rejects the misspelling on its own.
     lexicon = {"skills": ["python", "sql"]}
     frame = BaseData({"text": ["python sql"]}, cache_dir=tmp_path / "free")
     with pytest.raises(TypeError, match="did you mean 'noisy_terms'"):

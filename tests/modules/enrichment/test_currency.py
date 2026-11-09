@@ -2,13 +2,15 @@
 
 import json
 import sqlite3
-import sys
 import types
 
 import pandas as pd
 
 from bynat.cleaning import BaseData
 from bynat.cleaning.enrich import YFinanceRateSource
+from tests.modules.enrichment.helpers import install_fake_module
+
+_install = install_fake_module
 
 
 class FakeRates:
@@ -26,14 +28,6 @@ class FakeRates:
             for (code, year), rate in self.rates.items()
             if code == currency and start_year <= year <= end_year
         }
-
-
-def _install(monkeypatch, name, **attrs):
-    module = types.ModuleType(name)
-    for key, value in attrs.items():
-        setattr(module, key, value)
-    monkeypatch.setitem(sys.modules, name, module)
-    return module
 
 
 def _install_currency_lookup(monkeypatch):
@@ -80,9 +74,6 @@ def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch,
     pd.testing.assert_frame_equal(frame, original)
 
 
-# ---------------------------------------------------------------------------
-# currency
-# ---------------------------------------------------------------------------
 
 
 def test_convert_to_usd_downloads_once_per_currency(monkeypatch, tmp_path):
@@ -204,7 +195,6 @@ def test_convert_to_usd_looks_back_and_caches_missing_years(monkeypatch, tmp_pat
     assert result["salary_usd"].tolist()[:2] == [10.0, 100.0]
     assert pd.isna(result.loc["c", "salary_usd"])
     assert result.loc["d", "salary_usd"] == 2.0
-    # One download covers every year the lookback may need.
     assert fetches == [("EGP=X", 2019, 2020)]
 
     with sqlite3.connect(frame.cache_manager._get_database_path()) as connection:

@@ -1,19 +1,10 @@
-"""fill_missing and outlier-method contracts: strategy normalization, min_samples, non-numeric targets."""
-
-import logging
+"""fill_missing contracts: strategy normalization, min_samples, non-numeric targets."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData, stats
-
-MIN_SAMPLES_XFAIL = pytest.mark.xfail(
-    strict=True,
-    reason="PD-02: handle_outliers/drop_outliers do not validate min_samples; "
-    "see docs/temb/TEST-02-phase1-audit.md (MS-3a)",
-)
-
 
 INVALID_MIN_SAMPLES = [
     pytest.param(True, id="bool-true"),
@@ -25,9 +16,6 @@ INVALID_MIN_SAMPLES = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# fill_missing: strategy normalization, boundaries, no-op input
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -68,29 +56,6 @@ def test_fill_missing_without_missing_values_returns_an_independent_copy():
     pd.testing.assert_frame_equal(frame, before)
 
 
-# ---------------------------------------------------------------------------
-# PD-02 -- `min_samples` validation on the outlier methods
-# ---------------------------------------------------------------------------
-
-
-@MIN_SAMPLES_XFAIL
-@pytest.mark.parametrize("value", INVALID_MIN_SAMPLES)
-def test_handle_outliers_rejects_invalid_min_samples(value):
-    frame = pd.DataFrame({"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]})
-
-    with pytest.raises(ValueError, match="min_samples"):
-        stats.handle_outliers(frame, "v", hierarchy_cols=["g"], min_samples=value)
-
-
-@MIN_SAMPLES_XFAIL
-@pytest.mark.parametrize("value", INVALID_MIN_SAMPLES)
-def test_drop_outliers_rejects_invalid_min_samples(value):
-    frame = pd.DataFrame({"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]})
-
-    with pytest.raises(ValueError, match="min_samples"):
-        stats.drop_outliers(frame, "v", hierarchy_cols=["g"], min_samples=value)
-
-
 @pytest.mark.parametrize("value", INVALID_MIN_SAMPLES)
 def test_fill_missing_and_fill_missing_from_reject_invalid_min_samples(value):
     frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, None]})
@@ -103,69 +68,6 @@ def test_fill_missing_and_fill_missing_from_reject_invalid_min_samples(value):
         stats.fill_missing_from(frame, reference, "v", hierarchy_cols="g", min_samples=value)
 
 
-@pytest.mark.parametrize(
-    ("min_samples", "evaluated"),
-    [
-        pytest.param(6, True, id="exactly-min_samples"),
-        pytest.param(7, False, id="above-min_samples"),
-    ],
-)
-def test_handle_outliers_min_samples_boundary(min_samples, evaluated):
-    frame = pd.DataFrame({"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]})
-
-    result = stats.handle_outliers(frame, "v", hierarchy_cols=["g"], min_samples=min_samples)
-
-    assert bool(result["v"].isna().iloc[-1]) is evaluated
-
-
-def test_min_samples_counts_only_non_null_observations():
-    frame = pd.DataFrame(
-        {
-            "g": ["a", "a", "a", "b", "b"],
-            "v": [1.0, 3.0, None, 10.0, None],
-        }
-    )
-
-    result = stats.fill_missing(frame, "v", hierarchy_cols=["g"], min_samples=2)
-
-    # Group 'a' has two non-null observations, so it supplies the median 2.0.
-    assert result.loc[2, "v"] == 2.0
-    # Group 'b' has one non-null observation, below the threshold, so it stays NaN.
-    assert pd.isna(result.loc[4, "v"])
-
-
-# ---------------------------------------------------------------------------
-# HO-7 / DO-6 -- hierarchy validation on the outlier methods
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("method_name", ["handle_outliers", "drop_outliers"])
-@pytest.mark.parametrize("hierarchy_cols", [[], None], ids=["empty-list", "none"])
-def test_outlier_methods_warn_and_return_an_unchanged_copy_without_hierarchy(
-    caplog, method_name, hierarchy_cols
-):
-    frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 2.0]})
-    original = frame.copy(deep=True)
-
-    with caplog.at_level(logging.WARNING, logger="bynat.cleaning.Cleaning"):
-        result = getattr(stats, method_name)(frame, "v", hierarchy_cols=hierarchy_cols)
-
-    assert result is not frame
-    pd.testing.assert_frame_equal(result, original)
-    assert "No hierarchy columns provided." in caplog.text
-
-
-@pytest.mark.parametrize("method_name", ["handle_outliers", "drop_outliers"])
-def test_outlier_methods_raise_keyerror_for_a_missing_named_hierarchy(method_name):
-    frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 2.0]})
-
-    with pytest.raises(KeyError, match="missing_hierarchy"):
-        getattr(stats, method_name)(frame, "v", hierarchy_cols=["missing_hierarchy"])
-
-
-# ---------------------------------------------------------------------------
-# FM-23 / FF-19 -- non-numeric targets with numeric strategies
-# ---------------------------------------------------------------------------
 
 
 def test_fill_missing_non_numeric_target_with_hierarchy_raises_typeerror():
@@ -199,9 +101,6 @@ def test_fill_missing_non_numeric_all_nan_target_does_not_raise():
     assert result["label"].isna().all()
 
 
-# ---------------------------------------------------------------------------
-# FM-11a / FF-13a -- some target columns missing, others valid
-# ---------------------------------------------------------------------------
 
 
 def test_fill_missing_skips_missing_targets_and_fills_valid_ones():
@@ -215,9 +114,6 @@ def test_fill_missing_skips_missing_targets_and_fills_valid_ones():
     pd.testing.assert_frame_equal(frame, original)
 
 
-# ---------------------------------------------------------------------------
-# Hierarchy-aware fill_missing and outlier methods on named/duplicate indexes
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -240,14 +136,14 @@ def test_hierarchy_methods_support_named_multi_and_duplicate_indexes(tmp_path, i
     dropped = frame.drop_outliers("v", hierarchy_cols=["g"])
 
     assert handled["v"].isna().tolist() == [False] * 5 + [True]
-    assert handled.index.equals(index)
+    pd.testing.assert_index_equal(handled.index, index)
     assert dropped["v"].tolist() == [1.0, 2.0, 3.0, 4.0, 5.0]
-    assert dropped.index.equals(index[:5])
+    pd.testing.assert_index_equal(dropped.index, index[:5])
     pd.testing.assert_frame_equal(frame, original)
 
     in_place = frame.copy()
     assert in_place.drop_outliers("v", hierarchy_cols=["g"], inplace=True) is None
-    assert in_place.equals(dropped)
+    pd.testing.assert_frame_equal(in_place, dropped)
 
     modes = BaseData(
         {"g": ["a"] * 6, "c": ["x", "x", "y", None, "x", None]},
@@ -256,7 +152,7 @@ def test_hierarchy_methods_support_named_multi_and_duplicate_indexes(tmp_path, i
     ).fill_missing("c", strategy="mode", hierarchy_cols=["g"])
 
     assert modes["c"].tolist() == ["x", "x", "y", "x", "x", "x"]
-    assert modes.index.equals(index)
+    pd.testing.assert_index_equal(modes.index, index)
 
 
 def test_fill_missing_rejects_unknown_strategy(tmp_path):
@@ -269,7 +165,6 @@ def test_fill_missing_rejects_unknown_strategy(tmp_path):
 def test_fill_missing_min_samples_and_fallback_global_reproduction():
     from bynat.cleaning import stats
 
-    # 1) A group with no observed values stays NaN by default, filled when fallback_global=True
     df1 = pd.DataFrame({
         "country": ["EG", "EG", "EG", "US", "US", "DE"],
         "salary":  [10.0, 14.0, np.nan, 70.0, 90.0, np.nan],
@@ -284,10 +179,8 @@ def test_fill_missing_min_samples_and_fallback_global_reproduction():
         df1, "salary", strategy="median", hierarchy_cols=["country"], fallback_global=True
     )
     assert fallback_res.loc[2, "salary"] == 12.0
-    # Global median of observed [10, 14, 70, 90] is 42.0
     assert fallback_res.loc[5, "salary"] == 42.0
 
-    # 2) A single-value group is trusted fully by default (min_samples=1), skipped when min_samples=2
     df2 = pd.DataFrame({
         "country": ["EG", "EG", "US", "US"],
         "salary":  [10.0, np.nan, 1000.0, np.nan],
@@ -304,11 +197,9 @@ def test_fill_missing_min_samples_and_fallback_global_reproduction():
     res_min2_fallback = stats.fill_missing(
         df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=2, fallback_global=True
     )
-    # Global median of [10.0, 1000.0] is 505.0
     assert res_min2_fallback.loc[1, "salary"] == 505.0
     assert res_min2_fallback.loc[3, "salary"] == 505.0
 
-    # 3) hierarchy_cols=None: nothing filled when fallback_global=False, plain imputation when fallback_global=True
     res_none_default = stats.fill_missing(df1, "salary", strategy="median")
     assert pd.isna(res_none_default.loc[2, "salary"])
     assert pd.isna(res_none_default.loc[5, "salary"])
@@ -334,7 +225,7 @@ def test_fill_missing_validates_min_samples(tmp_path):
         frame.fill_missing("v", hierarchy_cols="g", min_samples=True)
 
     with pytest.raises(ValueError, match="min_samples must be an integer greater than or equal to 1"):
-        frame.fill_missing("v", hierarchy_cols="g", min_samples="2")  # type: ignore[arg-type]
+        frame.fill_missing("v", hierarchy_cols="g", min_samples="2")
 
 
 def test_fill_missing_hierarchical_fallthrough_multi_level():

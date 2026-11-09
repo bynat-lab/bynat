@@ -4,34 +4,7 @@ import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData
-
-# ---------------------------------------------------------------------------
-# Class/accessor parity (S-5) and inplace parity (S-4/ML-2)
-# ---------------------------------------------------------------------------
-
-
-PARITY_DATA = {
-    "user.name": ["Ada", "Grace"],
-    "user_id": [1, 2],
-    "value": [10.0, 20.0],
-    "C": [1, 2],
-    "A": [3, 4],
-    "D": [5, 6],
-    "B": [7, 8],
-    "longitude": [31.0, 32.0],
-    "latitude": [30.0, 29.0],
-    "id": [1, 2],
-    "items": [["a", "b"], ["c", "d"]],
-    "description": ["Blue shoes", "red shirt"],
-    "title": ["Software Engineer - Remote", "Data Analyst"],
-    "g": ["x", "x"],
-    "score": [1.0, None],
-}
-
-
-# Each case takes the entry point object and the underlying data so that
-# ``fill_missing_from`` can use the frame as its own reference on both paths.
-
+from tests.shared.constants import PARITY_DATA
 
 PARITY_CASES = [
     pytest.param(lambda obj, data: obj.drop_by_substring("user"), id="drop_by_substring"),

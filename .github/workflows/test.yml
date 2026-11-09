@@ -65,7 +65,7 @@ jobs:
         run: python -m build
 
       - name: Compile package
-        run: python -m compileall -q bynat
+        run: python -m compileall -q bynat tests
 
       - name: Run tests
         run: python -m pytest -q

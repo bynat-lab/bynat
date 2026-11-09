@@ -2,15 +2,7 @@ import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData
-
-OUTPUT_COLUMNS = [
-    "hierarchy_level",
-    "hierarchy_columns",
-    "group_key",
-    "target_column",
-    "strategy",
-    "statistic",
-]
+from tests.shared.constants import OUTPUT_COLUMNS
 
 
 def test_get_hierarchical_stats_mode_matches_tie_breaking_and_normalizes_mod(tmp_path):
@@ -54,9 +46,6 @@ def test_get_hierarchical_stats_mode_returns_all_targets_at_every_hierarchy_leve
         hierarchy_cols=["region", "department"],
     )
 
-    # One mode statistic per target, per hierarchy level, per group. The
-    # expected rows are derived by hand from the definition of mode and the
-    # documented hierarchy levels, not from the implementation.
     assert result["target_column"].tolist() == ["first"] * 6 + ["second"] * 6
     assert result["hierarchy_level"].tolist() == [2, 2, 2, 2, 1, 1] * 2
     assert result["hierarchy_columns"].tolist() == [

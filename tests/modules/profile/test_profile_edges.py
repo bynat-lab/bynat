@@ -8,11 +8,10 @@ import pandas as pd
 import pytest
 
 from bynat.cleaning.profile import ColumnProfile, profile
-from tests.modules.profile.test_profile_contract import EXPECTED_STATS_KEYS_BY_KIND
+from tests.modules.profile.helpers import EXPECTED_STATS_KEYS_BY_KIND
 
 
 def test_empty_dataframe_edge_cases():
-    # 1. 0 rows, 0 columns
     empty_df = pd.DataFrame()
     rep1 = profile(empty_df)
     assert rep1.dataset.row_count == 0
@@ -26,7 +25,6 @@ def test_empty_dataframe_edge_cases():
     assert len(rep1.columns) == 0
     assert rep1.to_dataframe().empty
 
-    # 2. 0 rows, with column schema (untyped columns default to object -> kind 'other')
     empty_with_cols = pd.DataFrame(columns=["num_col", "text_col"])
     rep2 = profile(empty_with_cols)
     assert rep2.dataset.row_count == 0
@@ -50,7 +48,6 @@ def test_empty_dataframe_edge_cases():
         "top_proportion": None,
     }
 
-    # 3. 0 rows, with explicitly typed numeric column
     empty_typed = pd.DataFrame({"num": pd.Series([], dtype="float64")})
     rep3 = profile(empty_typed)
     assert rep3.dataset.row_count == 0
@@ -74,7 +71,6 @@ def test_all_missing_column_edge_cases():
     assert rep.dataset.row_count == 3
     assert rep.dataset.empty_column_count == 2
 
-    # Float col
     col_float = rep.columns["all_na_float"]
     assert col_float.count == 0
     assert col_float.missing_count == 3
@@ -85,7 +81,6 @@ def test_all_missing_column_edge_cases():
     assert col_float.stats["outliers_count"] is None
     assert col_float.stats["zeros_count"] == 0
 
-    # Obj col
     col_obj = rep.columns["all_none_obj"]
     assert col_obj.count == 0
     assert col_obj.missing_count == 3
@@ -96,7 +91,6 @@ def test_all_missing_column_edge_cases():
 
 
 def test_single_row_statistics():
-    # Test numeric sample std when n=1 (should be None, not NaN or crash)
     df = pd.DataFrame({"single_num": [42.0]})
     rep = profile(df)
     stats = rep.columns["single_num"].stats
@@ -104,12 +98,11 @@ def test_single_row_statistics():
     assert stats["min"] == 42.0
     assert stats["max"] == 42.0
     assert stats["mean"] == 42.0
-    assert stats["std"] is None  # n <= 1 sample std is undefined -> None
-    assert stats["outliers_count"] is None  # n < 5 samples -> None
+    assert stats["std"] is None
+    assert stats["outliers_count"] is None
 
 
 def test_duplicate_column_names_handling():
-    # DataFrame with duplicate column names: columns=['a', 'a']
     df = pd.DataFrame([[1, 2], [3, 4]], columns=["a", "a"])
     rep = profile(df)
 
@@ -121,20 +114,13 @@ def test_duplicate_column_names_handling():
     assert len(df_summary) == 2
     assert df_summary["column"].tolist() == ["a", "a"]
 
-    # README "Working with a report" documents that `report.columns` holds one
-    # entry per name when a DataFrame has repeated column names, while
-    # `column_list` preserves every column by position. The ProfileReport
-    # docstring documents that the mapping keeps the last occurrence. Pin that
-    # documented mapping explicitly (PD-03): the name must not disappear from
-    # the mapping, the entry must describe the last column, and `to_dict()`
-    # must mirror the same mapping instead of losing it silently.
     assert list(rep.columns.keys()) == ["a"]
     assert len(rep.columns) == 1
     assert isinstance(rep.columns["a"], ColumnProfile)
     assert rep.columns["a"].name == "a"
     assert rep.columns["a"].count == 2
     assert rep.columns["a"].dtype == "int64"
-    assert rep.columns["a"].stats["min"] == 2  # last occurrence values are [2, 4]
+    assert rep.columns["a"].stats["min"] == 2
     assert rep.columns["a"].stats["max"] == 4
 
     rep_dict = rep.to_dict()
@@ -147,7 +133,6 @@ def test_duplicate_column_names_handling():
 
 
 def test_clean_scalar_bool_before_int():
-    # Object column with booleans and strings must preserve bool type for top value
     df = pd.DataFrame({"obj": [True, "x", True]})
     rep = profile(df)
     col = rep.columns["obj"]
@@ -156,7 +141,6 @@ def test_clean_scalar_bool_before_int():
     assert type(col.stats["top"]) is bool
     assert col.stats["top_frequency"] == 2
 
-    # Direct check of _clean_scalar
     from bynat.cleaning.profile import _clean_scalar
 
     assert _clean_scalar(True) is True
@@ -170,7 +154,6 @@ def test_clean_scalar_bool_before_int():
 
 
 def test_timedelta_columns_and_clean_scalar():
-    # Timedelta columns are kind 'other' and serializable in to_dict()
     td_series = pd.Series([pd.Timedelta(days=1), pd.Timedelta(days=2), pd.Timedelta(days=1)])
     df = pd.DataFrame({"td": td_series})
     rep = profile(df)
@@ -180,11 +163,9 @@ def test_timedelta_columns_and_clean_scalar():
     assert col.stats["top_frequency"] == 2
     assert col.stats["top_proportion"] == pytest.approx(2 / 3)
 
-    # Ensure json.dumps succeeds on to_dict()
     dumped = json.dumps(rep.to_dict())
     assert "P1DT0H0M0S" in dumped
 
-    # Direct check of _clean_scalar with pd.Timedelta, np.timedelta64, datetime.timedelta
     import datetime
 
     from bynat.cleaning.profile import _clean_scalar
@@ -195,7 +176,6 @@ def test_timedelta_columns_and_clean_scalar():
 
 
 def test_categorical_pd_categorical():
-    # pd.Categorical column should have kind 'categorical'
     cat_series = pd.Series(pd.Categorical(["apple", "banana", "apple", None]))
     df = pd.DataFrame({"cat": cat_series})
     rep = profile(df)
@@ -208,7 +188,6 @@ def test_categorical_pd_categorical():
 
 
 def test_tz_aware_datetime():
-    # Tz-aware datetime column should have kind 'datetime'
     tz_series = pd.Series(pd.date_range("2024-01-01", periods=3, tz="UTC"))
     df = pd.DataFrame({"dt_tz": tz_series})
     rep = profile(df)

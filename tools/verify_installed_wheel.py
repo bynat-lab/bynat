@@ -54,9 +54,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = "bynat"
 PHASE3_TESTS = (
-    "tests/modules/io/test_io.py",
-    "tests/modules/enrichment/test_optional.py",
-    "tests/modules/columns/test_columns.py",
+    "tests/modules/io/test_io_append.py",
+    "tests/modules/io/test_io_json.py",
+    "tests/modules/io/test_io_read.py",
+    "tests/modules/enrichment/test_optional_ahocorasick.py",
+    "tests/modules/enrichment/test_optional_sqlalchemy.py",
+    "tests/modules/columns/test_columns_pivot.py",
+    "tests/modules/columns/test_columns_split.py",
+    "tests/modules/columns/test_columns_structural.py",
     "tests/cross_cutting/accessor/test_parity.py",
 )
 TOP_LEVEL_EXPORTS = {"BynatAccessor", "ProfileReport", "profile", "read_csv", "read_json"}

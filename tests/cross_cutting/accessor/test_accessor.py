@@ -51,7 +51,7 @@ def test_accessor_methods_return_new_plain_frames_and_leave_the_source_alone():
     assert keywords["colors"].tolist() == ["Blue", "Red"]
     assert filled["score"].tolist() == [1.0, 1.0]
     assert unchanged is not frame
-    assert unchanged.equals(frame)
+    pd.testing.assert_frame_equal(unchanged, frame)
     pd.testing.assert_frame_equal(frame, original)
 
 

@@ -452,7 +452,7 @@ The following requirements apply to all public frame-to-frame transformations ac
   ```toml
   [tool.pytest.ini_options]
   testpaths = ["tests"]
-  addopts = ["-ra", "--import-mode=importlib", "-m", "not slow and not extras and not network and not mutation"]
+  addopts = ["-ra", "-m", "not slow and not extras and not network and not mutation"]
   strict_markers = true
   strict_config = true
   ```

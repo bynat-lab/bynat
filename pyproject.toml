@@ -125,7 +125,7 @@ check_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--import-mode=importlib", "-m", "not slow and not extras and not network and not mutation"]
+addopts = ["-ra", "-m", "not slow and not extras and not network and not mutation"]
 strict_markers = true
 strict_config = true
 markers = [

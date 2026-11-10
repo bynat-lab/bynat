@@ -11,6 +11,10 @@ from bynat.caching import CacheManager
 from .._common import FrameT, _import_optional, _require_positive_int, logger
 from .engine import _cached_map
 
+__all__ = [
+    "extract_entities_nlp",
+]
+
 _NLP_REQUIRED_PIPES = frozenset(
     {'tok2vec', 'tagger', 'attribute_ruler', 'lemmatizer', 'morphologizer'}
 )

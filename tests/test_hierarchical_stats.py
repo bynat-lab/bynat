@@ -6,11 +6,8 @@ import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData, CsvFile, JsonFile
-from bynat.cleaning.Cleaning import (
-    _HIERARCHICAL_STATS_COLUMNS,
-    _convert_output,
-    _validate_output_type,
-)
+from bynat.cleaning._common import _HIERARCHICAL_STATS_COLUMNS
+from bynat.cleaning._outputs import _convert_output, _validate_output_type
 
 OUTPUT_COLUMNS = [
     "hierarchy_level",

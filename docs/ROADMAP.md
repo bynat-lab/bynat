@@ -18,7 +18,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 4. **Minimal footprint.** Core dependencies stay `numpy` and `pandas`. Heavy integrations stay optional and are imported lazily with `_import_optional`. Prefer the standard library (`sqlite3`, `logging`, `tempfile`) over new dependencies.
 5. **Tests do not touch the network.** External services are replaced with fake modules (`tests/modules/enrichment/`). Light extras with offline behavior (`pyahocorasick`, SQLAlchemy with SQLite) are also tested for real when installed.
 
-## 3. Current state (`0.6.5`)
+## 3. Current state (`0.6.6`)
 
 - **Python:** `>=3.11`. CI runs Ubuntu and Windows on 3.11 and 3.13, a Ruff lint job, an extras job, and scheduled quality/mutation runs.
 - **Tests:** Test suite is structured hierarchically (`tests/modules/` for unit/integration tests and `tests/cross_cutting/` for contracts, equivalence, property, and workflow tests) adhering to `docs/TESTING_STANDARDS.md`. Equivalence tests for the optimized methods live in `tests/cross_cutting/equivalence/` (`test_equivalence_keywords.py`, `test_equivalence_outliers.py`, `test_equivalence_enrichment.py`).
@@ -59,8 +59,10 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 | 0.6.0 | `QA-01` mypy for the cache manager and the cleaning helpers, CI job; supported class wrappers remain a separate gradual-typing boundary | `pyproject.toml`, `.github/workflows/test.yml` |
 | 0.6.5 | `DQ-01` DataFrame quality profiling API producing non-mutating structured reports (`ProfileReport`, `DatasetProfile`, `ColumnProfile`) with dataset metrics, per-kind statistics, and DataFrame/dict conversion | `bynat/cleaning/profile.py`, `tests/modules/profile/` |
 | 0.6.5 | `DX-01` static typing preservation and editor hover support: generic `_shares_doc` decorator preserving signatures, literal `BaseData` docstrings, PEP 484 stub (`bynat/cleaning/accessor.pyi`), PEP 561 marker (`bynat/py.typed`), and docstring synchronizer | `bynat/cleaning/`, `tools/sync_docs.py`, `tests/cross_cutting/contracts/test_doc_drift.py` |
-| Unreleased | `STATS-01` safer hierarchical imputation fallbacks: `min_samples` group threshold and `fallback_global` column-wide fallback in `fill_missing` | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `tests/modules/stats/test_fill_missing.py` |
-| Unreleased | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/cross_cutting/workflows/test_fill_missing_from_imputation.py` |
+| 0.6.6 | `STATS-01` safer hierarchical imputation fallbacks: `min_samples` group threshold and `fallback_global` column-wide fallback in `fill_missing` | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `tests/modules/stats/test_fill_missing.py` |
+| 0.6.6 | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/cross_cutting/workflows/test_fill_missing_from_imputation.py` |
+| Unreleased | TEST-01 comprehensive test suite audit and quality improvement: test inventory, quality remediation, public-contract and coverage gap testing, and final verification | docs/TESTING_STANDARDS.md, tests/ |
+| Unreleased | QA-02 mutation testing tooling and first advisory run: Cosmic Ray integration, core-scope configuration, scheduled advisory CI job, report upload, and initial survivor triage | pyproject.toml, cosmic-ray.toml, .github/workflows/test.yml, assets/plan/evidence/test-05/mutation_triage.md |
 
 ### Public API policy
 
@@ -98,29 +100,12 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Plan:** add declarative checks for required columns, missing-value policies, uniqueness, numeric ranges, and allowed values. Return structured validation results identifying failed checks and relevant violations. Keep validation separate from automatic cleaning.
 - **Done when:** supported rules can be declared and evaluated through a documented API, results identify failures clearly, and tests cover valid data, invalid data, and edge cases without modifying the input.
 
-#### `TEST-01`: comprehensive test suite audit and quality improvement (P1, L)
-- **Problem:** The existing test suite may contain weak assertions, implementation-dependent expected results, insufficient edge-case coverage, inadequate fixtures, and gaps in public-contract coverage. Passing tests alone do not establish that the suite can reliably detect incorrect behavior.
-- **Plan:**
-  1. **Phase 1 — Inventory & Audit:** Inventory all existing tests, map them to public contracts and behaviors, assess their quality, and document findings without modifying tests or production code.
-  2. **Phase 2 — Quality Remediation:** Strengthen weak tests, independently derive expected results, improve fixtures and isolation, and address identified test-quality issues without weakening valid expectations.
-  3. **Phase 3 — Contract & Coverage Gaps:** Add missing contract, regression, integration, and boundary-condition tests. Align test classification and execution with `TESTING_STANDARDS.md` and its adoption phases.
-  4. **Phase 4 — Final Verification:** Run the applicable test suite and validation commands, verify test accounting and regression safety, and document final results and remaining gaps.
-- **Done when:** Every existing test has an explicit audit disposition; identified test-quality issues and missing contract coverage are addressed or justified; all changes preserve valid behavioral expectations; and final verification provides reproducible results and a documented acceptance report.
-- **Execution constraint:** Use the existing configured Subagent workflow for all investigation, implementation, and test execution. The Supervisor only delegates, coordinates, reviews evidence, and makes acceptance decisions; it must not perform these tasks independently.
-- **Scope constraint:** Keep all work within the existing testing-related PR. Production-code defects discovered during the audit must be documented separately rather than silently hidden by test changes.
-
 ### Milestone 9 (`0.9.0`): API maintenance
 
 #### `DEPR-02`: standardize transformation behavior and maintenance boundaries (P2, S)
 - **Problem:** transformation methods still need one consistent `inplace` convention, while the supported class-based API and its implementation module must remain part of the public surface.
 - **Plan:** standardize `inplace` behavior according to `API-02`, without deleting `BaseData`, `JsonFile`, `CsvFile`, or `bynat/cleaning/base.py`. Add the remaining helper modules to the mypy scope; the class wrappers may remain a separate gradual-typing boundary. Keep the `bynat.cleaning.Cleaning` and `bynat.caching.Caching` aliases for at least one additional minor release.
 - **Done when:** the `inplace` mutation and return behavior is documented and tested consistently, the supported class API and imports continue to work, the remaining helper modules are covered by mypy, the aliases remain available for the stated period, and the full test suite and mypy checks pass.
-
-#### `QA-02`: mutation testing tooling and first advisory run (P2, S) [DONE]
-- **Problem:** the testing policy names Cosmic Ray as the primary mutation tool and plans a scheduled advisory run, but the tool is not declared in the `dev` extra and no session configuration or scheduled job exists, so the policy cannot be executed.
-- **Plan:** declare Cosmic Ray (and optionally mutmut for POSIX/WSL runs) in the `dev` extra, add the Cosmic Ray session configuration for the core scope (`bynat/cleaning/stats.py`, `bynat/cleaning/enrich/engine.py`, `bynat/caching/manager.py`), and add a scheduled advisory run that uploads the report. Keep the run advisory, not a merge gate.
-- **Done when:** the tool and configuration are committed, a scheduled advisory run produces a report, and the first survivor set is triaged.
-- **Status:** Done in TEST-05. `cosmic-ray` added to `dev` extras and installed; `cosmic-ray.toml` configured at repository root targeting the core scope (`stats.py`, `engine.py`, `manager.py`); `.github/workflows/test.yml` scheduled-quality job configured with advisory mutation testing and report upload; bounded run executed and first survivor set triaged in `assets/plan/evidence/test-05/mutation_triage.md` with missing-test mutants killed via `@pytest.mark.mutation` tests.
 
 #### `PERF-05`: rates through the engine (P3, S)
 - **Problem:** `convert_to_usd` resolves currency codes through `_cached_map`, but year-range rate downloads remain a dedicated loop because each fetch populates multiple `CODE_YEAR` keys.

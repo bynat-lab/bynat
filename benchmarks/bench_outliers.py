@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from _common import best_of, print_table
-from test_equivalence import _legacy_drop_outliers, _legacy_handle_outliers
+from reference_impls import _legacy_drop_outliers, _legacy_handle_outliers
 
 from bynat.cleaning import stats
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bynat"
-version = "0.6.5"
+version = "0.6.6"
 description = "A Python toolkit for simplifying data workflows."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -44,9 +44,12 @@ sql = [
     "SQLAlchemy",
 ]
 dev = [
+    "cosmic-ray",
+    "hypothesis",
     "mypy",
     "pandas-stubs",
     "pytest",
+    "pytest-cov",
     "ruff",
 ]
 
@@ -86,6 +89,7 @@ files = [
     "bynat/cleaning/profile.py",
     "bynat/cleaning/stats.py",
     "bynat/cleaning/text.py",
+    "tests",
 ]
 check_untyped_defs = true
 disallow_incomplete_defs = true
@@ -93,6 +97,7 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_return_any = false
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = ["bynat.cleaning.base"]
@@ -104,10 +109,48 @@ module = [
     "babel.*",
     "deep_translator",
     "geopy.*",
+    "hypothesis.*",
     "langdetect",
     "pycountry",
+    "pytest.*",
     "spacy.*",
     "sqlalchemy",
     "yfinance",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tools.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+check_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "-m", "not slow and not extras and not network and not mutation"]
+strict_markers = true
+strict_config = true
+markers = [
+    "unit: Tests one function or method in isolation",
+    "integration: Cross-module, persistence, file I/O, or real optional-dependency behavior",
+    "property: Hypothesis property-based test",
+    "slow: Takes more than a few seconds",
+    "extras: Requires an optional extra dependency",
+    "mutation: Dedicated mutation-testing support test",
+    "network: Reserved quarantine label; no supported bynat test may access live services",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["bynat"]
+
+[tool.coverage.report]
+precision = 1
+fail_under = 85
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "pragma: no cover",
+]
+

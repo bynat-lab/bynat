@@ -5,7 +5,11 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT), str(ROOT / "tests")]
+# The repository root makes the checkout's ``bynat`` package importable when
+# the benchmarks run from a source tree. The ``tests/`` tree is deliberately
+# not added: the shared 0.3.0 references live in ``benchmarks/reference_impls.py``
+# and the benchmarks must not depend on the test suite.
+sys.path[:0] = [str(ROOT)]
 
 
 def best_of(func, repeat=3):

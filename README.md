@@ -2,10 +2,10 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="https://github.com/bynat-lab/bynat/blob/main/assets/Full%20Logo/logo-dark.svg">
+      srcset="https://raw.githubusercontent.com/bynat-lab/bynat/refs/heads/main/assets/Full%20Logo/logo-dark.svg">
     <img
       alt="bynat"
-      src="https://github.com/bynat-lab/bynat/blob/main/assets/Full%20Logo/logo.svg"
+      src="https://raw.githubusercontent.com/bynat-lab/bynat/refs/heads/main/assets/Full%20Logo/logo.svg"
       width="320">
   </picture>
 </h1>
@@ -15,7 +15,7 @@
 </p>
 
 <div align="center">
-  Python <code>&gt;=3.11</code> &nbsp;·&nbsp; MIT license &nbsp;·&nbsp; version <code>0.6.5</code>
+  Python <code>&gt;=3.11</code> &nbsp;·&nbsp; MIT license &nbsp;·&nbsp; version <code>0.6.6</code>
 
   [Overview](#what-is-bynat) ·
   [Installation](#installation) ·
@@ -56,7 +56,7 @@ New here? [Install bynat](#installation), then go to the [Quick start](#quick-st
 
 ### Project status
 
-`0.6.5` is the version declared in `pyproject.toml`. See [CHANGELOG.md](https://github.com/bynat-lab/bynat/blob/main/CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](https://github.com/bynat-lab/bynat/blob/main/docs/ROADMAP.md) for planned work.
+`0.6.6` is the version declared in `pyproject.toml`. See [CHANGELOG.md](https://github.com/bynat-lab/bynat/blob/main/CHANGELOG.md) for behavior changes since `0.1.1`, and [ROADMAP.md](https://github.com/bynat-lab/bynat/blob/main/docs/ROADMAP.md) for planned work.
 
 ---
 
@@ -177,7 +177,7 @@ What each module provides:
 | --- | --- |
 | `bynat` | `read_json`, `read_csv`, `BynatAccessor`, `profile`, `ProfileReport` |
 | `bynat.caching` | `CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR` |
-| `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile`, `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile`, plus `BynatAccessor`, `read_json`, `read_csv` |
+| `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile` |
 | `bynat.cleaning.enrich` | Provider protocols `Translator`, `Geocoder`, `RateSource`, and their defaults `GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource` |
 
 > **Import submodules explicitly.** The top-level `bynat` namespace exposes only `read_json`, `read_csv`, `BynatAccessor`, `profile`, and `ProfileReport`. Import the class API from `bynat.cleaning` and the cache API from `bynat.caching`.
@@ -306,7 +306,7 @@ All four forms return the same report:
 | pandas accessor | `df.bynat.profile(*columns, output_type=None)` |
 | Class-based API | `BaseData(df).profile(*columns, output_type=None)` |
 | Top-level function | `bynat.profile(df, *columns, output_type=None)` |
-| Cleaning function | `bynat.cleaning.profile(df, *columns, output_type=None)` |
+| Cleaning function | `from bynat.cleaning.profile import profile`<br>`profile(df, *columns, output_type=None)` |
 
 Passing something other than a `pandas.DataFrame` to the function forms raises a `TypeError`.
 
@@ -338,7 +338,8 @@ Any other value raises a `TypeError`.
 ```python
 import json
 import pandas as pd
-from bynat.cleaning import BaseData, profile
+from bynat.cleaning import BaseData
+from bynat.cleaning.profile import profile
 
 report = profile(df)                              # ProfileReport
 as_dict = profile(df, output_type=dict)           # plain dictionary

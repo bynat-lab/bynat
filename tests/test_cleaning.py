@@ -386,7 +386,7 @@ def test_fill_missing_validates_min_samples(tmp_path):
         frame.fill_missing("v", hierarchy_cols="g", min_samples=True)
 
     with pytest.raises(ValueError, match="min_samples must be an integer greater than or equal to 1"):
-        frame.fill_missing("v", hierarchy_cols="g", min_samples="2")  # type: ignore[arg-type]
+        frame.fill_missing("v", hierarchy_cols="g", min_samples="2")
 
 
 def test_fill_missing_hierarchical_fallthrough_multi_level(tmp_path):

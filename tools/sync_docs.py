@@ -138,14 +138,14 @@ def iter_shared_doc_methods(tree: ast.Module) -> Iterator[SharedDocMethod]:
 
 
 def render_base(source: str) -> str:
-    """Return `base.py` with every shared docstring written as a literal summary."""
+    """Return `base.py` with every shared docstring written as a literal."""
     newline = _newline_of(source)
     lines = source.splitlines()
     tree = ast.parse(source)
 
     edits: list[tuple[int, int, list[str]]] = []
     for method in iter_shared_doc_methods(tree):
-        doc = _shared_doc(_resolve(BASE_MODULE, method.source)).split("\n\n")[0].replace("\n", " ").strip()
+        doc = _shared_doc(_resolve(BASE_MODULE, method.source))
         literal = _docstring_literal(doc, METHOD_INDENT)
         first = method.node.body[0]
         has_doc = (
@@ -170,12 +170,12 @@ def check_base_docstrings(source: str) -> list[str]:
     """Describe every `BaseData` method whose literal docstring is stale."""
     problems = []
     for method in iter_shared_doc_methods(ast.parse(source)):
-        expected = _shared_doc(_resolve(BASE_MODULE, method.source)).split("\n\n")[0].replace("\n", " ").strip()
+        expected = _shared_doc(_resolve(BASE_MODULE, method.source))
         actual = ast.get_docstring(method.node, clean = True)
         if actual is None:
             problems.append(f"BaseData.{method.name} has no literal docstring (source: {method.source})")
-        elif actual.strip() != expected:
-            problems.append(f"BaseData.{method.name} docstring differs from {method.source}.__doc__ summary")
+        elif actual != expected:
+            problems.append(f"BaseData.{method.name} docstring differs from {method.source}.__doc__")
     return problems
 
 

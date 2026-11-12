@@ -46,13 +46,13 @@ def resolve_cache_dir(cache_dir: str | PathLike | None) -> str | PathLike:
 
 class CacheManager:
     """
-    Manage lightweight JSON/SQLite caches for function-level and column-level
+    Manage lightweight JSON cache files for function-level and column-level
     operations.
 
     Notes:
-        Each function is stored in SQLite inside the configured cache directory.
-        Individual methods can store nested objects keyed by column name or
-        another logical cache bucket.
+        Each function gets its own JSON file inside the configured cache
+        directory. Individual methods can then store nested objects keyed by
+        column name or another logical cache bucket.
     """
 
     def __init__(self, cache_dir: str | PathLike | None = None) -> None:
@@ -64,8 +64,8 @@ class CacheManager:
         variables are expanded before the path is normalized.
 
         Args:
-            cache_dir (str | os.PathLike | None): Directory where cache data
-                is stored. When None, the `BYNAT_CACHE_DIR` environment
+            cache_dir (str | os.PathLike | None): Directory where JSON cache
+                files are stored. When None, the `BYNAT_CACHE_DIR` environment
                 variable is used if set, otherwise
                 `"Settings/Cache Data/Automated"` relative to the working
                 directory.
@@ -264,7 +264,28 @@ class CacheManager:
         captured at load time (``_baselines[func_name]``). Entries that were
         newly added or whose value changed are written, and every baseline
         ``(bucket, key)`` identity no longer present in the live cache — including
-        the keys of an entirely removed bucket — is deleted.
+        the keys of an entirely removed bucket — is deleted. This detects nested
+        JSON-compatible mutations and explicit ``None`` because each changed
+        value is compared as a whole and then re-serialized. Serialization
+        happens first; additions, changes, and removals are then applied
+        together, in one explicit ``BEGIN IMMEDIATE`` transaction: added and
+        changed rows use ``INSERT OR REPLACE`` conflict semantics so that writes
+        to the same key resolve to the last committed writer while disjoint keys
+        merge, and each removed identity is deleted with an exact
+        ``(func_name, bucket, key)`` ``DELETE`` so no broad bucket delete is ever
+        issued.
+
+        The deep baseline is advanced to a copy of the live cache only after the
+        transaction commits. Serialization, locking, transaction, or commit
+        failures are logged and swallowed: the transaction is rolled back, the
+        baseline is left unchanged, and the pending in-memory changes are
+        preserved so the next save re-diffs against the same baseline and retries.
+
+        Args:
+            func_name (str): Function identifier whose cache should be written.
+
+        Returns:
+            None
         """
         func_name = self._validate_cache_key(func_name, "func_name")
 

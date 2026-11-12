@@ -26,19 +26,13 @@ def is_basedata_type(output_type: Any) -> bool:
 
     return any(
         getattr(base_cls, "__name__", None) == "BaseData"
-        and getattr(base_cls, "__module__", "") in ("bynat.cleaning.base", "bynat.cleaning.Cleaning")
+        and getattr(base_cls, "__module__", "") == "bynat.cleaning.base"
         for base_cls in output_type.__mro__
     )
 
 
 def validate_output_type(output_type: Any) -> None:
-    """
-    Validate the generic tabular output types supported by this package.
-
-    Raises:
-        TypeError: If `output_type` is not None, dict, DataFrame, or a
-            BaseData subclass.
-    """
+    """Validate the generic tabular output types supported by this package."""
     if output_type is None or output_type is dict or output_type is pd.DataFrame:
         return
 

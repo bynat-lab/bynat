@@ -1,4 +1,4 @@
-"""Private helpers shared across cleaning modules."""
+"""Private helpers shared by the cleaning modules, `BaseData`, and the accessor."""
 
 import importlib
 import json

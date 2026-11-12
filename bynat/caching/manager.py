@@ -46,13 +46,14 @@ def resolve_cache_dir(cache_dir: str | PathLike | None) -> str | PathLike:
 
 class CacheManager:
     """
-    Manage lightweight JSON cache files for function-level and column-level
+    Manage SQLite-backed caches for function-level and column-level
     operations.
 
     Notes:
-        Each function gets its own JSON file inside the configured cache
-        directory. Individual methods can then store nested objects keyed by
-        column name or another logical cache bucket.
+        Each function's entries are stored in a shared SQLite database inside
+        the configured cache directory (with automatic one-time migration from
+        legacy per-function JSON cache files). Individual methods can then store
+        nested objects keyed by column name or another logical cache bucket.
     """
 
     def __init__(self, cache_dir: str | PathLike | None = None) -> None:
@@ -64,9 +65,9 @@ class CacheManager:
         variables are expanded before the path is normalized.
 
         Args:
-            cache_dir (str | os.PathLike | None): Directory where JSON cache
-                files are stored. When None, the `BYNAT_CACHE_DIR` environment
-                variable is used if set, otherwise
+            cache_dir (str | os.PathLike | None): Directory where the SQLite
+                cache database is stored. When None, the `BYNAT_CACHE_DIR`
+                environment variable is used if set, otherwise
                 `"Settings/Cache Data/Automated"` relative to the working
                 directory.
 

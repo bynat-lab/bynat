@@ -91,7 +91,7 @@ def test_sqlite_connection_configures_timeout_wal_and_full_synchronous(tmp_path)
 
 
 def test_sqlite_connection_closes_when_pragma_configuration_fails(tmp_path, monkeypatch):
-    caching_module = importlib.import_module("bynat.caching.Caching")
+    caching_module = importlib.import_module("bynat.caching._storage")
 
     class FailingConnection:
         def __init__(self):

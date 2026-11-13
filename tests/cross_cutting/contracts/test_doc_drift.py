@@ -1,5 +1,6 @@
 """Verify that literal docstrings and the accessor stub match implementations."""
 
+import importlib
 import inspect
 from pathlib import Path
 
@@ -103,4 +104,30 @@ def test_documented_caching_exports_and_cleaning_namespace_boundary():
     mgr = shared_cache_manager()
     assert isinstance(mgr, CacheManager)
     assert sorted(bynat.cleaning.__all__) == ["BaseData", "CsvFile", "JsonFile"]
+
+
+def test_package_modules_declare_valid_all_and_remove_legacy_shims():
+    import bynat
+
+    package_root = Path(bynat.__file__).resolve().parent
+    module_paths = sorted(package_root.rglob("*.py"))
+    assert module_paths
+
+    for path in module_paths:
+        rel_parts = path.relative_to(package_root.parent).with_suffix("").parts
+        module_name = ".".join(rel_parts[:-1] if rel_parts[-1] == "__init__" else rel_parts)
+        module = importlib.import_module(module_name)
+        assert hasattr(module, "__all__"), f"{module_name} is missing __all__"
+        exports = module.__all__
+        assert isinstance(exports, (list, tuple)), f"{module_name}.__all__ must be list or tuple"
+        for symbol in exports:
+            assert isinstance(symbol, str) and not symbol.startswith("_"), (
+                f"{module_name}.__all__ exposes invalid symbol {symbol!r}"
+            )
+            assert hasattr(module, symbol), f"{module_name}.__all__ declares missing {symbol!r}"
+
+    for removed_shim in ("bynat.cleaning.Cleaning", "bynat.caching.Caching"):
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(removed_shim)
+
 

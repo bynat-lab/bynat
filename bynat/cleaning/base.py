@@ -17,23 +17,7 @@ import pandas as pd
 from bynat.caching import CacheManager
 
 from . import columns, io, profile, stats, text
-from ._common import (  # noqa: F401  (re-exported for `bynat.cleaning.Cleaning` imports)
-    _HIERARCHICAL_STATS_COLUMNS,
-    _cache_has_value,
-    _cache_lookup_value,
-    _cache_value_key,
-    _constructor_accepts_data,
-    _convert_default_output,
-    _convert_output,
-    _dedupe_key,
-    _import_optional,
-    _left_merge_aligned,
-    _require_positive_int,
-    _validate_output_type,
-    logger,
-)
 from .enrich import currency, geocode, nlp, translate
-from .enrich.nlp import _nlp_cache_bucket, _normalize_nlp_disable  # noqa: F401
 from .enrich.providers import Geocoder, RateSource, Translator
 
 __all__ = ['BaseData', 'JsonFile', 'CsvFile']
@@ -152,12 +136,6 @@ class BaseData(pd.DataFrame):
             None
         """
         self.cache_manager.delete_column_cache(func_name, target_col)
-
-
-    _cache_value_key = staticmethod(_cache_value_key)
-    _cache_has_value = staticmethod(_cache_has_value)
-    _cache_lookup_value = staticmethod(_cache_lookup_value)
-    _require_positive_int = staticmethod(_require_positive_int)
 
 
     def view(self) -> pd.DataFrame:

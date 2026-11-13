@@ -35,9 +35,6 @@ def test_public_cleaning_imports_use_the_bundled_cache_manager(tmp_path):
 
     assert isinstance(frame.cache_manager, CacheManager)
     assert BaseData.__module__ == "bynat.cleaning.base"
-    legacy = __import__("bynat.cleaning.Cleaning", fromlist=["__all__"])
-    assert legacy.BaseData is BaseData
-    assert {"BaseData", "JsonFile", "CsvFile"}.issubset(set(legacy.__all__))
 
 
 def test_json_and_csv_constructors_read_local_files(tmp_path):

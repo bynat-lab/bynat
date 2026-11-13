@@ -76,8 +76,12 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.11"
 files = [
+    "bynat/caching/_keys.py",
+    "bynat/caching/_migration.py",
+    "bynat/caching/_storage.py",
     "bynat/caching/manager.py",
     "bynat/cleaning/_common.py",
+    "bynat/cleaning/_outputs.py",
     "bynat/cleaning/accessor.py",
     "bynat/cleaning/columns.py",
     "bynat/cleaning/enrich",
@@ -96,7 +100,7 @@ warn_return_any = false
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["bynat.cleaning.base", "bynat.caching.Caching", "bynat.cleaning.Cleaning"]
+module = ["bynat.cleaning.base"]
 ignore_errors = true
 
 [[tool.mypy.overrides]]

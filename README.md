@@ -42,6 +42,7 @@
 - **Handle outliers and gaps:** find outliers and fill missing values by comparing each row with similar rows (grouped by a hierarchy of columns).
 - **Enrich data:** translate values, geocode missing coordinates, convert amounts to USD, and extract entities with spaCy.
 - **Read and write files:** load CSV and JSON files, and save data to JSON or a SQL database.
+- **Analyze data:** compute categorical distributions, grouped numerical aggregations, gap-filled time series, single-value KPIs, and histogram bins.
 - **Cache results:** store lookup results in a SQLite database and reuse them between runs.
 
 ### Ways to use it
@@ -50,6 +51,7 @@ You can mix these styles in the same project:
 
 - **Class-based API:** `BaseData`, `JsonFile`, and `CsvFile`. This is the primary API.
 - **pandas accessor:** the optional `df.bynat` accessor adds the same cleaning operations to ordinary `pandas.DataFrame` objects.
+- **Analytics API:** `Analyzer` in `bynat.analytics` produces dictionary-ready summaries for charts, dashboards, and APIs, independent of any BI tool.
 - **Caching API:** `CacheManager` stores per-function dictionaries in a SQLite database.
 
 New here? [Install bynat](#installation), then go to the [Quick start](#quick-start).
@@ -142,9 +144,10 @@ Both versions return a new object and leave `records` unchanged. Accessor method
 
 ## Using bynat
 
-bynat has two parts that work together:
+bynat has three parts that work together:
 
 - **Cleaning** (`bynat.cleaning`): column, text, statistics, enrichment, and file methods.
+- **Analytics** (`bynat.analytics`): reusable DataFrame aggregations, distributions, time series, KPIs, and histogram bins.
 - **Caching** (`bynat.caching`): SQLite-backed storage for lookup results.
 
 Cleaning methods that call outside services (translation, geocoding, NLP extraction, and exchange-rate lookup) use a shared `CacheManager`. See [Caching](#caching).
@@ -854,6 +857,47 @@ Notes:
 | `clear_cache_for_column` | `func_name`, `target_col` | Deletes one cache bucket through the attached `CacheManager`. |
 | `view` (`BaseData` only) | none | Returns a plain `pandas.DataFrame` view or copy of the object. |
 
+### Analytics
+
+`Analyzer` in `bynat.analytics` summarizes ordinary `pandas.DataFrame` objects into dictionary payloads (`{"data": ...}`) ready for charts, dashboards, and APIs. It copies the input DataFrame on initialization, supports optional `filters` and post-aggregation `rules`, requires only `pandas` and `numpy`, and stays independent of Power BI or other application-specific integrations.
+
+```python
+import pandas as pd
+
+from bynat.analytics import Analyzer
+
+sales = pd.DataFrame({
+    "region": ["North", "North", "South", "East", "West"],
+    "revenue": [120.0, 80.0, 200.0, 50.0, 40.0],
+    "order_date": ["2026-01-05", "2026-01-20", "2026-03-10", "2026-03-12", "2026-03-15"],
+})
+
+analyzer = Analyzer(sales)
+
+# 1. Categorical distribution with top_n + Others breakdown
+dist = analyzer.get_categorical_distribution("region", top_n=2, show_others=True)
+
+# 2. Grouped numerical aggregation with filters and computed rules on output rows
+rev_by_region = analyzer.get_numerical_aggregation(
+    "region",
+    "revenue",
+    agg_func="sum",
+    filters={"revenue": {">=": 50}},
+    rules=[{"new_col": "y_k", "expression": "y / 1000"}],
+)
+
+# 3. Gap-filled time series ("M", "Y", "H", "D")
+monthly = analyzer.get_time_series("order_date", time_period="M", num_col="revenue", agg_func="sum")
+
+# 4. Single-value KPI card
+total_rev = analyzer.get_kpi_value("revenue", agg_func="sum", round_value=2, title="Total Revenue")
+
+# 5. Histogram bins
+hist = analyzer.get_bins("revenue", bins=3)
+```
+
+All five methods (`get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, `get_bins`) return empty or `None` payloads (`{"data": []}` or `{"data": None, "title": ...}`) when columns are missing or empty, and `Analyzer(...)` raises `TypeError` on non-`DataFrame` inputs. Invalid filters, unsafe expressions, and failing aggregations log warnings via `"bynat.analytics.analyzer"` rather than crashing callers.
+
 ---
 
 ## Module layout
@@ -862,6 +906,7 @@ Use this table to find where things live if you want to read the source or impor
 
 | Module | Purpose | Contents |
 | --- | --- | --- |
+| `bynat.analytics.analyzer` | Summarizing and aggregating data | `Analyzer` (distributions, numerical aggregations, time series, KPIs, histogram bins) |
 | `bynat.caching.manager` | Remembering results | `CacheManager` and `shared_cache_manager` |
 | `bynat.cleaning.columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
 | `bynat.cleaning.text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |

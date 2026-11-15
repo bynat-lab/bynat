@@ -220,7 +220,7 @@ This section contains mandatory, enforceable requirements specific to the `bynat
 
 - **BYNAT-ARCH-1: Three-Tier Hierarchical Suite Layout.** The `tests/` directory MUST conform to the three-tier hierarchical architecture established by TEST-ARCH-01:
   1. `tests/conftest.py`: Root configuration, environment hooks, and suite-wide fixtures.
-  2. `tests/modules/<module>/`: Module-owned unit and component-level integration tests mirroring production subpackages (`caching`, `columns`, `text`, `stats`, `profile`, `io`, `enrichment`).
+  2. `tests/modules/<module>/`: Module-owned unit and component-level integration tests mirroring production subpackages (`analytics`, `caching`, `columns`, `text`, `stats`, `profile`, `io`, `enrichment`).
   3. `tests/cross_cutting/<topic>/`: Topic-oriented cross-cutting suites verifying multi-component contracts, parity, workflows, and invariants (`accessor`, `base_api`, `contracts`, `equivalence`, `workflows`).
   4. `tests/shared/`: Genuinely reusable test infrastructure shared across distinct domains. [BP]
 - **BYNAT-ARCH-2: Module Ownership Rules.** Each test file under `tests/modules/<module>/` MUST verify behavior belonging primarily to the corresponding production module under `bynat/`. A module test MAY exercise supporting internal dependencies (e.g. caching managers or helpers) only when directly supporting the primary module behavior under test. Module tests MUST NOT own cross-module contracts or end-to-end workflows. [BP]
@@ -424,7 +424,7 @@ The following requirements apply to all public frame-to-frame transformations ac
 
 ### 3.4 Public API, Export Boundaries, and Optional Integrations (BYNAT-API)
 
-- **BYNAT-API-1: Public Entry Points.** Tests MUST verify public accessibility through documented entry points: `bynat`, `bynat.cleaning`, `bynat.caching`, `df.bynat`, `BaseData`, `CsvFile`, and `JsonFile`. [BP]
+- **BYNAT-API-1: Public Entry Points.** Tests MUST verify public accessibility through documented entry points: `bynat`, `bynat.analytics`, `bynat.cleaning`, `bynat.caching`, `Analyzer`, `df.bynat`, `BaseData`, `CsvFile`, and `JsonFile`. [BP]
 - **BYNAT-API-2: Strict `bynat.cleaning.__all__` Boundary.** The `bynat.cleaning` namespace MUST export ONLY `["BaseData", "CsvFile", "JsonFile"]`. Profiling functions MUST be imported from `bynat.cleaning.profile`, accessor APIs from `bynat.cleaning.accessor`, and loader helpers from `bynat.cleaning.io`. Tests MUST enforce this boundary via `tests/cross_cutting/contracts/test_doc_drift.py`. [BP]
 - **BYNAT-API-3: Contract Pinning for Caching and Enrichment Defaults.** Contract tests MUST pin documented caching exports (`CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR`) and default enrichment providers (`GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource`). [BP]
 - **BYNAT-API-4: Signature and Docstring Synchronization.** Runtime `inspect.signature` and docstrings on `BaseData` and `df.bynat` MUST stay synchronized with shared implementation functions. `bynat/cleaning/accessor.pyi` MUST stay synchronized with `accessor.py` via `tools/sync_docs.py`, verified by `test_doc_drift.py`. [BP]

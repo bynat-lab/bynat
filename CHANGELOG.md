@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Integrated `bynat.analytics` with `Analyzer` exported cleanly via `__all__ = ["Analyzer"]` in both `bynat.analytics` and `bynat.analytics.analyzer`, providing `get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, and `get_bins` independently of application-specific or Power BI integrations.
+- Added input type validation in `Analyzer.__init__` (`TypeError` for non-`pandas.DataFrame` inputs) and edge-case guards for boolean `bins`, timezone-aware datetimes in `get_time_series`, `observed=True` categorical groupby handling, nullable dtype filter masks, callable Series method validation, and non-scalar KPI aggregation fallbacks.
+- Added unit and contract test suite under `tests/modules/analytics/`.
+
+### Changed
+- Renamed `bynat/analytics/Analytics.py` to `bynat/analytics/analyzer.py` to align with package naming conventions.
+- Replaced `print` diagnostics in `bynat.analytics.analyzer` with standard library logging (`logging.getLogger(__name__)`).
+
 ## [0.6.6]
 
 ### Added

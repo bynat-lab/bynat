@@ -9,6 +9,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Cleaning functions** in `columns`, `text`, `stats`, `enrich` (`translate`, `geocode`, `currency`, `nlp`, `engine`, `providers`), and `io` take a DataFrame first and return a new one: column helpers, text extraction, hierarchical outlier handling, imputation and statistics, external-service enrichment (translation, geocoding, currency, spaCy), and JSON/SQL export and loading.
 - **`BaseData`**, `JsonFile`, and `CsvFile` (`bynat.cleaning.base`) are supported public class-based APIs. `BaseData` remains a supported `pandas.DataFrame` subclass over the shared functions. **`df.bynat`** (`bynat.cleaning.accessor`) is an optional complementary interface for ordinary DataFrames, not a replacement or required access path. `bynat.cleaning.Cleaning` and `bynat.caching.Caching` are compatibility aliases.
 - **`bynat.caching.CacheManager`** keeps one SQLite database per cache directory (`cache.sqlite3`) holding nested dictionaries keyed by column, importing legacy `<func_name>_cache.json` files on first read. Its public methods are `load_function_cache`, `get_column_cache`, `save_function_cache`, and `delete_column_cache`. There is no `get`, `set`, `clear`, or TTL API.
+- **`bynat.analytics` (`Analyzer`)**: reusable, application-independent DataFrame analytics helpers for categorical distributions, numerical aggregations, time-series bucketing, KPI values, and histogram binning (`bynat/analytics/analyzer.py`), independent of Power BI and external integrations.
 
 ## 2. Principles
 
@@ -63,6 +64,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 | 0.6.6 | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/cross_cutting/workflows/test_fill_missing_from_imputation.py` |
 | Unreleased | TEST-01 comprehensive test suite audit and quality improvement: test inventory, quality remediation, public-contract and coverage gap testing, and final verification | docs/TESTING_STANDARDS.md, tests/ |
 | Unreleased | QA-02 mutation testing tooling and first advisory run: Cosmic Ray integration, core-scope configuration, scheduled advisory CI job, report upload, and initial survivor triage | pyproject.toml, cosmic-ray.toml, .github/workflows/test.yml, assets/plan/evidence/test-05/mutation_triage.md |
+| Unreleased | ANALYTICS-01 analytics library integration: public `bynat.analytics` (`Analyzer`) package, input/output contracts, unit and contract tests, and documentation | bynat/analytics/__init__.py, bynat/analytics/analyzer.py, tests/modules/analytics/, README.md, docs/ROADMAP.md, docs/TESTING_STANDARDS.md |
 
 ### Public API policy
 
@@ -85,13 +87,6 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **L** a week or more.
 
 ### Next minor release
-
-### Milestone 7 (`0.7.0`): analytics integration
-
-#### `ANALYTICS-01`: integrate the analytics library (P1, M)
-- **Problem:** the existing analytics library is separate from `bynat`, so its functionality is not yet available through the package's public API.
-- **Plan:** integrate the existing library under `bynat.analytics`, preserving its current behavior and defining clear public API and output contracts. Keep analytics logic independent of application-specific integrations such as Power BI.
-- **Done when:** the analytics functionality is accessible through the documented package API, existing behavior is preserved, and tests cover public interfaces and output contracts.
 
 ### Milestone 8 (`0.8.0`): data quality
 

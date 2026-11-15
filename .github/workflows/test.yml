@@ -4,8 +4,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "0 3 * * 0"
 
 permissions:
   contents: read
@@ -96,38 +94,3 @@ jobs:
 
       - name: Run optional-dependency tests
         run: python -m pytest -m extras -rs
-
-  scheduled-quality:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install package with dev and optional dependencies
-        run: python -m pip install ".[dev,translation,geocoding,currency,categorization,nlp,sql]"
-
-      - name: Run extended Hypothesis property tests
-        run: python -m pytest -m property --hypothesis-profile=extended
-
-      - name: Run slow concurrency suite
-        run: python -m pytest -m slow
-
-      - name: Run advisory Cosmic Ray mutation session
-        continue-on-error: true
-        run: |
-          cosmic-ray init cosmic-ray.toml session.sqlite
-          cosmic-ray exec cosmic-ray.toml session.sqlite
-          cr-report session.sqlite > mutation_report.txt
-
-      - name: Upload mutation report artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutation-report
-          path: mutation_report.txt

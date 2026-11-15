@@ -125,6 +125,7 @@ class BynatAccessor:
     handle_outliers = _frame_method(stats.handle_outliers)
     drop_outliers = _frame_method(stats.drop_outliers)
     fill_missing = _frame_method(stats.fill_missing)
+    fill_missing_from = _frame_method(stats.fill_missing_from)
     get_hierarchical_stats = _frame_method(stats.get_hierarchical_stats)
     profile = _frame_method(profile.profile)
 

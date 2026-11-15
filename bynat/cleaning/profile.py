@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from ._common import _dedupe_key
+from ._outputs import is_basedata_type
 
 __all__ = [
     "ProfileReport",
@@ -1028,9 +1029,7 @@ def profile(
     if output_type is pd.DataFrame:
         return report.to_dataframe()
 
-    from bynat.cleaning.base import BaseData
-
-    if isinstance(output_type, type) and issubclass(output_type, BaseData):
+    if is_basedata_type(output_type):
         return output_type(data=report.to_dataframe())
 
     raise TypeError(

@@ -8,6 +8,10 @@ from .._common import FrameT, _require_positive_int, logger
 from .engine import _cached_map
 from .providers import Geocoder, NominatimGeocoder
 
+__all__ = [
+    "fill_missing_coordinates",
+]
+
 
 def fill_missing_coordinates(
     df: FrameT,

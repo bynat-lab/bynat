@@ -12,6 +12,10 @@ from .._common import FrameT, _import_optional, _left_merge_aligned, logger
 from .engine import _cached_map
 from .providers import RateSource, YFinanceRateSource
 
+__all__ = [
+    "convert_to_usd",
+]
+
 
 def _lookback_years(year: int, min_year: int) -> range:
     """Years checked for a rate, from `year` back to `min_year`."""

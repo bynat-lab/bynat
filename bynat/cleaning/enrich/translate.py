@@ -7,17 +7,22 @@ import numpy as np
 import pandas as pd
 
 from bynat.caching import CacheManager
+from bynat.caching._keys import _cache_has_value, _cache_lookup_value
 
 from .._common import (
     FrameT,
-    _cache_has_value,
-    _cache_lookup_value,
     _import_optional,
     _require_positive_int,
     logger,
 )
 from .engine import SKIP, _cached_map, _rate_limited_map
 from .providers import GoogleTranslatorProvider, Translator
+
+__all__ = [
+    "impute_by_language",
+    "translate_categorical_column",
+    "translate_conditional_column",
+]
 
 
 def _translate_all(provider: Any, texts: Sequence[str], target_lang: str) -> list[Any]:

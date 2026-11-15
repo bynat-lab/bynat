@@ -10,6 +10,12 @@ import pandas as pd
 
 from ._common import FrameT, _import_optional
 
+__all__ = [
+    "categorize_by_reference",
+    "extract_keywords",
+    "truncate_after_substring",
+]
+
 _WHITESPACE = re.compile(r'\s+')
 
 

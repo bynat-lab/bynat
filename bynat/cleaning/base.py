@@ -769,7 +769,7 @@ class BaseData(pd.DataFrame):
 
 
     @_shares_doc(text.truncate_after_substring)
-    def truncate_after_substring(self, inplace: bool = False, regex: bool = True, **target_cols_and_substrings) -> Self | None:
+    def truncate_after_substring(self, regex: bool = True, inplace: bool = False, **target_cols_and_substrings) -> Self | None:
         """
         Remove specific substrings and everything following them from target columns.
 

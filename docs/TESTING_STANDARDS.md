@@ -220,7 +220,7 @@ This section contains mandatory, enforceable requirements specific to the `bynat
 
 - **BYNAT-ARCH-1: Three-Tier Hierarchical Suite Layout.** The `tests/` directory MUST conform to the three-tier hierarchical architecture established by TEST-ARCH-01:
   1. `tests/conftest.py`: Root configuration, environment hooks, and suite-wide fixtures.
-  2. `tests/modules/<module>/`: Module-owned unit and component-level integration tests mirroring production subpackages (`caching`, `columns`, `text`, `stats`, `profile`, `io`, `enrichment`).
+  2. `tests/modules/<module>/`: Module-owned unit and component-level integration tests mirroring production subpackages (`analytics`, `caching`, `columns`, `text`, `stats`, `profile`, `io`, `enrichment`).
   3. `tests/cross_cutting/<topic>/`: Topic-oriented cross-cutting suites verifying multi-component contracts, parity, workflows, and invariants (`accessor`, `base_api`, `contracts`, `equivalence`, `workflows`).
   4. `tests/shared/`: Genuinely reusable test infrastructure shared across distinct domains. [BP]
 - **BYNAT-ARCH-2: Module Ownership Rules.** Each test file under `tests/modules/<module>/` MUST verify behavior belonging primarily to the corresponding production module under `bynat/`. A module test MAY exercise supporting internal dependencies (e.g. caching managers or helpers) only when directly supporting the primary module behavior under test. Module tests MUST NOT own cross-module contracts or end-to-end workflows. [BP]
@@ -424,7 +424,7 @@ The following requirements apply to all public frame-to-frame transformations ac
 
 ### 3.4 Public API, Export Boundaries, and Optional Integrations (BYNAT-API)
 
-- **BYNAT-API-1: Public Entry Points.** Tests MUST verify public accessibility through documented entry points: `bynat`, `bynat.cleaning`, `bynat.caching`, `df.bynat`, `BaseData`, `CsvFile`, and `JsonFile`. [BP]
+- **BYNAT-API-1: Public Entry Points.** Tests MUST verify public accessibility through documented entry points: `bynat`, `bynat.analytics`, `bynat.cleaning`, `bynat.caching`, `Analyzer`, `df.bynat`, `BaseData`, `CsvFile`, and `JsonFile`. [BP]
 - **BYNAT-API-2: Strict `bynat.cleaning.__all__` Boundary.** The `bynat.cleaning` namespace MUST export ONLY `["BaseData", "CsvFile", "JsonFile"]`. Profiling functions MUST be imported from `bynat.cleaning.profile`, accessor APIs from `bynat.cleaning.accessor`, and loader helpers from `bynat.cleaning.io`. Tests MUST enforce this boundary via `tests/cross_cutting/contracts/test_doc_drift.py`. [BP]
 - **BYNAT-API-3: Contract Pinning for Caching and Enrichment Defaults.** Contract tests MUST pin documented caching exports (`CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR`) and default enrichment providers (`GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource`). [BP]
 - **BYNAT-API-4: Signature and Docstring Synchronization.** Runtime `inspect.signature` and docstrings on `BaseData` and `df.bynat` MUST stay synchronized with shared implementation functions. `bynat/cleaning/accessor.pyi` MUST stay synchronized with `accessor.py` via `tools/sync_docs.py`, verified by `test_doc_drift.py`. [BP]
@@ -446,7 +446,7 @@ The following requirements apply to all public frame-to-frame transformations ac
 - **BYNAT-MARK-2: Primary Test-Type Markers.** Every standard test function MUST carry exactly one primary test-type marker (`unit`, `integration`, or `property`). [BP]
 - **BYNAT-MARK-3: Environment Filter Marker (`extras`).** Tests requiring optional extras MUST be marked `@pytest.mark.extras` and MUST call `pytest.importorskip("<module>")`. [SB]
 - **BYNAT-MARK-4: Cost Filter Marker (`slow`).** Tests taking more than a few seconds MUST be marked `@pytest.mark.slow`. [BP]
-- **BYNAT-MARK-5: Mutation Support Tests.** `pytest -m mutation` executes dedicated Python test functions added to kill surviving mutants. Running `pytest -m mutation` does NOT invoke the Cosmic Ray engine. [BP]
+- **BYNAT-MARK-5: Mutation Support Tests.** `pytest -m mutation` executes dedicated Python test functions added to kill surviving mutants. Running `pytest -m mutation` does NOT invoke the Cosmic Ray engine. These tests are also included in the Cosmic Ray `test-command` (see §4.3) so they kill survivors during the advisory session. [BP]
 - **BYNAT-MARK-6: Reserved Quarantine Marker (`network`).** The `network` marker is registered to allow `-m "not network"` filtering. No supported test in `bynat` may access live network services. [BP]
 - **BYNAT-MARK-7: Permitted Marker Combinations.** A test carries its primary type marker (`unit`, `integration`, or `property`) combined with `extras`, `slow`, or `mutation` when applicable (e.g. `@pytest.mark.integration` + `@pytest.mark.extras`). Forced over-marking is prohibited. [BP]
 - **BYNAT-CFG-1: Pytest Discovery Configuration.** `pyproject.toml` configures:
@@ -506,11 +506,11 @@ The adoption roadmap established in §12 of the previous standards has been exec
 
 ## 4. CI Integration Specification
 
-This section documents how Continuous Integration workflows in `.github/workflows/test.yml` and pytest implement Authority Levels 1 and 2.
+This section documents how the Continuous Integration workflows in `.github/workflows/test.yml` (push, pull request, and manual dispatch) and `.github/workflows/scheduled-quality.yml` (weekly schedule and manual dispatch), together with pytest, implement Authority Levels 1 and 2.
 
 ### 4.1 Workflows and Job Matrix
 
-`.github/workflows/test.yml` defines five automated CI jobs executed on every push, pull request, manual dispatch, and weekly schedule (`cron: "0 3 * * 0"`):
+`.github/workflows/test.yml` defines four automated CI jobs executed on every push, pull request, and manual dispatch (`workflow_dispatch`). It has no scheduled trigger and does not run the extended property, slow concurrency, or mutation sessions:
 
 | Job Name | Operating System | Python Version | Exact Command(s) Executed | Purpose & Rules Enforced |
 |---|---|---|---|---|
@@ -519,7 +519,13 @@ This section documents how Continuous Integration workflows in `.github/workflow
 | `test` (Matrix Leg 1) | `ubuntu-latest` | 3.11 | `pip install . pytest pytest-cov hypothesis build`<br>`python -m build`<br>`python -m compileall -q bynat tests`<br>`python -m pytest --cov=bynat --cov-branch --cov-report=term-missing --cov-report=xml`<br>`python tools/verify_installed_wheel.py` | Full core unit/integration suite, branch coverage gate (`BYNAT-METRIC-3`), and installed wheel verification (`BYNAT-TOOL-1`). |
 | `test` (Matrix Legs 2-4) | `ubuntu-latest` & `windows-latest` | 3.11 & 3.13 | `pip install . pytest pytest-cov hypothesis build`<br>`python -m build`<br>`python -m compileall -q bynat tests`<br>`python -m pytest -q` | Cross-platform compatibility and matrix execution parity across Linux/Windows and Python 3.11/3.13. |
 | `test-extras` | `ubuntu-latest` | 3.11 | `pip install ".[translation,geocoding,currency,categorization,nlp,sql]" pytest hypothesis`<br>`python -m pytest -m extras -rs` | Optional dependency integration suite exercising all extras (`BYNAT-MARK-3`). |
-| `scheduled-quality` | `ubuntu-latest` | 3.11 | `pip install ".[dev,translation,geocoding,currency,categorization,nlp,sql]"`<br>`python -m pytest -m property --hypothesis-profile=extended`<br>`python -m pytest -m slow`<br>`cosmic-ray init cosmic-ray.toml session.sqlite`<br>`cosmic-ray exec cosmic-ray.toml session.sqlite`<br>`cr-report session.sqlite > mutation_report.txt` | Extended Hypothesis properties (200 examples), slow concurrency tests, and advisory Cosmic Ray mutation session with artifact upload. |
+
+Scheduled quality checks are isolated in `.github/workflows/scheduled-quality.yml`, a dedicated workflow triggered on a weekly schedule (`cron: "0 3 * * 0"`) and on manual dispatch (`workflow_dispatch`). Separating these high-cost checks from regular PR/push CI keeps pull-request validation fast while still exercising extended property tests, concurrency stress tests, and advisory mutation testing. The workflow defines two jobs, and `scheduled-quality` requires `lint` to succeed before it starts:
+
+| Job Name | Operating System | Python Version | Exact Command(s) Executed | Purpose & Rules Enforced |
+|---|---|---|---|---|
+| `lint` | `ubuntu-latest` | 3.11 | `ruff check bynat tests benchmarks` | Code style, import sorting, and linting rules; gates the `scheduled-quality` job. |
+| `scheduled-quality` | `ubuntu-latest` | 3.11 | `pip install ".[dev,translation,geocoding,currency,categorization,nlp,sql]"`<br>`python -m pytest -m property --hypothesis-profile=extended`<br>`python -m pytest -m slow`<br>`cosmic-ray init cosmic-ray.toml session.sqlite`<br>`cosmic-ray exec cosmic-ray.toml session.sqlite`<br>`cr-report session.sqlite > mutation_report.txt`<br>`actions/upload-artifact@v4` (`if: always()`, artifact `mutation-report`) | Extended Hypothesis property profile (200 examples), slow concurrency suite, and advisory Cosmic Ray mutation session. The mutation step is non-blocking (`continue-on-error: true`), and the report is always uploaded as a workflow artifact. |
 
 ### 4.2 Marker Selection and Execution Architecture
 
@@ -536,11 +542,14 @@ Pytest test selection is governed by the orthogonal marker architecture:
 | **Mutation Support Suite**| `python -m pytest -m mutation` | `mutation` | Explicit `-m mutation` runs dedicated Python tests designed for Cosmic Ray survivor triage. |
 | **Network Quarantine** | `python -m pytest -m network` | `network` | **Collects and runs exactly 0 tests**, proving no live network tests exist. |
 
+The extended property and slow concurrency executions are scheduled-only checks defined in `.github/workflows/scheduled-quality.yml`; the remaining contexts execute in regular PR/push CI or locally.
+
 ### 4.3 Windows and Cross-Platform Parity
 
 - **Cross-Platform Determinism.** Tests MUST pass with identical assertion results on Windows and Ubuntu.
 - **Filesystem and Path Handling.** Tests MUST use `pathlib.Path` and `tmp_path` fixtures rather than hardcoded POSIX forward slashes or platform-specific separators.
 - **Pure Python Tooling.** Cosmic Ray is selected as the primary mutation testing tool because it is pure Python and operates cleanly on both Windows and Linux without requiring POSIX `fork()` system calls.
+- **Scheduled Mutation Configuration.** `cosmic-ray.toml` targets the core modules (`bynat/cleaning/stats.py`, `bynat/cleaning/enrich/engine.py`, `bynat/caching/manager.py`) with a 30-second timeout. Its `test-command` runs the decomposed module suites `tests/modules/stats`, `tests/modules/enrichment`, and `tests/modules/caching` with the marker filter `not slow and not extras and not network`. The `mutation` marker tests are intentionally **included**: they target `bynat/cleaning/enrich/engine.py::_cached_map` and are the dedicated survivor-killing tests for the Cosmic Ray session, so excluding them would lower the measured mutation score. The `extras` tests under `tests/modules/enrichment/optional/` are excluded because they exercise `save_to_sql` (`bynat/cleaning/io.py`) and `categorize_by_reference` (`bynat/cleaning/text.py`), which are outside the mutated module set, and including them would add per-work-item runtime without killing any target-module mutant. The advisory session runs only in `.github/workflows/scheduled-quality.yml`.
 
 ### 4.4 Local vs CI Parity and Verification Invariants
 
@@ -551,6 +560,16 @@ python -m mypy
 python -m pytest -q
 python -m pytest -m extras -rs
 python tools/verify_installed_wheel.py
+```
+
+The scheduled quality checks can be reproduced locally with:
+```bash
+python -m pip install ".[dev,translation,geocoding,currency,categorization,nlp,sql]"
+python -m pytest -m property --hypothesis-profile=extended
+python -m pytest -m slow
+cosmic-ray init cosmic-ray.toml session.sqlite
+cosmic-ray exec cosmic-ray.toml session.sqlite
+cr-report session.sqlite > mutation_report.txt
 ```
 
 ---

@@ -51,7 +51,7 @@ def convert_to_usd(
         value. Conversion divides the value by the rate, so the rate is the
         amount of local currency per one USD.
 
-        The input `df` is never modified. Missing `country_col` or `year_col`,
+        The standalone function never modifies `df`. Missing `country_col` or `year_col`,
         no valid target column, or an empty frame returns an unchanged copy
         (a warning is logged for the first two).
 
@@ -68,10 +68,15 @@ def convert_to_usd(
             round the converted values to. Defaults to None.
         provider (RateSource | None): Exchange-rate provider. Defaults to
             Yahoo Finance through `yfinance`.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with converted values. The input `df` is never
-        modified.
+        With `inplace=False` (default), a new dataframe with converted values; the input
+        is not modified. With `inplace=True`, the receiver is mutated in place and None
+        is returned.
 
     Raises:
         ImportError: If the optional `pycountry` or `Babel` dependency is not

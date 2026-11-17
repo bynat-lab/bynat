@@ -103,10 +103,15 @@ class BynatAccessor:
         Args:
             substring (str): The text to search for; any column containing this
                 string will be removed.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe without the matching columns. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe without the matching columns;
+            the input is not modified. With `inplace=True`, the receiver is mutated in place
+            and None is returned.
 
         Example:
         ```
@@ -128,9 +133,16 @@ class BynatAccessor:
         Equivalent to `drop_by_substring(df, "__CLASS__")`; the marker is matched
         literally.
 
+        Args:
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
+
         Returns:
-            A new dataframe without the matching columns. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe without the matching columns;
+            the input is not modified. With `inplace=True`, the receiver is mutated in place
+            and None is returned.
 
         Example:
         ```
@@ -153,11 +165,17 @@ class BynatAccessor:
             old_substring (str): The text to search for within the column names.
                 Matched literally and replaced everywhere it occurs.
             new_substring (str): The text to replace the old substring with.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with renamed columns. Columns without the substring are
-            kept unchanged; the input `df` is never modified. When no column name
-            contains `old_substring`, a copy of `df` is returned.
+            With `inplace=False` (default), a new dataframe with renamed columns;
+            the input is not modified. Columns without the substring are kept
+            unchanged, and when no column name contains `old_substring` a copy of
+            the input is returned. With `inplace=True`, the receiver is mutated in
+            place and None is returned.
 
         Example:
         ```
@@ -179,10 +197,16 @@ class BynatAccessor:
         Args:
             unified_separator (str): The new string to replace dots with.
                 Defaults to "_".
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with renamed columns. Column names without a dot are
-            kept unchanged; the input `df` is never modified.
+            With `inplace=False` (default), a new dataframe with renamed columns;
+            the input is not modified. Column names without a dot are kept
+            unchanged. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -207,11 +231,17 @@ class BynatAccessor:
         Args:
             first_cols (tuple): Column names that should appear first. Names that
                 are not present in `df.columns` are ignored.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with reordered columns. Unlisted columns keep their
-            relative order at the end, and the input `df` is never modified. When
-            none of `first_cols` exist, a copy of `df` is returned.
+            With `inplace=False` (default), a new dataframe with reordered columns;
+            the input is not modified. Unlisted columns keep their relative order
+            at the end, and when none of `first_cols` exist a copy of the input is
+            returned. With `inplace=True`, the receiver is mutated in place and None
+            is returned.
 
         Example:
         ```
@@ -241,7 +271,7 @@ class BynatAccessor:
             Use `pivot_index` and `pivot_columns` only when you want a different
             pivot layout from the melted dataframe.
 
-            The input `df` is never modified.
+            The standalone function never modifies `df`.
 
         Args:
             id_vars (list | str): Column(s) to use as identifier variables.
@@ -263,9 +293,15 @@ class BynatAccessor:
                 dataframe to use as pivot columns. Allowed columns are `id_vars`
                 and `var_name`. Defaults to `var_name`.
             **kwargs: Additional keyword arguments to pass to `transform_func`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new, reshaped dataframe. The input `df` is never modified.
+            With `inplace=False` (default), a new, reshaped dataframe; the input is
+            not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             TypeError: If a column argument has an invalid type, if `aggfunc`
@@ -299,11 +335,16 @@ class BynatAccessor:
             col_target (str): The reference column where the move will happen.
             position (str): Whether to place the column "after" or "before" the
                 target column. Defaults to "after".
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the column moved. The input `df` is never
-            modified. If either column is absent, an unchanged copy of `df` is
-            returned.
+            With `inplace=False` (default), a new dataframe with the column moved;
+            the input is not modified. If either column is absent, an unchanged
+            copy is returned. With `inplace=True`, the receiver is mutated in place
+            and None is returned.
 
         Raises:
             ValueError: If the `position` argument is not 'after' or 'before'.
@@ -333,10 +374,17 @@ class BynatAccessor:
         and **'longitude'** (case-sensitive). If the columns are named differently
         (e.g., 'lat' or 'LONG'), the alignment will not occur.
 
+        Args:
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
+
         Returns:
-            A new dataframe with aligned coordinate columns. The input `df` is
-            never modified; when either column is absent an unchanged copy is
-            returned.
+            With `inplace=False` (default), a new dataframe with aligned coordinate
+            columns; the input is not modified, and when either column is absent an
+            unchanged copy is returned. With `inplace=True`, the receiver is
+            mutated in place and None is returned.
 
         Example:
         ```
@@ -370,7 +418,7 @@ class BynatAccessor:
             - **Sentinel Values**: An index of `None` or `'all'` copies the whole
               source list into the target column.
             - Exploding rows changes the row count and resets the index.
-            - The input `df` is never modified. A missing `source_col` returns an
+            - The standalone function never modifies `df`. A missing `source_col` returns an
               unchanged copy.
 
         Args:
@@ -385,10 +433,15 @@ class BynatAccessor:
             **target_cols_and_indices: Keyword arguments where the key is the new
                 column name and the value is the index (int), the sentinel `None` or
                 `'all'`, or a list of indices (list) to extract from the source list.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the extracted columns. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with the extracted columns; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -443,7 +496,7 @@ class BynatAccessor:
               neither raises when the dependency is missing.
             - Source columns that are absent from `df` are ignored. When none of
               them are present, an unchanged copy of `df` is returned.
-            - The input `df` is never modified.
+            - The standalone function never modifies `df`.
 
         Args:
             *source_cols: Variable number of column names to search within. Column
@@ -455,10 +508,15 @@ class BynatAccessor:
             **target_cols_and_keywords: Keyword arguments where the key is the new
                 column name and the value is a list of strings to search for. A
                 single string is treated as a one-item list.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the extracted columns. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with the extracted columns; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -493,10 +551,15 @@ class BynatAccessor:
                 Defaults to True.
             **target_cols_and_substrings: Keyword arguments where the key is the column
                 name and the value is a string or a list of strings at which to cut off the text.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with truncated columns. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with truncated columns; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -541,7 +604,7 @@ class BynatAccessor:
               every row.
             - Source columns that are absent from `df` are ignored. When none of
               them are present, an unchanged copy of `df` is returned.
-            - The input `df` is never modified.
+            - The standalone function never modifies `df`.
 
         Args:
             *source_cols (str): Source columns containing the raw text to search.
@@ -552,10 +615,15 @@ class BynatAccessor:
                 a one-item list, and a non-dictionary value is treated as empty.
             default_category (str): The fallback value if no keywords are matched.
                 Defaults to 'Other'.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the category column. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with the category column; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             ImportError: If the optional `pyahocorasick` dependency is not
@@ -596,7 +664,7 @@ class BynatAccessor:
             - `min_samples` is not validated; it is compared against group sizes
                 as given. When `hierarchy_cols` is empty a warning is logged and
                 the values are returned unchanged.
-            - The input `df` is never modified.
+            - The standalone function never modifies `df`.
 
         Args:
             *target_cols: Numeric columns to evaluate for outliers. Names that do
@@ -609,10 +677,17 @@ class BynatAccessor:
                 statistics computed from the original data before outliers are
                 replaced. The default `median` strategy is used. Defaults to
                 False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new cleaned dataframe, or `(cleaned_dataframe, statistics)` when
-            `get_hierarchical_stats=True`. The input `df` is never modified.
+            With `inplace=False` (default), a new cleaned dataframe, or
+            `(cleaned_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and the statistics dataframe is returned when
+            `get_hierarchical_stats=True`, otherwise None.
         """
         ...
 
@@ -632,7 +707,7 @@ class BynatAccessor:
             - `min_samples` is not validated; it is compared against group sizes
                 as given. When `hierarchy_cols` is empty a warning is logged and
                 no rows are dropped.
-            - The input `df` is never modified.
+            - The standalone function never modifies `df`.
 
         Args:
             *target_cols: Numeric columns to inspect for outliers. Names that do
@@ -645,10 +720,17 @@ class BynatAccessor:
                 statistics computed from the original data before outlier rows are
                 dropped. The default `median` strategy is used. Defaults to
                 False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new filtered dataframe, or `(filtered_dataframe, statistics)` when
-            `get_hierarchical_stats=True`. The input `df` is never modified.
+            With `inplace=False` (default), a new filtered dataframe, or
+            `(filtered_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and the statistics dataframe is returned when
+            `get_hierarchical_stats=True`, otherwise None.
         """
         ...
 
@@ -669,7 +751,7 @@ class BynatAccessor:
                 Hierarchy columns that are not present in `df` are ignored.
             - Target columns that are not present in `df` are ignored; when none are
                 valid a warning is logged and an unchanged copy is returned.
-            - The input `df` is never modified. Statistics always come from `df`
+            - The standalone function never modifies `df`. Statistics always come from `df`
                 itself, so this method does not prevent leakage from a test set.
 
         Args:
@@ -695,10 +777,17 @@ class BynatAccessor:
                 hierarchical statistics computed from the original data before
                 imputation. The requested `strategy` is used. Defaults to
                 False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-            `get_hierarchical_stats=True`. The input `df` is never modified.
+            With `inplace=False` (default), a new imputed dataframe, or
+            `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and the statistics dataframe is returned when
+            `get_hierarchical_stats=True`, otherwise None.
 
         Raises:
             ValueError: If `strategy` is not one of the supported values, or if
@@ -752,7 +841,7 @@ class BynatAccessor:
             - Target columns that are not present in `df` are ignored; when none are
                 valid a warning is logged and an unchanged copy is returned. Hierarchy
                 columns must exist in both `df` and `dataset`.
-            - The input `df` is never modified, and `dataset` is never modified.
+            - The standalone function never modifies `df`, and `dataset` is never modified.
 
         Args:
             dataset (pd.DataFrame | BaseData): Reference dataset used to compute
@@ -781,11 +870,18 @@ class BynatAccessor:
                 Defaults to False.
             get_hierarchical_stats (bool): If True, also return the hierarchical
                 statistics computed from `dataset`. Defaults to False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-            `get_hierarchical_stats=True`. The input `df` and `dataset` are never
-            modified.
+            With `inplace=False` (default), a new imputed dataframe, or
+            `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            neither `df` nor `dataset` is modified. With `inplace=True`, the
+            receiver is mutated in place, `dataset` is still not modified, and the
+            statistics dataframe is returned when `get_hierarchical_stats=True`,
+            otherwise None.
 
         Raises:
             ValueError: If `dataset` is missing or empty, contains duplicate column
@@ -991,7 +1087,7 @@ class BynatAccessor:
                 3. Auto-Generation: If no valid translation is found, it generates a fallback name by title-casing the reference column.
             - **Deterministic Output**:
                 The `langdetect` seed is fixed to 0 to ensure consistent results across multiple runs.
-            - The input `df` is never modified. A missing `reference_col` or a
+            - The standalone function never modifies `df`. A missing `reference_col` or a
                 target column that is not present in `df` is skipped, and a frame
                 with no valid target column is returned unchanged.
 
@@ -1000,10 +1096,15 @@ class BynatAccessor:
             *target_cols: One or more columns to be updated/imputed (e.g., 'category_name').
                 Names that do not exist in `df` are skipped.
             target_lang (str): The ISO 639-1 language code to prefer. Defaults to 'en'.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with imputed columns. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with imputed columns; the input
+            is not modified. With `inplace=True`, the receiver is mutated in place and None
+            is returned.
 
         Raises:
             ImportError: If the optional `langdetect` dependency is not
@@ -1039,7 +1140,7 @@ class BynatAccessor:
         A partition is skipped when it has no detectable text, and its rows keep
         their original values. A translated value is Title-Cased, and a value
         that came back empty or as an error string is left untranslated and
-        uncached. The input `df` is never modified; when any of the three
+        uncached. The standalone function never modifies `df`; when any of the three
         required columns is missing an unchanged copy is returned.
 
         Args:
@@ -1061,10 +1162,15 @@ class BynatAccessor:
                 unseeded sampling. Defaults to 0.
             provider (Translator | None): Translation provider. Defaults to
                 Google Translate through `deep-translator`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with translated values. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with translated values; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             ValueError: If `threshold` is not between 0.0 and 1.0.
@@ -1103,7 +1209,7 @@ class BynatAccessor:
         Notes:
             Cache keys are stored as strings so non-string categories remain
             reusable after the cache is saved and loaded again.
-            The input `df` is never modified. A missing `target_col` or a column
+            The standalone function never modifies `df`. A missing `target_col` or a column
             with no non-null values returns an unchanged copy, and a translation
             that came back empty is left untranslated and uncached.
 
@@ -1115,10 +1221,15 @@ class BynatAccessor:
                 Defaults to 1000.
             provider (Translator | None): Translation provider. Defaults to
                 Google Translate through `deep-translator`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with translated values. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with translated values; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             ValueError: If `save_every` is not a positive integer.
@@ -1163,7 +1274,7 @@ class BynatAccessor:
             values. A failed query drops its leftmost comma-separated part and is
             retried until it resolves or runs out of parts.
 
-            The input `df` is never modified. A missing coordinate column or no
+            The standalone function never modifies `df`. A missing coordinate column or no
             usable fallback column returns an unchanged copy; an internal helper
             query column is always removed before returning.
 
@@ -1182,10 +1293,16 @@ class BynatAccessor:
             provider (Geocoder | None): Geocoding provider. Defaults to
                 Nominatim through `geopy`, rate-limited to one request per
                 second.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with completed coordinates. The input `df` is never
-            modified; existing valid coordinates are preserved.
+            With `inplace=False` (default), a new dataframe with completed
+            coordinates; the input is not modified and existing valid coordinates
+            are preserved. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             ValueError: If `save_every` is not a positive integer.
@@ -1214,7 +1331,7 @@ class BynatAccessor:
             value. Conversion divides the value by the rate, so the rate is the
             amount of local currency per one USD.
 
-            The input `df` is never modified. Missing `country_col` or `year_col`,
+            The standalone function never modifies `df`. Missing `country_col` or `year_col`,
             no valid target column, or an empty frame returns an unchanged copy
             (a warning is logged for the first two).
 
@@ -1231,10 +1348,15 @@ class BynatAccessor:
                 round the converted values to. Defaults to None.
             provider (RateSource | None): Exchange-rate provider. Defaults to
                 Yahoo Finance through `yfinance`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with converted values. The input `df` is never
-            modified.
+            With `inplace=False` (default), a new dataframe with converted values; the input
+            is not modified. With `inplace=True`, the receiver is mutated in place and None
+            is returned.
 
         Raises:
             ImportError: If the optional `pycountry` or `Babel` dependency is not
@@ -1304,9 +1426,15 @@ class BynatAccessor:
             **target_cols_and_json_keys: Mapping where each key is an output
                 column name and each value is a lexicon key or list of keys to
                 collect terms from.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with extracted entity-list columns.
+            With `inplace=False` (default), a new dataframe with extracted entity-list
+            columns; the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and None is returned.
 
         Raises:
             ValueError: If `disable` contains a required spaCy component, a

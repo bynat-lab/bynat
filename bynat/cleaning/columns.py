@@ -32,10 +32,15 @@ def drop_by_substring(df: FrameT, substring: str) -> FrameT:
     Args:
         substring (str): The text to search for; any column containing this
             string will be removed.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe without the matching columns. The input `df` is never
-        modified.
+        With `inplace=False` (default), a new dataframe without the matching columns;
+        the input is not modified. With `inplace=True`, the receiver is mutated in place
+        and None is returned.
 
     Example:
     ```
@@ -64,9 +69,16 @@ def drop_CLASS_columns(df: FrameT) -> FrameT:
     Equivalent to `drop_by_substring(df, "__CLASS__")`; the marker is matched
     literally.
 
+    Args:
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
+
     Returns:
-        A new dataframe without the matching columns. The input `df` is never
-        modified.
+        With `inplace=False` (default), a new dataframe without the matching columns;
+        the input is not modified. With `inplace=True`, the receiver is mutated in place
+        and None is returned.
 
     Example:
     ```
@@ -91,11 +103,17 @@ def rename_by_substring(df: FrameT, old_substring: str, new_substring: str) -> F
         old_substring (str): The text to search for within the column names.
             Matched literally and replaced everywhere it occurs.
         new_substring (str): The text to replace the old substring with.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with renamed columns. Columns without the substring are
-        kept unchanged; the input `df` is never modified. When no column name
-        contains `old_substring`, a copy of `df` is returned.
+        With `inplace=False` (default), a new dataframe with renamed columns;
+        the input is not modified. Columns without the substring are kept
+        unchanged, and when no column name contains `old_substring` a copy of
+        the input is returned. With `inplace=True`, the receiver is mutated in
+        place and None is returned.
 
     Example:
     ```
@@ -128,10 +146,16 @@ def rename_all_DOTS(df: FrameT, unified_separator: str = "_") -> FrameT:
     Args:
         unified_separator (str): The new string to replace dots with.
             Defaults to "_".
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with renamed columns. Column names without a dot are
-        kept unchanged; the input `df` is never modified.
+        With `inplace=False` (default), a new dataframe with renamed columns;
+        the input is not modified. Column names without a dot are kept
+        unchanged. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Example:
     ```
@@ -158,11 +182,17 @@ def reorder_columns(df: FrameT, *first_cols: Any) -> FrameT:
     Args:
         first_cols (tuple): Column names that should appear first. Names that
             are not present in `df.columns` are ignored.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with reordered columns. Unlisted columns keep their
-        relative order at the end, and the input `df` is never modified. When
-        none of `first_cols` exist, a copy of `df` is returned.
+        With `inplace=False` (default), a new dataframe with reordered columns;
+        the input is not modified. Unlisted columns keep their relative order
+        at the end, and when none of `first_cols` exist a copy of the input is
+        returned. With `inplace=True`, the receiver is mutated in place and None
+        is returned.
 
     Example:
     ```
@@ -212,7 +242,7 @@ def melt_transform_pivot(
         Use `pivot_index` and `pivot_columns` only when you want a different
         pivot layout from the melted dataframe.
 
-        The input `df` is never modified.
+        The standalone function never modifies `df`.
 
     Args:
         id_vars (list | str): Column(s) to use as identifier variables.
@@ -234,9 +264,15 @@ def melt_transform_pivot(
             dataframe to use as pivot columns. Allowed columns are `id_vars`
             and `var_name`. Defaults to `var_name`.
         **kwargs: Additional keyword arguments to pass to `transform_func`.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new, reshaped dataframe. The input `df` is never modified.
+        With `inplace=False` (default), a new, reshaped dataframe; the input is
+        not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Raises:
         TypeError: If a column argument has an invalid type, if `aggfunc`
@@ -464,11 +500,16 @@ def move_column(df: FrameT, col_to_move: str, col_target: str, position: str = "
         col_target (str): The reference column where the move will happen.
         position (str): Whether to place the column "after" or "before" the
             target column. Defaults to "after".
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with the column moved. The input `df` is never
-        modified. If either column is absent, an unchanged copy of `df` is
-        returned.
+        With `inplace=False` (default), a new dataframe with the column moved;
+        the input is not modified. If either column is absent, an unchanged
+        copy is returned. With `inplace=True`, the receiver is mutated in place
+        and None is returned.
 
     Raises:
         ValueError: If the `position` argument is not 'after' or 'before'.
@@ -513,10 +554,17 @@ def align_lat_lng(df: FrameT) -> FrameT:
     and **'longitude'** (case-sensitive). If the columns are named differently
     (e.g., 'lat' or 'LONG'), the alignment will not occur.
 
+    Args:
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
+
     Returns:
-        A new dataframe with aligned coordinate columns. The input `df` is
-        never modified; when either column is absent an unchanged copy is
-        returned.
+        With `inplace=False` (default), a new dataframe with aligned coordinate
+        columns; the input is not modified, and when either column is absent an
+        unchanged copy is returned. With `inplace=True`, the receiver is
+        mutated in place and None is returned.
 
     Example:
     ```
@@ -559,7 +607,7 @@ def split_list_objects(
         - **Sentinel Values**: An index of `None` or `'all'` copies the whole
           source list into the target column.
         - Exploding rows changes the row count and resets the index.
-        - The input `df` is never modified. A missing `source_col` returns an
+        - The standalone function never modifies `df`. A missing `source_col` returns an
           unchanged copy.
 
     Args:
@@ -574,10 +622,15 @@ def split_list_objects(
         **target_cols_and_indices: Keyword arguments where the key is the new
             column name and the value is the index (int), the sentinel `None` or
             `'all'`, or a list of indices (list) to extract from the source list.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with the extracted columns. The input `df` is never
-        modified.
+        With `inplace=False` (default), a new dataframe with the extracted columns; the
+        input is not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Example:
     ```

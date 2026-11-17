@@ -127,7 +127,7 @@ def handle_outliers(
         - `min_samples` is not validated; it is compared against group sizes
             as given. When `hierarchy_cols` is empty a warning is logged and
             the values are returned unchanged.
-        - The input `df` is never modified.
+        - The standalone function never modifies `df`.
 
     Args:
         *target_cols: Numeric columns to evaluate for outliers. Names that do
@@ -140,10 +140,17 @@ def handle_outliers(
             statistics computed from the original data before outliers are
             replaced. The default `median` strategy is used. Defaults to
             False.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new cleaned dataframe, or `(cleaned_dataframe, statistics)` when
-        `get_hierarchical_stats=True`. The input `df` is never modified.
+        With `inplace=False` (default), a new cleaned dataframe, or
+        `(cleaned_dataframe, statistics)` when `get_hierarchical_stats=True`;
+        the input is not modified. With `inplace=True`, the receiver is mutated
+        in place and the statistics dataframe is returned when
+        `get_hierarchical_stats=True`, otherwise None.
     """
 
     hierarchical_stats = (
@@ -196,7 +203,7 @@ def drop_outliers(
         - `min_samples` is not validated; it is compared against group sizes
             as given. When `hierarchy_cols` is empty a warning is logged and
             no rows are dropped.
-        - The input `df` is never modified.
+        - The standalone function never modifies `df`.
 
     Args:
         *target_cols: Numeric columns to inspect for outliers. Names that do
@@ -209,10 +216,17 @@ def drop_outliers(
             statistics computed from the original data before outlier rows are
             dropped. The default `median` strategy is used. Defaults to
             False.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new filtered dataframe, or `(filtered_dataframe, statistics)` when
-        `get_hierarchical_stats=True`. The input `df` is never modified.
+        With `inplace=False` (default), a new filtered dataframe, or
+        `(filtered_dataframe, statistics)` when `get_hierarchical_stats=True`;
+        the input is not modified. With `inplace=True`, the receiver is mutated
+        in place and the statistics dataframe is returned when
+        `get_hierarchical_stats=True`, otherwise None.
     """
 
     hierarchical_stats = (
@@ -271,7 +285,7 @@ def fill_missing(
             Hierarchy columns that are not present in `df` are ignored.
         - Target columns that are not present in `df` are ignored; when none are
             valid a warning is logged and an unchanged copy is returned.
-        - The input `df` is never modified. Statistics always come from `df`
+        - The standalone function never modifies `df`. Statistics always come from `df`
             itself, so this method does not prevent leakage from a test set.
 
     Args:
@@ -297,10 +311,17 @@ def fill_missing(
             hierarchical statistics computed from the original data before
             imputation. The requested `strategy` is used. Defaults to
             False.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-        `get_hierarchical_stats=True`. The input `df` is never modified.
+        With `inplace=False` (default), a new imputed dataframe, or
+        `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
+        the input is not modified. With `inplace=True`, the receiver is mutated
+        in place and the statistics dataframe is returned when
+        `get_hierarchical_stats=True`, otherwise None.
 
     Raises:
         ValueError: If `strategy` is not one of the supported values, or if
@@ -480,7 +501,7 @@ def fill_missing_from(
         - Target columns that are not present in `df` are ignored; when none are
             valid a warning is logged and an unchanged copy is returned. Hierarchy
             columns must exist in both `df` and `dataset`.
-        - The input `df` is never modified, and `dataset` is never modified.
+        - The standalone function never modifies `df`, and `dataset` is never modified.
 
     Args:
         dataset (pd.DataFrame | BaseData): Reference dataset used to compute
@@ -509,11 +530,18 @@ def fill_missing_from(
             Defaults to False.
         get_hierarchical_stats (bool): If True, also return the hierarchical
             statistics computed from `dataset`. Defaults to False.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-        `get_hierarchical_stats=True`. The input `df` and `dataset` are never
-        modified.
+        With `inplace=False` (default), a new imputed dataframe, or
+        `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
+        neither `df` nor `dataset` is modified. With `inplace=True`, the
+        receiver is mutated in place, `dataset` is still not modified, and the
+        statistics dataframe is returned when `get_hierarchical_stats=True`,
+        otherwise None.
 
     Raises:
         ValueError: If `dataset` is missing or empty, contains duplicate column

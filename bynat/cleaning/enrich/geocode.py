@@ -44,7 +44,7 @@ def fill_missing_coordinates(
         values. A failed query drops its leftmost comma-separated part and is
         retried until it resolves or runs out of parts.
 
-        The input `df` is never modified. A missing coordinate column or no
+        The standalone function never modifies `df`. A missing coordinate column or no
         usable fallback column returns an unchanged copy; an internal helper
         query column is always removed before returning.
 
@@ -63,10 +63,16 @@ def fill_missing_coordinates(
         provider (Geocoder | None): Geocoding provider. Defaults to
             Nominatim through `geopy`, rate-limited to one request per
             second.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with completed coordinates. The input `df` is never
-        modified; existing valid coordinates are preserved.
+        With `inplace=False` (default), a new dataframe with completed
+        coordinates; the input is not modified and existing valid coordinates
+        are preserved. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Raises:
         ValueError: If `save_every` is not a positive integer.

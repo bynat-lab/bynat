@@ -178,7 +178,7 @@ def extract_keywords(
           neither raises when the dependency is missing.
         - Source columns that are absent from `df` are ignored. When none of
           them are present, an unchanged copy of `df` is returned.
-        - The input `df` is never modified.
+        - The standalone function never modifies `df`.
 
     Args:
         *source_cols: Variable number of column names to search within. Column
@@ -190,10 +190,15 @@ def extract_keywords(
         **target_cols_and_keywords: Keyword arguments where the key is the new
             column name and the value is a list of strings to search for. A
             single string is treated as a one-item list.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with the extracted columns. The input `df` is never
-        modified.
+        With `inplace=False` (default), a new dataframe with the extracted columns; the
+        input is not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Example:
     ```
@@ -316,10 +321,15 @@ def truncate_after_substring(df: FrameT, regex: bool = True, **target_cols_and_s
             Defaults to True.
         **target_cols_and_substrings: Keyword arguments where the key is the column
             name and the value is a string or a list of strings at which to cut off the text.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with truncated columns. The input `df` is never
-        modified.
+        With `inplace=False` (default), a new dataframe with truncated columns; the
+        input is not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Example:
     ```
@@ -391,7 +401,7 @@ def categorize_by_reference(
           every row.
         - Source columns that are absent from `df` are ignored. When none of
           them are present, an unchanged copy of `df` is returned.
-        - The input `df` is never modified.
+        - The standalone function never modifies `df`.
 
     Args:
         *source_cols (str): Source columns containing the raw text to search.
@@ -402,10 +412,15 @@ def categorize_by_reference(
             a one-item list, and a non-dictionary value is treated as empty.
         default_category (str): The fallback value if no keywords are matched.
             Defaults to 'Other'.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with the category column. The input `df` is never
-        modified.
+        With `inplace=False` (default), a new dataframe with the category column; the
+        input is not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Raises:
         ImportError: If the optional `pyahocorasick` dependency is not

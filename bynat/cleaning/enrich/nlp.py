@@ -185,9 +185,15 @@ def extract_entities_nlp(
         **target_cols_and_json_keys: Mapping where each key is an output
             column name and each value is a lexicon key or list of keys to
             collect terms from.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with extracted entity-list columns.
+        With `inplace=False` (default), a new dataframe with extracted entity-list
+        columns; the input is not modified. With `inplace=True`, the receiver is mutated
+        in place and None is returned.
 
     Raises:
         ValueError: If `disable` contains a required spaCy component, a

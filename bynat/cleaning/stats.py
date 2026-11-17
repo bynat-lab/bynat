@@ -115,25 +115,35 @@ def handle_outliers(
     Replace outlier values with missing values using hierarchical IQR rules.
 
     Notes:
-        The method starts with the full grouping hierarchy and progressively
-        relaxes it by removing the last grouping column at each pass. Within
-        every valid group, values outside the 1.5 IQR bounds are converted
-        to `NaN`. Values replaced at one level are excluded from the
-        quartiles of later levels.
+        - The method starts with the full grouping hierarchy and progressively
+            relaxes it by removing the last grouping column at each pass. Within
+            every valid group, values outside the 1.5 IQR bounds are converted
+            to `NaN`. Values replaced at one level are excluded from the
+            quartiles of later levels.
+        - A row is judged only at the most specific level where its group has
+            at least `min_samples` non-null values. Groups that are too small
+            fall through to the next coarser level.
+        - Target columns that are not present in `df` are ignored.
+        - `min_samples` is not validated; it is compared against group sizes
+            as given. When `hierarchy_cols` is empty a warning is logged and
+            the values are returned unchanged.
+        - The input `df` is never modified.
 
     Args:
-        *target_cols: Numeric columns to evaluate for outliers.
+        *target_cols: Numeric columns to evaluate for outliers. Names that do
+            not exist in `df` are ignored.
         hierarchy_cols (list): Ordered grouping columns used to define peer
-            groups.
-        min_samples (int): Minimum number of rows required for a group to be
-            considered valid. Defaults to 5.
-        get_hierarchical_stats (bool): If True, also return the existing
-            hierarchical median statistics computed from the original data
-            before outliers are replaced. Defaults to False.
+            groups. A single string is treated as a one-item list.
+        min_samples (int): Minimum number of non-null rows required for a group
+            to be considered valid. Defaults to 5.
+        get_hierarchical_stats (bool): If True, also return the hierarchical
+            statistics computed from the original data before outliers are
+            replaced. The default `median` strategy is used. Defaults to
+            False.
 
     Returns:
         A new cleaned dataframe, or `(cleaned_dataframe, statistics)` when
-        `get_hierarchical_stats=True`.
+        `get_hierarchical_stats=True`. The input `df` is never modified.
     """
 
     hierarchical_stats = (
@@ -175,25 +185,34 @@ def drop_outliers(
     Remove rows that contain outlier values based on hierarchical IQR rules.
 
     Notes:
-        This method shares the same grouping logic as `handle_outliers`, but
-        instead of replacing detected outliers with `NaN`, it drops the
-        affected rows after scanning all requested target columns. Rows are
-        dropped by position, so a duplicated index label never removes its
-        twin row.
+        - This method shares the same grouping logic as `handle_outliers`, but
+            instead of replacing detected outliers with `NaN`, it drops the
+            affected rows after scanning all requested target columns. Rows are
+            dropped by position, so a duplicated index label never removes its
+            twin row.
+        - Outliers are accumulated across every target column, so a row is
+            dropped when any requested column flags it.
+        - Target columns that are not present in `df` are ignored.
+        - `min_samples` is not validated; it is compared against group sizes
+            as given. When `hierarchy_cols` is empty a warning is logged and
+            no rows are dropped.
+        - The input `df` is never modified.
 
     Args:
-        *target_cols: Numeric columns to inspect for outliers.
+        *target_cols: Numeric columns to inspect for outliers. Names that do
+            not exist in `df` are ignored.
         hierarchy_cols (list): Ordered grouping columns used to define peer
-            groups.
-        min_samples (int): Minimum number of rows required for a group to be
-            considered valid. Defaults to 5.
-        get_hierarchical_stats (bool): If True, also return the existing
-            hierarchical median statistics computed from the original data
-            before outlier rows are dropped. Defaults to False.
+            groups. A single string is treated as a one-item list.
+        min_samples (int): Minimum number of non-null rows required for a group
+            to be considered valid. Defaults to 5.
+        get_hierarchical_stats (bool): If True, also return the hierarchical
+            statistics computed from the original data before outlier rows are
+            dropped. The default `median` strategy is used. Defaults to
+            False.
 
     Returns:
         A new filtered dataframe, or `(filtered_dataframe, statistics)` when
-        `get_hierarchical_stats=True`.
+        `get_hierarchical_stats=True`. The input `df` is never modified.
     """
 
     hierarchical_stats = (
@@ -240,22 +259,32 @@ def fill_missing(
     Impute missing values by progressively relaxing a grouping hierarchy.
 
     Notes:
-        Supported strategies are `median`, `mean`, and `mode`. The method
-        attempts imputation using the full hierarchy first, then removes the
-        last grouping column one level at a time until no grouping columns
-        remain or the column is fully imputed.
-
-        Unfilled values remain `NaN` by default unless `fallback_global=True`
-        is set, in which case any remaining `NaN` values after exhausting the
-        hierarchy are filled using the column-wide statistic.
+        - Supported strategies are `median`, `mean`, and `mode`. The method
+            attempts imputation using the full hierarchy first, then removes the
+            last grouping column one level at a time until no grouping columns
+            remain or the column is fully imputed. The `mod` alias is
+            normalized to `mode`.
+        - Unfilled values remain `NaN` by default unless `fallback_global=True`
+            is set, in which case any remaining `NaN` values after exhausting the
+            hierarchy are filled using the column-wide statistic.
+        - A single string `hierarchy_cols` is treated as a one-item list.
+            Hierarchy columns that are not present in `df` are ignored.
+        - Target columns that are not present in `df` are ignored; when none are
+            valid a warning is logged and an unchanged copy is returned.
+        - The input `df` is never modified. Statistics always come from `df`
+            itself, so this method does not prevent leakage from a test set.
 
     Args:
-        *target_cols: Columns whose missing values should be filled.
+        *target_cols: Columns whose missing values should be filled. Names that
+            do not exist in `df` are ignored.
         strategy (str): Aggregation strategy to use. Supported values are
-            `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+            `median`, `mean`, `mode`, and `mod`. The value is lowercased before
+            validation. Defaults to `median`.
         hierarchy_cols (list | str, optional): Grouping columns that define
             the imputation hierarchy. A single string is treated as a
-            one-item list.
+            one-item list, and missing columns are ignored. Defaults to None,
+            which skips the hierarchy and only imputes when
+            `fallback_global=True`.
         min_samples (int): Minimum number of non-null observations required
             for a group to supply an imputation statistic. Groups with fewer
             observations fall through to coarser hierarchy levels. Defaults
@@ -271,7 +300,12 @@ def fill_missing(
 
     Returns:
         A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-        `get_hierarchical_stats=True`.
+        `get_hierarchical_stats=True`. The input `df` is never modified.
+
+    Raises:
+        ValueError: If `strategy` is not one of the supported values, or if
+            `min_samples` is not an integer greater than or equal to 1
+            (booleans are rejected).
 
     Example:
     ```
@@ -421,21 +455,32 @@ def fill_missing_from(
     row order, and un-imputed values are preserved.
 
     Notes:
-        Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
-        When `hierarchy_cols` are specified, imputation evaluates the most
-        specific grouping level first, then progressively drops grouping columns
-        until the column is fully imputed or the hierarchy is exhausted.
-
-        Groups in `dataset` with fewer than `min_samples` non-null observations
-        do not supply an imputation statistic, falling through to coarser levels.
-        If a group exists in `df` but has no matching rows (or insufficient samples)
-        in `dataset`, it falls through to coarser levels.
-
-        Unfilled values remain `NaN` by default unless `fallback_global=True` is
-        specified, in which case any remaining `NaN` values after exhausting the
-        hierarchy are filled using the reference dataset's column-wide statistic.
-        When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
-        imputation is performed using reference statistics.
+        - Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
+            When `hierarchy_cols` are specified, imputation evaluates the most
+            specific grouping level first, then progressively drops grouping columns
+            until the column is fully imputed or the hierarchy is exhausted.
+        - Groups in `dataset` with fewer than `min_samples` non-null observations
+            do not supply an imputation statistic, falling through to coarser levels.
+            If a group exists in `df` but has no matching rows (or insufficient samples)
+            in `dataset`, it falls through to coarser levels.
+        - Unfilled values remain `NaN` by default unless `fallback_global=True` is
+            specified, in which case any remaining `NaN` values after exhausting the
+            hierarchy are filled using the reference dataset's column-wide statistic.
+            When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
+            imputation is performed using reference statistics.
+        - `target_cols` accepts individual names and nested lists/tuples/sets,
+            which are flattened. Duplicates are removed in first-seen order. The
+            `targets` keyword accepts a single name or an iterable and is combined
+            with `*target_cols`.
+        - `match_cols` maps target column names to reference column names and
+            applies to both target and hierarchy columns. When omitted, identical
+            column names are used. When `get_hierarchical_stats=True`, the
+            returned statistics report target and hierarchy column names in the
+            target `df` spelling.
+        - Target columns that are not present in `df` are ignored; when none are
+            valid a warning is logged and an unchanged copy is returned. Hierarchy
+            columns must exist in both `df` and `dataset`.
+        - The input `df` is never modified, and `dataset` is never modified.
 
     Args:
         dataset (pd.DataFrame | BaseData): Reference dataset used to compute
@@ -450,7 +495,8 @@ def fill_missing_from(
         targets (Any, optional): Alternative way to specify target columns
             (e.g., a single column name or iterable of column names). Defaults to None.
         strategy (str): Aggregation strategy to use. Supported values are
-            `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+            `median`, `mean`, `mode`, and `mod`. The value is lowercased before
+            validation. Defaults to `median`.
         hierarchy_cols (list | str, optional): Grouping columns that define
             the imputation hierarchy in `df`. A single string is treated as a
             one-item list.
@@ -466,7 +512,8 @@ def fill_missing_from(
 
     Returns:
         A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-        `get_hierarchical_stats=True`.
+        `get_hierarchical_stats=True`. The input `df` and `dataset` are never
+        modified.
 
     Raises:
         ValueError: If `dataset` is missing or empty, contains duplicate column
@@ -778,6 +825,14 @@ def get_hierarchical_stats(
         pandas.DataFrame | BaseData | dict: Statistics in the requested
         output schema. Empty and invalid-result cases use the requested
         output type whenever possible.
+
+    Raises:
+        TypeError: If `strategy` is neither a string nor an iterable of
+            strings, or if `output_type` is not a supported type.
+        ValueError: If a requested strategy is not supported, if a strategy
+            iterable is empty, or if a target column overlaps a valid
+            hierarchy column. Construction errors from an explicitly
+            requested `output_type` propagate unchanged.
 
     Examples:
     ```

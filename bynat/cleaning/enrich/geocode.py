@@ -39,8 +39,18 @@ def fill_missing_coordinates(
         Queries that cannot be resolved are cached as `null`, so later runs
         do not re-query them. Network or service errors are not cached.
 
+        The query is built from the fallback columns in order, joined with
+        `", "`, skipping null, empty, `"nan"`/`"none"`, and purely numeric
+        values. A failed query drops its leftmost comma-separated part and is
+        retried until it resolves or runs out of parts.
+
+        The input `df` is never modified. A missing coordinate column or no
+        usable fallback column returns an unchanged copy; an internal helper
+        query column is always removed before returning.
+
     Args:
         *fallback_cols: Ordered columns used to build the geocoding query.
+            Names that do not exist in `df` are ignored.
         lat_col (str): Latitude column name.
         long_col (str): Longitude column name.
         save_every (int): Cache checkpoint frequency while geocoding.
@@ -55,10 +65,13 @@ def fill_missing_coordinates(
             second.
 
     Returns:
-        A new dataframe with completed coordinates.
+        A new dataframe with completed coordinates. The input `df` is never
+        modified; existing valid coordinates are preserved.
 
     Raises:
         ValueError: If `save_every` is not a positive integer.
+        ImportError: If the default provider's optional `geopy` dependency
+            is not installed and no `provider` is given.
     """
 
     _require_positive_int(save_every, "save_every")

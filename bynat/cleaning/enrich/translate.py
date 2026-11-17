@@ -100,14 +100,23 @@ def impute_by_language(
             3. Auto-Generation: If no valid translation is found, it generates a fallback name by title-casing the reference column.
         - **Deterministic Output**:
             The `langdetect` seed is fixed to 0 to ensure consistent results across multiple runs.
+        - The input `df` is never modified. A missing `reference_col` or a
+            target column that is not present in `df` is skipped, and a frame
+            with no valid target column is returned unchanged.
 
     Args:
         reference_col (str): The column used as a key (e.g., 'category_slug').
         *target_cols: One or more columns to be updated/imputed (e.g., 'category_name').
+            Names that do not exist in `df` are skipped.
         target_lang (str): The ISO 639-1 language code to prefer. Defaults to 'en'.
 
     Returns:
-        A new dataframe with imputed columns.
+        A new dataframe with imputed columns. The input `df` is never
+        modified.
+
+    Raises:
+        ImportError: If the optional `langdetect` dependency is not
+            installed.
 
     Example:
     ```
@@ -203,6 +212,12 @@ def translate_conditional_column(
     `threshold`, the unique values in `target_col` for that partition are translated.
     Results are cached to minimize API calls.
 
+    A partition is skipped when it has no detectable text, and its rows keep
+    their original values. A translated value is Title-Cased, and a value
+    that came back empty or as an error string is left untranslated and
+    uncached. The input `df` is never modified; when any of the three
+    required columns is missing an unchanged copy is returned.
+
     Args:
         partition_col (str): The column used to group or partition the data (e.g., 'category' or 'group_id').
         detect_col (str): The column used to sample text for language detection.
@@ -224,12 +239,16 @@ def translate_conditional_column(
             Google Translate through `deep-translator`.
 
     Returns:
-        A new dataframe with translated values.
+        A new dataframe with translated values. The input `df` is never
+        modified.
 
     Raises:
         ValueError: If `threshold` is not between 0.0 and 1.0.
         ValueError: If `sample_size`, `number_of_samples`, or `save_every`
             is not a positive integer.
+        ImportError: If the optional `langdetect` dependency is not
+            installed. The default provider also requires `deep-translator`,
+            imported lazily when a translation is actually needed.
 
     Example:
     ```
@@ -352,6 +371,9 @@ def translate_categorical_column(
     Notes:
         Cache keys are stored as strings so non-string categories remain
         reusable after the cache is saved and loaded again.
+        The input `df` is never modified. A missing `target_col` or a column
+        with no non-null values returns an unchanged copy, and a translation
+        that came back empty is left untranslated and uncached.
 
     Args:
         target_col (str): The name of the column containing categorical text to translate.
@@ -363,10 +385,13 @@ def translate_categorical_column(
             Google Translate through `deep-translator`.
 
     Returns:
-        A new dataframe with translated values.
+        A new dataframe with translated values. The input `df` is never
+        modified.
 
     Raises:
         ValueError: If `save_every` is not a positive integer.
+        ImportError: If the default provider's optional `deep-translator`
+            dependency is not installed and no `provider` is given.
 
     Example:
     ```

@@ -36,7 +36,22 @@ HIERARCHICAL_STATS_COLUMNS = (
 
 
 def import_optional(module_name: str, distribution: str, feature: str) -> ModuleType:
-    """Import a feature dependency only when the feature is used."""
+    """
+    Import a feature dependency only when the feature is used.
+
+    Args:
+        module_name (str): Importable module to load.
+        distribution (str): pip distribution name used in the error message.
+        feature (str): Feature name used in the error message.
+
+    Returns:
+        ModuleType: The imported module.
+
+    Raises:
+        ImportError: If the module cannot be imported. The message names the
+            missing optional distribution and the feature that needs it, and
+            chains the original import error.
+    """
     try:
         return importlib.import_module(module_name)
     except ImportError as exc:
@@ -49,8 +64,13 @@ def require_positive_int(value: Any, arg_name: str) -> None:
     """
     Validate integer parameters that control sampling or cache checkpointing.
 
+    Args:
+        value (Any): Value to validate.
+        arg_name (str): Parameter name used in the error message.
+
     Raises:
-        ValueError: If `value` is not a positive integer.
+        ValueError: If `value` is not a positive integer. Booleans are
+        rejected even though `bool` subclasses `int`.
     """
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"The '{arg_name}' parameter must be a positive integer")
@@ -64,6 +84,14 @@ def left_merge_aligned(frame: pd.DataFrame, right: pd.DataFrame, on: list) -> pd
     A left merge preserves the row order of the left frame, so the merged rows
     are re-labelled positionally. This works for named, duplicate, and
     multi-level indexes, unlike round-tripping through `reset_index()`.
+
+    Args:
+        frame (pd.DataFrame): Left frame whose index the result inherits.
+        right (pd.DataFrame): Right frame to merge on.
+        on (list): Column names present in both frames.
+
+    Returns:
+        pd.DataFrame: The merged frame, with `frame`'s index.
     """
     merged = frame[on].merge(right, on = on, how = 'left')
     merged.index = frame.index
@@ -71,7 +99,19 @@ def left_merge_aligned(frame: pd.DataFrame, right: pd.DataFrame, on: list) -> pd
 
 
 def dedupe_key(value: Any) -> Any:
-    """Return a hashable stand-in for unhashable values such as lists and dicts."""
+    """
+    Return a hashable stand-in for unhashable values such as lists and dicts.
+
+    Sets are sorted by their string form, NumPy arrays become lists, and
+    lists/dicts/tuples are serialized with `json.dumps(sort_keys=True,
+    default=str)`. Other values are returned unchanged.
+
+    Args:
+        value (Any): Value to normalize.
+
+    Returns:
+        Any: A hashable value usable in a `set` or `groupby` key.
+    """
     if isinstance(value, set):
         value = sorted(value, key = str)
     elif isinstance(value, np.ndarray):
@@ -84,7 +124,20 @@ def dedupe_key(value: Any) -> Any:
 
 
 def like(df: FrameT, data: pd.DataFrame) -> FrameT:
-    """Return `data` as `df`'s frame type, carrying `df`'s metadata."""
+    """
+    Return `data` as `df`'s frame type, carrying `df`'s metadata.
+
+    A plain `pandas.DataFrame` is returned unchanged; any other frame type is
+    rebuilt through its `_constructor` and finalized with `df`, so pandas
+    metadata propagates.
+
+    Args:
+        df (FrameT): Frame supplying the target type and metadata.
+        data (pd.DataFrame): Data to wrap.
+
+    Returns:
+        FrameT: `data` typed as `df`.
+    """
     if type(df) is pd.DataFrame:
         return cast(FrameT, data)
 

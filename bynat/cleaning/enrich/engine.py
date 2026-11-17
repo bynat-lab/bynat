@@ -21,9 +21,13 @@ __all__ = [
 
 # Returned by a fetch to leave a value uncached without logging a failure.
 SKIP = object()
+"""Sentinel a fetch returns to leave a value uncached without a warning."""
 
 Fetch = Callable[[Any], Any]
+"""Callable resolving one value; exceptions are caught and left uncached."""
+
 FetchMany = Callable[[list], Sequence[Any]]
+"""Callable resolving one chunk of values, returning one outcome per value."""
 
 
 def _unique_values(values: Iterable) -> list:
@@ -95,7 +99,8 @@ def _cached_map(
     `save_every` values, and return the cache for the caller to map back.
 
     Args:
-        series: Values to resolve. Nulls and duplicates are dropped.
+        series: Values to resolve. Nulls and duplicates are dropped, and the
+            remaining values keep first-seen order.
         fetch: Resolves one value. Ignored when `fetch_many` is given.
         bucket: Cache bucket name. With a sequence of names, each fetch
             returns a mapping of bucket name to value, a value counts as
@@ -118,12 +123,21 @@ def _cached_map(
         action: Verb used in failure warnings, e.g. "translate".
         label: Plural noun used in progress messages, e.g. "translations".
 
-    A fetch outcome is stored unless it is `SKIP` (left uncached quietly) or
-    an exception (logged as a warning and left uncached, so it is retried on
-    the next run).
+    Notes:
+        A fetch outcome is stored unless it is `SKIP` (left uncached quietly)
+        or an exception (logged as a warning and left uncached, so it is
+        retried on the next run).
+
+        The cache is checkpointed every `save_every` values and once more at
+        the end when anything is unsaved. A `fetch_many` result whose length
+        does not match its chunk is treated as a failure for the whole chunk.
 
     Returns:
-        dict: The cache bucket, or a dict of buckets for multiple names.
+        dict: The cache bucket, or a dict of buckets for multiple names. The
+        bucket is returned even when nothing had to be fetched.
+
+    Raises:
+        TypeError: If neither `fetch` nor `fetch_many` is provided.
     """
     bucket_names = (bucket,) if isinstance(bucket, str) else tuple(bucket)
     caches = {name: cache_manager.get_column_cache(func_name, name) for name in bucket_names}

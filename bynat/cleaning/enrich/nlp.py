@@ -191,8 +191,14 @@ def extract_entities_nlp(
 
     Raises:
         ValueError: If `disable` contains a required spaCy component, a
-            component name is empty, or `save_every` is not a positive
-            integer.
+            component name is empty, `save_every` is not a positive integer,
+            no target column/JSON key keyword argument is supplied, or no
+            valid terms are extracted from the requested lexicon keys. A
+            non-string or blank `spacy_model` also raises `ValueError`.
+        TypeError: If `disable` is not None, a string, or an iterable of
+            strings, or if the misspelled `noisey_terms` keyword is used.
+        ImportError: If the optional `spacy` dependency is not installed.
+        OSError: If the spaCy model cannot be loaded.
 
     Example:
     ```

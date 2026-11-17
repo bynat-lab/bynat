@@ -26,8 +26,24 @@ F = TypeVar('F', bound=Callable[..., Any])
 
 
 def _shares_doc(func: Callable[..., Any]) -> Callable[[F], F]:
-    """Reuse a shared implementation's docstring on a `BaseData` method."""
+    """
+    Reuse a shared implementation's docstring on a `BaseData` method.
+
+    The decorator assigns the implementation's cleaned docstring to the
+    method's `__doc__` at import time. `tools/sync_docs.py` writes the same
+    text as a literal docstring in `base.py` so editors and type checkers can
+    see it without running the decorator, and `tests/cross_cutting/contracts/
+    test_doc_drift.py` fails when the two drift apart.
+
+    Args:
+        func (Callable): Shared implementation whose docstring is copied.
+
+    Returns:
+        Callable: Decorator that assigns the docstring and returns the method
+        unchanged.
+    """
     def decorate(method: F) -> F:
+        """Assign the shared docstring to `method` and return it unchanged."""
         method.__doc__ = (func.__doc__ or "").rstrip()
 
         return method
@@ -39,6 +55,19 @@ class BaseData(pd.DataFrame):
     """
     Extend `pandas.DataFrame` with project-specific cleaning, translation,
     enrichment, and export helpers.
+
+    Every transformation returns a new object by default and leaves the
+    receiver untouched. The transformations that support in-place behavior
+    accept `inplace=True`, which mutates the receiver and returns `None`
+    (or the hierarchical statistics DataFrame for `handle_outliers`,
+    `drop_outliers`, `fill_missing`, and `fill_missing_from` when
+    `get_hierarchical_stats=True`). `inplace` is positional-or-keyword on
+    most methods and keyword-only where the wrapped function takes variadic
+    positional arguments.
+
+    `df.bynat` is the equivalent accessor API for plain `pandas.DataFrame`
+    objects; `BaseData` is a `DataFrame` subclass and keeps its subclass
+    through pandas operations.
 
     Notes:
         Instances keep a `CacheManager` in metadata so cached helper methods can
@@ -54,9 +83,13 @@ class BaseData(pd.DataFrame):
         """
         Preserve the custom dataframe subclass during pandas operations.
 
+        pandas calls this property whenever it builds a derived frame, so
+        chained operations and slices keep producing the current subclass
+        instead of a plain `pandas.DataFrame`.
+
         Returns:
-            Callable: Builds the current subclass, so chained operations keep
-            producing `BaseData`-derived objects.
+            Callable: The current subclass (`type(self)`), so chained
+            operations keep producing `BaseData`-derived objects.
         """
         return type(self)
 
@@ -89,7 +122,17 @@ class BaseData(pd.DataFrame):
 
     @property
     def cache_manager(self) -> CacheManager:
-        """The `CacheManager` used by cached helper methods, created on first use."""
+        """
+        The `CacheManager` used by cached helper methods, created on first use.
+
+        The manager is stored on the instance, so it is shared with every
+        frame pandas derives from this one and is not rebuilt by pandas
+        operations. Assigning `None` through the setter clears it, and the
+        next access creates a fresh manager.
+
+        Returns:
+            CacheManager: The manager for this object's cache directory.
+        """
         manager = self.__dict__.get('_bynat_cache_manager')
 
         if manager is None:
@@ -101,11 +144,25 @@ class BaseData(pd.DataFrame):
 
     @cache_manager.setter
     def cache_manager(self, manager: CacheManager | None) -> None:
+        """Replace the cached `CacheManager`, or clear it with None."""
         object.__setattr__(self, '_bynat_cache_manager', manager)
 
 
     def _finish(self, result: pd.DataFrame, inplace: bool) -> Self | None:
-        """Return `result`, or copy it into this object when `inplace=True`."""
+        """
+        Return `result`, or copy it into this object when `inplace=True`.
+
+        With `inplace=False` the shared function's result is returned as-is.
+        With `inplace=True` the result is written into this object through
+        `_update_inplace`, preserving object identity, and `None` is returned.
+
+        Args:
+            result (pd.DataFrame): Frame produced by the shared function.
+            inplace (bool): Whether to mutate this object.
+
+        Returns:
+            Self | None: `result` when `inplace=False`, otherwise None.
+        """
         if not inplace:
             return result
 
@@ -114,7 +171,23 @@ class BaseData(pd.DataFrame):
 
 
     def _finish_with_stats(self, outcome: Any, inplace: bool, with_stats: bool) -> Any:
-        """`_finish` for methods that can also return hierarchical statistics."""
+        """
+        `_finish` for methods that can also return hierarchical statistics.
+
+        With `inplace=False` the outcome is returned unchanged: the frame, or
+        the `(frame, statistics)` tuple when `with_stats=True`. With
+        `inplace=True` the frame is written into this object and the
+        statistics are returned on their own, or `None` when `with_stats` is
+        False.
+
+        Args:
+            outcome (Any): Frame, or `(frame, statistics)` when `with_stats`.
+            inplace (bool): Whether to mutate this object.
+            with_stats (bool): Whether the operation produced statistics.
+
+        Returns:
+            Any: See above.
+        """
         result, hierarchical_stats = outcome if with_stats else (outcome, None)
 
         if not inplace:
@@ -143,6 +216,10 @@ class BaseData(pd.DataFrame):
         Return the object as a standard pandas DataFrame for inspection and
         rich display.
 
+        The result is a new plain `pandas.DataFrame`: it is not a `BaseData`
+        instance, does not carry the `cache_manager` metadata, and mutating it
+        does not affect the original.
+
         Returns:
             pandas.DataFrame: A DataFrame representation of the current object.
 
@@ -165,12 +242,18 @@ class BaseData(pd.DataFrame):
         """
         Drop all columns that contain a specific substring within their names.
 
+        Columns are matched with a plain ``substring in col`` test, so the value is
+        literal text rather than a regular expression. A column whose name does not
+        contain `substring` is kept unchanged. When no column matches, a copy of
+        `df` is returned rather than `df` itself.
+
         Args:
             substring (str): The text to search for; any column containing this
                 string will be removed.
 
         Returns:
-            A new dataframe without the matching columns.
+            A new dataframe without the matching columns. The input `df` is never
+            modified.
 
         Example:
         ```
@@ -191,8 +274,12 @@ class BaseData(pd.DataFrame):
         """
         Drop all columns that contain the substring "__CLASS__" from the data.
 
+        Equivalent to `drop_by_substring(df, "__CLASS__")`; the marker is matched
+        literally.
+
         Returns:
-            A new dataframe without the matching columns.
+            A new dataframe without the matching columns. The input `df` is never
+            modified.
 
         Example:
         ```
@@ -215,10 +302,13 @@ class BaseData(pd.DataFrame):
 
         Args:
             old_substring (str): The text to search for within the column names.
+                Matched literally and replaced everywhere it occurs.
             new_substring (str): The text to replace the old substring with.
 
         Returns:
-            A new dataframe with renamed columns.
+            A new dataframe with renamed columns. Columns without the substring are
+            kept unchanged; the input `df` is never modified. When no column name
+            contains `old_substring`, a copy of `df` is returned.
 
         Example:
         ```
@@ -244,7 +334,8 @@ class BaseData(pd.DataFrame):
                 Defaults to "_".
 
         Returns:
-            A new dataframe with renamed columns.
+            A new dataframe with renamed columns. Column names without a dot are
+            kept unchanged; the input `df` is never modified.
 
         Example:
         ```
@@ -269,10 +360,13 @@ class BaseData(pd.DataFrame):
         preserving their original relative order.
 
         Args:
-            first_cols (tuple): Column names that should appear first.
+            first_cols (tuple): Column names that should appear first. Names that
+                are not present in `df.columns` are ignored.
 
         Returns:
-            A new dataframe with reordered columns.
+            A new dataframe with reordered columns. Unlisted columns keep their
+            relative order at the end, and the input `df` is never modified. When
+            none of `first_cols` exist, a copy of `df` is returned.
 
         Example:
         ```
@@ -316,6 +410,8 @@ class BaseData(pd.DataFrame):
             Use `pivot_index` and `pivot_columns` only when you want a different
             pivot layout from the melted dataframe.
 
+            The input `df` is never modified.
+
         Args:
             id_vars (list | str): Column(s) to use as identifier variables.
             value_vars (list | str | None): Column(s) to unpivot. If None, uses all columns
@@ -338,7 +434,7 @@ class BaseData(pd.DataFrame):
             **kwargs: Additional keyword arguments to pass to `transform_func`.
 
         Returns:
-            A new, reshaped dataframe.
+            A new, reshaped dataframe. The input `df` is never modified.
 
         Raises:
             TypeError: If a column argument has an invalid type, if `aggfunc`
@@ -347,7 +443,8 @@ class BaseData(pd.DataFrame):
             ValueError: If `id_vars`, `value_vars`, `var_name`, or
                 `value_name` is invalid, if identifier/value/pivot columns
                 overlap incorrectly, or if `transform_func` returns invalid
-                output.
+                output. A failure raised by `pandas.DataFrame.pivot_table` is
+                also reported as `ValueError`.
             RuntimeError: If `transform_func` raises an exception.
 
         Example:
@@ -387,10 +484,14 @@ class BaseData(pd.DataFrame):
                 target column. Defaults to "after".
 
         Returns:
-            A new dataframe with the column moved.
+            A new dataframe with the column moved. The input `df` is never
+            modified. If either column is absent, an unchanged copy of `df` is
+            returned.
 
         Raises:
             ValueError: If the `position` argument is not 'after' or 'before'.
+                The check runs after the missing-column check, so an unknown
+                column returns a copy rather than raising.
 
         Example:
         ```
@@ -418,7 +519,9 @@ class BaseData(pd.DataFrame):
         (e.g., 'lat' or 'LONG'), the alignment will not occur.
 
         Returns:
-            A new dataframe with aligned coordinate columns.
+            A new dataframe with aligned coordinate columns. The input `df` is
+            never modified; when either column is absent an unchanged copy is
+            returned.
 
         Example:
         ```
@@ -451,24 +554,38 @@ class BaseData(pd.DataFrame):
                 Subsequent calls will only populate empty cells (NaNs) and will NEVER overwrite previously extracted values.
             - **Literal Matching**: Keywords are treated as literal text (e.g., `C++`, `.NET`),
               and will not be interpreted as regular expressions unless `use_regex` is set to True.
+            - **Title-Casing**: The extracted value is the matched keyword rendered in
+              Title Case. Under `use_regex=True` the first capture group of the match
+              is used instead; a pattern with no capture group is wrapped so the whole
+              pattern is captured, and a pattern with a group yields that group only.
             - **Text Coercion**: Source columns are converted to strings only
               for matching, so numeric/object columns do not break text search.
             - **Performance**: Each unique combined text is matched once and the
               results are mapped back to every row. Literal keywords are matched
               with one combined pattern (or an Aho-Corasick automaton when the
               optional `pyahocorasick` dependency is installed).
+            - **Optional Dependency**: Literal matching uses `pyahocorasick` when
+              it is installed and every keyword is ASCII; otherwise it falls back to
+              one combined regular expression. Both paths return the same result and
+              neither raises when the dependency is missing.
+            - Source columns that are absent from `df` are ignored. When none of
+              them are present, an unchanged copy of `df` is returned.
+            - The input `df` is never modified.
 
         Args:
-            *source_cols: Variable number of column names to search within.
+            *source_cols: Variable number of column names to search within. Column
+                names that do not exist in `df` are ignored.
             remove_extracted (bool): If True, removes the matched keywords from the
                 original source columns to clean the text. Defaults to False.
             use_regex (bool): If True, treats the input strings in **target_cols_and_keywords
                 as regular expressions for pattern extraction. Defaults to False.
             **target_cols_and_keywords: Keyword arguments where the key is the new
-                column name and the value is a list of strings to search for.
+                column name and the value is a list of strings to search for. A
+                single string is treated as a one-item list.
 
         Returns:
-            A new dataframe with the extracted columns.
+            A new dataframe with the extracted columns. The input `df` is never
+            modified.
 
         Example:
         ```
@@ -521,22 +638,30 @@ class BaseData(pd.DataFrame):
               `cartesian_explode=False` (default) explodes them in parallel (requires
               lists to be of equal length). `cartesian_explode=True` explodes them
               sequentially, creating a cross-join (cartesian product) of all elements.
+            - **Scalar Indices**: A scalar index extracts one element per row and
+              does not explode, even when `explode_rows=True`.
+            - **Sentinel Values**: An index of `None` or `'all'` copies the whole
+              source list into the target column.
             - Exploding rows changes the row count and resets the index.
+            - The input `df` is never modified. A missing `source_col` returns an
+              unchanged copy.
 
         Args:
             source_col (str): The name of the column containing list-like objects.
             remove_source_col (bool): If True, deletes the original source column after
                 extraction. Defaults to False.
             explode_rows (bool): If True, and an index list is provided, expands the
-                dataframe so each extracted element gets its own row. Defaults to False.
+                dataframe so each extracted element gets its own row. With no target
+                columns it explodes `source_col` itself. Defaults to False.
             cartesian_explode (bool): If True and multiple target columns are exploded,
                 performs a sequential explode resulting in a cartesian product. Defaults to False.
             **target_cols_and_indices: Keyword arguments where the key is the new
-                column name and the value is the index (int) or list of indices (list)
-                to extract from the source list.
+                column name and the value is the index (int), the sentinel `None` or
+                `'all'`, or a list of indices (list) to extract from the source list.
 
         Returns:
-            A new dataframe with the extracted columns.
+            A new dataframe with the extracted columns. The input `df` is never
+            modified.
 
         Example:
         ```
@@ -594,14 +719,23 @@ class BaseData(pd.DataFrame):
                 3. Auto-Generation: If no valid translation is found, it generates a fallback name by title-casing the reference column.
             - **Deterministic Output**:
                 The `langdetect` seed is fixed to 0 to ensure consistent results across multiple runs.
+            - The input `df` is never modified. A missing `reference_col` or a
+                target column that is not present in `df` is skipped, and a frame
+                with no valid target column is returned unchanged.
 
         Args:
             reference_col (str): The column used as a key (e.g., 'category_slug').
             *target_cols: One or more columns to be updated/imputed (e.g., 'category_name').
+                Names that do not exist in `df` are skipped.
             target_lang (str): The ISO 639-1 language code to prefer. Defaults to 'en'.
 
         Returns:
-            A new dataframe with imputed columns.
+            A new dataframe with imputed columns. The input `df` is never
+            modified.
+
+        Raises:
+            ImportError: If the optional `langdetect` dependency is not
+                installed.
 
         Example:
         ```
@@ -646,6 +780,12 @@ class BaseData(pd.DataFrame):
         `threshold`, the unique values in `target_col` for that partition are translated.
         Results are cached to minimize API calls.
 
+        A partition is skipped when it has no detectable text, and its rows keep
+        their original values. A translated value is Title-Cased, and a value
+        that came back empty or as an error string is left untranslated and
+        uncached. The input `df` is never modified; when any of the three
+        required columns is missing an unchanged copy is returned.
+
         Args:
             partition_col (str): The column used to group or partition the data (e.g., 'category' or 'group_id').
             detect_col (str): The column used to sample text for language detection.
@@ -667,12 +807,16 @@ class BaseData(pd.DataFrame):
                 Google Translate through `deep-translator`.
 
         Returns:
-            A new dataframe with translated values.
+            A new dataframe with translated values. The input `df` is never
+            modified.
 
         Raises:
             ValueError: If `threshold` is not between 0.0 and 1.0.
             ValueError: If `sample_size`, `number_of_samples`, or `save_every`
                 is not a positive integer.
+            ImportError: If the optional `langdetect` dependency is not
+                installed. The default provider also requires `deep-translator`,
+                imported lazily when a translation is actually needed.
 
         Example:
         ```
@@ -726,6 +870,9 @@ class BaseData(pd.DataFrame):
         Notes:
             Cache keys are stored as strings so non-string categories remain
             reusable after the cache is saved and loaded again.
+            The input `df` is never modified. A missing `target_col` or a column
+            with no non-null values returns an unchanged copy, and a translation
+            that came back empty is left untranslated and uncached.
 
         Args:
             target_col (str): The name of the column containing categorical text to translate.
@@ -737,10 +884,13 @@ class BaseData(pd.DataFrame):
                 Google Translate through `deep-translator`.
 
         Returns:
-            A new dataframe with translated values.
+            A new dataframe with translated values. The input `df` is never
+            modified.
 
         Raises:
             ValueError: If `save_every` is not a positive integer.
+            ImportError: If the default provider's optional `deep-translator`
+                dependency is not installed and no `provider` is given.
 
         Example:
         ```
@@ -773,6 +923,11 @@ class BaseData(pd.DataFrame):
         """
         Remove specific substrings and everything following them from target columns.
 
+        Each named column is processed independently. The first occurrence of each
+        substring cuts the text, and the remaining text is stripped of surrounding
+        whitespace. Column names that are absent from `df` are ignored, and with no
+        keyword arguments an unchanged copy of `df` is returned.
+
         Args:
             regex (bool): Passed to `pandas.Series.str.split`. When True,
                 substring values are interpreted as regular expressions.
@@ -781,7 +936,8 @@ class BaseData(pd.DataFrame):
                 name and the value is a string or a list of strings at which to cut off the text.
 
         Returns:
-            A new dataframe with truncated columns.
+            A new dataframe with truncated columns. The input `df` is never
+            modified.
 
         Example:
         ```
@@ -830,8 +986,18 @@ class BaseData(pd.DataFrame):
             Queries that cannot be resolved are cached as `null`, so later runs
             do not re-query them. Network or service errors are not cached.
 
+            The query is built from the fallback columns in order, joined with
+            `", "`, skipping null, empty, `"nan"`/`"none"`, and purely numeric
+            values. A failed query drops its leftmost comma-separated part and is
+            retried until it resolves or runs out of parts.
+
+            The input `df` is never modified. A missing coordinate column or no
+            usable fallback column returns an unchanged copy; an internal helper
+            query column is always removed before returning.
+
         Args:
             *fallback_cols: Ordered columns used to build the geocoding query.
+                Names that do not exist in `df` are ignored.
             lat_col (str): Latitude column name.
             long_col (str): Longitude column name.
             save_every (int): Cache checkpoint frequency while geocoding.
@@ -846,10 +1012,13 @@ class BaseData(pd.DataFrame):
                 second.
 
         Returns:
-            A new dataframe with completed coordinates.
+            A new dataframe with completed coordinates. The input `df` is never
+            modified; existing valid coordinates are preserved.
 
         Raises:
             ValueError: If `save_every` is not a positive integer.
+            ImportError: If the default provider's optional `geopy` dependency
+                is not installed and no `provider` is given.
         """
         result = geocode.fill_missing_coordinates(
             self,
@@ -889,8 +1058,19 @@ class BaseData(pd.DataFrame):
             Unknown countries and past years without data are cached as misses;
             network errors are not cached.
 
+            A row whose country is already USD is divided by 1.0 without any
+            lookup. A row whose currency is unknown, or whose year has no rate
+            anywhere in the lookback range, gets `NaN` rather than its original
+            value. Conversion divides the value by the rate, so the rate is the
+            amount of local currency per one USD.
+
+            The input `df` is never modified. Missing `country_col` or `year_col`,
+            no valid target column, or an empty frame returns an unchanged copy
+            (a warning is logged for the first two).
+
         Args:
-            *target_cols: Numeric columns to convert.
+            *target_cols: Numeric columns to convert. Names that do not exist in
+                `df` are ignored.
             country_col (str): Column containing the country name used to infer
                 the local currency.
             year_col (str): Column containing the reference year for historical
@@ -903,7 +1083,13 @@ class BaseData(pd.DataFrame):
                 Yahoo Finance through `yfinance`.
 
         Returns:
-            A new dataframe with converted values.
+            A new dataframe with converted values. The input `df` is never
+            modified.
+
+        Raises:
+            ImportError: If the optional `pycountry` or `Babel` dependency is not
+                installed, or if the default provider's optional `yfinance`
+                dependency is not installed and no `provider` is given.
         """
         result = currency.convert_to_usd(
             self,
@@ -931,25 +1117,35 @@ class BaseData(pd.DataFrame):
         Replace outlier values with missing values using hierarchical IQR rules.
 
         Notes:
-            The method starts with the full grouping hierarchy and progressively
-            relaxes it by removing the last grouping column at each pass. Within
-            every valid group, values outside the 1.5 IQR bounds are converted
-            to `NaN`. Values replaced at one level are excluded from the
-            quartiles of later levels.
+            - The method starts with the full grouping hierarchy and progressively
+                relaxes it by removing the last grouping column at each pass. Within
+                every valid group, values outside the 1.5 IQR bounds are converted
+                to `NaN`. Values replaced at one level are excluded from the
+                quartiles of later levels.
+            - A row is judged only at the most specific level where its group has
+                at least `min_samples` non-null values. Groups that are too small
+                fall through to the next coarser level.
+            - Target columns that are not present in `df` are ignored.
+            - `min_samples` is not validated; it is compared against group sizes
+                as given. When `hierarchy_cols` is empty a warning is logged and
+                the values are returned unchanged.
+            - The input `df` is never modified.
 
         Args:
-            *target_cols: Numeric columns to evaluate for outliers.
+            *target_cols: Numeric columns to evaluate for outliers. Names that do
+                not exist in `df` are ignored.
             hierarchy_cols (list): Ordered grouping columns used to define peer
-                groups.
-            min_samples (int): Minimum number of rows required for a group to be
-                considered valid. Defaults to 5.
-            get_hierarchical_stats (bool): If True, also return the existing
-                hierarchical median statistics computed from the original data
-                before outliers are replaced. Defaults to False.
+                groups. A single string is treated as a one-item list.
+            min_samples (int): Minimum number of non-null rows required for a group
+                to be considered valid. Defaults to 5.
+            get_hierarchical_stats (bool): If True, also return the hierarchical
+                statistics computed from the original data before outliers are
+                replaced. The default `median` strategy is used. Defaults to
+                False.
 
         Returns:
             A new cleaned dataframe, or `(cleaned_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            `get_hierarchical_stats=True`. The input `df` is never modified.
         """
         outcome = stats.handle_outliers(
             self,
@@ -974,25 +1170,34 @@ class BaseData(pd.DataFrame):
         Remove rows that contain outlier values based on hierarchical IQR rules.
 
         Notes:
-            This method shares the same grouping logic as `handle_outliers`, but
-            instead of replacing detected outliers with `NaN`, it drops the
-            affected rows after scanning all requested target columns. Rows are
-            dropped by position, so a duplicated index label never removes its
-            twin row.
+            - This method shares the same grouping logic as `handle_outliers`, but
+                instead of replacing detected outliers with `NaN`, it drops the
+                affected rows after scanning all requested target columns. Rows are
+                dropped by position, so a duplicated index label never removes its
+                twin row.
+            - Outliers are accumulated across every target column, so a row is
+                dropped when any requested column flags it.
+            - Target columns that are not present in `df` are ignored.
+            - `min_samples` is not validated; it is compared against group sizes
+                as given. When `hierarchy_cols` is empty a warning is logged and
+                no rows are dropped.
+            - The input `df` is never modified.
 
         Args:
-            *target_cols: Numeric columns to inspect for outliers.
+            *target_cols: Numeric columns to inspect for outliers. Names that do
+                not exist in `df` are ignored.
             hierarchy_cols (list): Ordered grouping columns used to define peer
-                groups.
-            min_samples (int): Minimum number of rows required for a group to be
-                considered valid. Defaults to 5.
-            get_hierarchical_stats (bool): If True, also return the existing
-                hierarchical median statistics computed from the original data
-                before outlier rows are dropped. Defaults to False.
+                groups. A single string is treated as a one-item list.
+            min_samples (int): Minimum number of non-null rows required for a group
+                to be considered valid. Defaults to 5.
+            get_hierarchical_stats (bool): If True, also return the hierarchical
+                statistics computed from the original data before outlier rows are
+                dropped. The default `median` strategy is used. Defaults to
+                False.
 
         Returns:
             A new filtered dataframe, or `(filtered_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            `get_hierarchical_stats=True`. The input `df` is never modified.
         """
         outcome = stats.drop_outliers(
             self,
@@ -1019,22 +1224,32 @@ class BaseData(pd.DataFrame):
         Impute missing values by progressively relaxing a grouping hierarchy.
 
         Notes:
-            Supported strategies are `median`, `mean`, and `mode`. The method
-            attempts imputation using the full hierarchy first, then removes the
-            last grouping column one level at a time until no grouping columns
-            remain or the column is fully imputed.
-
-            Unfilled values remain `NaN` by default unless `fallback_global=True`
-            is set, in which case any remaining `NaN` values after exhausting the
-            hierarchy are filled using the column-wide statistic.
+            - Supported strategies are `median`, `mean`, and `mode`. The method
+                attempts imputation using the full hierarchy first, then removes the
+                last grouping column one level at a time until no grouping columns
+                remain or the column is fully imputed. The `mod` alias is
+                normalized to `mode`.
+            - Unfilled values remain `NaN` by default unless `fallback_global=True`
+                is set, in which case any remaining `NaN` values after exhausting the
+                hierarchy are filled using the column-wide statistic.
+            - A single string `hierarchy_cols` is treated as a one-item list.
+                Hierarchy columns that are not present in `df` are ignored.
+            - Target columns that are not present in `df` are ignored; when none are
+                valid a warning is logged and an unchanged copy is returned.
+            - The input `df` is never modified. Statistics always come from `df`
+                itself, so this method does not prevent leakage from a test set.
 
         Args:
-            *target_cols: Columns whose missing values should be filled.
+            *target_cols: Columns whose missing values should be filled. Names that
+                do not exist in `df` are ignored.
             strategy (str): Aggregation strategy to use. Supported values are
-                `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+                `median`, `mean`, `mode`, and `mod`. The value is lowercased before
+                validation. Defaults to `median`.
             hierarchy_cols (list | str, optional): Grouping columns that define
                 the imputation hierarchy. A single string is treated as a
-                one-item list.
+                one-item list, and missing columns are ignored. Defaults to None,
+                which skips the hierarchy and only imputes when
+                `fallback_global=True`.
             min_samples (int): Minimum number of non-null observations required
                 for a group to supply an imputation statistic. Groups with fewer
                 observations fall through to coarser hierarchy levels. Defaults
@@ -1050,7 +1265,12 @@ class BaseData(pd.DataFrame):
 
         Returns:
             A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            `get_hierarchical_stats=True`. The input `df` is never modified.
+
+        Raises:
+            ValueError: If `strategy` is not one of the supported values, or if
+                `min_samples` is not an integer greater than or equal to 1
+                (booleans are rejected).
 
         Example:
         ```
@@ -1098,21 +1318,32 @@ class BaseData(pd.DataFrame):
         row order, and un-imputed values are preserved.
 
         Notes:
-            Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
-            When `hierarchy_cols` are specified, imputation evaluates the most
-            specific grouping level first, then progressively drops grouping columns
-            until the column is fully imputed or the hierarchy is exhausted.
-
-            Groups in `dataset` with fewer than `min_samples` non-null observations
-            do not supply an imputation statistic, falling through to coarser levels.
-            If a group exists in `df` but has no matching rows (or insufficient samples)
-            in `dataset`, it falls through to coarser levels.
-
-            Unfilled values remain `NaN` by default unless `fallback_global=True` is
-            specified, in which case any remaining `NaN` values after exhausting the
-            hierarchy are filled using the reference dataset's column-wide statistic.
-            When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
-            imputation is performed using reference statistics.
+            - Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
+                When `hierarchy_cols` are specified, imputation evaluates the most
+                specific grouping level first, then progressively drops grouping columns
+                until the column is fully imputed or the hierarchy is exhausted.
+            - Groups in `dataset` with fewer than `min_samples` non-null observations
+                do not supply an imputation statistic, falling through to coarser levels.
+                If a group exists in `df` but has no matching rows (or insufficient samples)
+                in `dataset`, it falls through to coarser levels.
+            - Unfilled values remain `NaN` by default unless `fallback_global=True` is
+                specified, in which case any remaining `NaN` values after exhausting the
+                hierarchy are filled using the reference dataset's column-wide statistic.
+                When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
+                imputation is performed using reference statistics.
+            - `target_cols` accepts individual names and nested lists/tuples/sets,
+                which are flattened. Duplicates are removed in first-seen order. The
+                `targets` keyword accepts a single name or an iterable and is combined
+                with `*target_cols`.
+            - `match_cols` maps target column names to reference column names and
+                applies to both target and hierarchy columns. When omitted, identical
+                column names are used. When `get_hierarchical_stats=True`, the
+                returned statistics report target and hierarchy column names in the
+                target `df` spelling.
+            - Target columns that are not present in `df` are ignored; when none are
+                valid a warning is logged and an unchanged copy is returned. Hierarchy
+                columns must exist in both `df` and `dataset`.
+            - The input `df` is never modified, and `dataset` is never modified.
 
         Args:
             dataset (pd.DataFrame | BaseData): Reference dataset used to compute
@@ -1127,7 +1358,8 @@ class BaseData(pd.DataFrame):
             targets (Any, optional): Alternative way to specify target columns
                 (e.g., a single column name or iterable of column names). Defaults to None.
             strategy (str): Aggregation strategy to use. Supported values are
-                `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+                `median`, `mean`, `mode`, and `mod`. The value is lowercased before
+                validation. Defaults to `median`.
             hierarchy_cols (list | str, optional): Grouping columns that define
                 the imputation hierarchy in `df`. A single string is treated as a
                 one-item list.
@@ -1143,7 +1375,8 @@ class BaseData(pd.DataFrame):
 
         Returns:
             A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            `get_hierarchical_stats=True`. The input `df` and `dataset` are never
+            modified.
 
         Raises:
             ValueError: If `dataset` is missing or empty, contains duplicate column
@@ -1253,6 +1486,14 @@ class BaseData(pd.DataFrame):
             output schema. Empty and invalid-result cases use the requested
             output type whenever possible.
 
+        Raises:
+            TypeError: If `strategy` is neither a string nor an iterable of
+                strings, or if `output_type` is not a supported type.
+            ValueError: If a requested strategy is not supported, if a strategy
+                iterable is empty, or if a target column overlaps a valid
+                hierarchy column. Construction errors from an explicitly
+                requested `output_type` propagate unchanged.
+
         Examples:
         ```
             default_stats = df.get_hierarchical_stats(
@@ -1307,6 +1548,9 @@ class BaseData(pd.DataFrame):
             - Unavailable or inapplicable statistics (such as ``std`` for a single
               observation or ``outliers_count`` when ``count < 5``) are represented
               as ``None``.
+            - Column metrics are always computed over the selected columns, so
+              proportions are relative to the profiled subset rather than the
+              whole frame.
 
         Args:
             df (pd.DataFrame): The DataFrame (or ``BaseData`` instance) to profile.
@@ -1369,7 +1613,7 @@ class BaseData(pd.DataFrame):
         default_category: str = 'Other',
         inplace: bool = False
     ) -> Self | None:
-        r"""
+        """
         Categorize text data into broader groups based on a reference lexicon dictionary.
 
         This method scans one or more source text columns for specific keywords defined in a
@@ -1377,24 +1621,41 @@ class BaseData(pd.DataFrame):
         is assigned to a new target column.
 
         Notes:
-            - The search uses word boundaries (\b) to prevent partial word matches
-              (e.g., matching 'React' will not trigger on 'Reactor').
+            - Matching is case-insensitive and restricted to whole words, so
+              'React' does not trigger on 'Reactor' and 'score' does not trigger
+              on 'under_score'.
             - The implementation builds an Aho-Corasick automaton and evaluates
               each unique combined text once, then maps results back to all rows.
             - Longer keywords take precedence over shorter ones (e.g., "Data Analyst"
-              matches before "Data").
+              matches before "Data"). On an equal-length tie the category listed
+              later in `reference` wins.
             - Empty keyword lists and blank keyword values are ignored safely.
+            - A keyword value that is not a list is treated as a one-item list.
+            - A missing `reference` column match, an empty `reference`, or a
+              `reference` that is not a dictionary assigns `default_category` to
+              every row.
+            - Source columns that are absent from `df` are ignored. When none of
+              them are present, an unchanged copy of `df` is returned.
+            - The input `df` is never modified.
 
         Args:
             *source_cols (str): Source columns containing the raw text to search.
+                Names that do not exist in `df` are ignored.
             target_col (str): The new or existing column where categories will be saved.
             reference (dict): A dictionary where keys are category names and values
-                are lists of keywords to search for.
+                are lists of keywords to search for. A non-list value is treated as
+                a one-item list, and a non-dictionary value is treated as empty.
             default_category (str): The fallback value if no keywords are matched.
                 Defaults to 'Other'.
 
         Returns:
-            A new dataframe with the category column.
+            A new dataframe with the category column. The input `df` is never
+            modified.
+
+        Raises:
+            ImportError: If the optional `pyahocorasick` dependency is not
+                installed. The dependency is required for this method; there is no
+                regex fallback.
 
         Example:
         ```
@@ -1500,8 +1761,14 @@ class BaseData(pd.DataFrame):
 
         Raises:
             ValueError: If `disable` contains a required spaCy component, a
-                component name is empty, or `save_every` is not a positive
-                integer.
+                component name is empty, `save_every` is not a positive integer,
+                no target column/JSON key keyword argument is supplied, or no
+                valid terms are extracted from the requested lexicon keys. A
+                non-string or blank `spacy_model` also raises `ValueError`.
+            TypeError: If `disable` is not None, a string, or an iterable of
+                strings, or if the misspelled `noisey_terms` keyword is used.
+            ImportError: If the optional `spacy` dependency is not installed.
+            OSError: If the spaCy model cannot be loaded.
 
         Example:
         ```
@@ -1554,20 +1821,32 @@ class BaseData(pd.DataFrame):
             Paths without a directory component, such as `output.json`, are
             written to the current working directory.
 
+            The input `df` is never modified; datetime values are reformatted on
+            an internal copy. An existing file that cannot be read for comparison
+            is overwritten, except with `append=True`, where an unreadable file
+            raises instead of being destroyed. Missing parent directories are
+            created.
+
         Args:
             file_path (str | os.PathLike): Destination JSON file path.
             orient (str): JSON orientation passed to `pandas.DataFrame.to_json`.
                 Defaults to `"records"`.
             append (bool): If True and the target file exists, appends current
                 rows to the existing JSON data and removes duplicate rows before
-                writing. Defaults to False.
+                writing. Duplicate detection compares list and dictionary cell
+                values by their JSON content. Defaults to False.
             force_ascii (bool): Whether to escape non-ASCII characters in the
                 output. Defaults to False.
             indent (int): Indentation width used when writing to disk. Defaults
                 to 4.
 
         Returns:
-            None
+            None. Nothing is written when an existing non-append file already
+            holds identical content.
+
+        Raises:
+            ValueError: If `file_path` is empty, or if `append=True` and the
+                existing file cannot be read with the given `orient`.
         """
         return io.save_to_json(self, file_path, orient = orient, append = append, force_ascii = force_ascii, indent = indent)
 
@@ -1598,6 +1877,11 @@ class BaseData(pd.DataFrame):
             SQL Server, `database_driver` is required and is URL-encoded.
             For SQLite, only `database_name` is required.
 
+            Credentials are URL-encoded before being placed in the connection
+            URL. Timezone-aware datetime columns are converted to naive datetimes
+            on an internal copy, so the input `df` is never modified. The engine
+            is disposed of after the write, whether it succeeds or fails.
+
         Args:
             table_name (str): The name of the SQL table to write to.
             database_type (str): SQLAlchemy dialect/driver, for example
@@ -1607,7 +1891,8 @@ class BaseData(pd.DataFrame):
             database_password (str): Database password.
             database_host (str): Database host address.
             database_port (str): Database port.
-            database_name (str): Database/schema name, or SQLite file path.
+            database_name (str): Database/schema name, or SQLite file path. The
+                special value `":memory:"` targets an in-memory SQLite database.
             database_driver (str | None): ODBC driver name for SQL Server
                 dialects. Defaults to None.
             columns_types (dict | None): Optional SQLAlchemy dtype mapping to
@@ -1623,6 +1908,15 @@ class BaseData(pd.DataFrame):
 
         Returns:
             None
+
+        Raises:
+            ValueError: If `table_name` or `database_type` is empty, if
+                `if_exists` is not one of 'fail', 'replace', or 'append', or if
+                the credentials required by the selected dialect are missing
+                (`database_name` for SQLite, `database_driver` and all
+                connection fields for SQL Server).
+            ImportError: If the optional `SQLAlchemy` dependency is not
+                installed.
 
         Example:
         ```
@@ -1661,6 +1955,31 @@ class BaseData(pd.DataFrame):
 class JsonFile(BaseData):
     """
     Load a JSON file into a `BaseData` frame.
+
+    The payload is flattened with `pandas.json_normalize` by
+    `bynat.cleaning.io.read_json`, so nested objects become dotted column
+    names.
+
+    Args:
+        data: Tabular data passed to `pandas.DataFrame`, or a path to a JSON
+            file. A string or path-like `data` that names an existing file is
+            treated as `json_file_path`; one that does not exist raises
+            `FileNotFoundError`.
+        json_file_path (str | os.PathLike | None): Path to the JSON file.
+            Ignored when `data` already holds tabular data.
+        key (str | None): Optional top-level key whose value holds the
+            records, for dictionary payloads. Defaults to None.
+        cache_dir (str | os.PathLike | None): Directory for the cache
+            manager. Defaults to None, which uses `BYNAT_CACHE_DIR` or the
+            default directory.
+        *args: Additional positional arguments forwarded to `pandas.DataFrame`.
+        **kwargs: Additional keyword arguments forwarded to `pandas.DataFrame`.
+
+    Raises:
+        FileNotFoundError: If a path-like `data` or `json_file_path` does not
+            exist.
+        TypeError: If `key` is given for a non-dictionary payload.
+        KeyError: If `key` is not in the payload.
     """
 
     def __init__(
@@ -1672,6 +1991,23 @@ class JsonFile(BaseData):
         *args,
         **kwargs
     ) -> None:
+        """
+        Load the JSON payload and delegate to `BaseData`.
+
+        Args:
+            data: See the class docstring.
+            json_file_path: See the class docstring.
+            key: See the class docstring.
+            cache_dir: See the class docstring.
+            *args: Forwarded to `pandas.DataFrame`.
+            **kwargs: Forwarded to `pandas.DataFrame`.
+
+        Raises:
+            FileNotFoundError: If a path-like `data` or `json_file_path` does
+                not exist.
+            TypeError: If `key` is given for a non-dictionary payload.
+            KeyError: If `key` is not in the payload.
+        """
         if data is not None and json_file_path is None:
             if isinstance(data, (str, os.PathLike)):
                 path = os.fspath(data)
@@ -1692,6 +2028,29 @@ class JsonFile(BaseData):
 class CsvFile(BaseData):
     """
     Load a CSV file into a `BaseData` frame.
+
+    Parsing is delegated to `pandas.read_csv` through
+    `bynat.cleaning.io.read_csv`, so every `pandas.read_csv` keyword is
+    accepted.
+
+    Args:
+        data: Tabular data passed to `pandas.DataFrame`, or a path to a CSV
+            file. A string or path-like `data` that names an existing file is
+            treated as `csv_file_path`; one that does not exist raises
+            `FileNotFoundError`.
+        csv_file_path (str | os.PathLike | None): Path to the CSV file.
+            Ignored when `data` already holds tabular data.
+        cache_dir (str | os.PathLike | None): Directory for the cache
+            manager. Defaults to None, which uses `BYNAT_CACHE_DIR` or the
+            default directory.
+        read_kwargs (dict | None): Keyword arguments forwarded to
+            `pandas.read_csv`. Defaults to None (no extra options).
+        *args: Additional positional arguments forwarded to `pandas.DataFrame`.
+        **kwargs: Additional keyword arguments forwarded to `pandas.DataFrame`.
+
+    Raises:
+        FileNotFoundError: If a path-like `data` or `csv_file_path` does not
+            exist.
     """
 
     def __init__(
@@ -1703,6 +2062,21 @@ class CsvFile(BaseData):
         *args,
         **kwargs
     ) -> None:
+        """
+        Load the CSV payload and delegate to `BaseData`.
+
+        Args:
+            data: See the class docstring.
+            csv_file_path: See the class docstring.
+            cache_dir: See the class docstring.
+            read_kwargs: See the class docstring.
+            *args: Forwarded to `pandas.DataFrame`.
+            **kwargs: Forwarded to `pandas.DataFrame`.
+
+        Raises:
+            FileNotFoundError: If a path-like `data` or `csv_file_path` does
+                not exist.
+        """
         if read_kwargs is None:
             read_kwargs = {}
 

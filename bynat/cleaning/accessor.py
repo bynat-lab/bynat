@@ -17,7 +17,16 @@ __all__ = ['BynatAccessor']
 
 
 def _method_signature(func: Callable) -> inspect.Signature:
-    """The accessor-facing signature: `self` replaces the frame, no `cache_manager`."""
+    """
+    The accessor-facing signature: `self` replaces the frame, no `cache_manager`.
+
+    Args:
+        func (Callable): Shared implementation function.
+
+    Returns:
+        inspect.Signature: The signature with the frame parameter replaced by
+        `self` and any `cache_manager` parameter removed.
+    """
     signature = inspect.signature(func)
     parameters = [
         parameter
@@ -33,11 +42,19 @@ def _with_inplace(
 ) -> tuple[inspect.Signature, bool, int]:
     """Insert `inplace` where the class API declares it.
 
-    Returns the new signature, whether `inplace` is keyword-only, and its
-    index among the positional parameters. Without ``before``, `inplace`
-    follows the last positional-or-keyword parameter; when the wrapped
-    function takes variadic positional arguments there is no free
-    positional slot, so it leads the keyword-only parameters instead.
+    Returns:
+        tuple[inspect.Signature, bool, int]: The new signature, whether
+        `inplace` is keyword-only, and its index among the positional
+        parameters. Without ``before``, `inplace` follows the last
+        positional-or-keyword parameter; when the wrapped function takes
+        variadic positional arguments there is no free positional slot, so it
+        leads the keyword-only parameters instead. ``position`` is -1 when
+        `inplace` is keyword-only.
+
+    Raises:
+        ValueError: If ``before`` is not a parameter of the signature, or if a
+            positional `inplace` would have to be inserted before a required
+            parameter.
     """
     parameters = list(signature.parameters.values())
     kind: inspect._ParameterKind
@@ -83,7 +100,34 @@ def _with_inplace(
 def _frame_method(
     func: Callable, *, inplace: bool = False, stats: bool = False, inplace_before: str | None = None
 ) -> Callable:
-    """Expose a shared implementation as an accessor method on the wrapped frame."""
+    """Expose a shared implementation as an accessor method on the wrapped frame.
+
+    The generated method's `__signature__` and `__doc__` come from the shared
+    function, so `inspect.signature` and `help` show the accessor-facing
+    signature. `tools/sync_docs.py` reads these factory calls to generate
+    `accessor.pyi`.
+
+    Args:
+        func (Callable): Shared implementation whose first parameter is the
+            frame.
+        inplace (bool): Add an `inplace` parameter and implement the
+            mutation/`None` contract. Defaults to False.
+        stats (bool): The shared function can return a `(frame, statistics)`
+            tuple, so `inplace=True` returns the statistics instead of None.
+            Defaults to False.
+        inplace_before (str | None): Name of the parameter `inplace` is
+            inserted before, matching the `BaseData` method's positional slot.
+            Defaults to None.
+
+    Returns:
+        Callable: The accessor method.
+
+    Notes:
+        When `inplace` is positional, a caller-supplied positional at that
+        index is consumed as the flag and the remaining positionals are passed
+        on to the shared function. When it is keyword-only, the flag is popped
+        from `kwargs` before the call.
+    """
     signature = _method_signature(func)
     keyword_only = True
     position = -1
@@ -125,7 +169,25 @@ def _frame_method(
 def _cached_frame_method(
     func: Callable, *, inplace: bool = False, inplace_before: str | None = None
 ) -> Callable:
-    """Like `_frame_method`, also passing the accessor's `CacheManager`."""
+    """Like `_frame_method`, also passing the accessor's `CacheManager`.
+
+    Args:
+        func (Callable): Shared cached implementation whose first parameter is
+            the frame and which takes a keyword-only `cache_manager`.
+        inplace (bool): Add an `inplace` parameter and implement the
+            mutation/`None` contract. Defaults to False.
+        inplace_before (str | None): Name of the parameter `inplace` is
+            inserted before, matching the `BaseData` method's positional slot.
+            Defaults to None.
+
+    Returns:
+        Callable: The accessor method, which passes `self.cache_manager` to
+        the shared function.
+
+    Notes:
+        The generated method's `__signature__` omits both the frame and
+        `cache_manager`, and its `__doc__` comes from the shared function.
+    """
     signature = _method_signature(func)
     keyword_only = True
     position = -1
@@ -191,12 +253,25 @@ class BynatAccessor:
     """
 
     def __init__(self, pandas_obj: pd.DataFrame, cache_manager: CacheManager | None = None) -> None:
+        """
+        Bind the accessor to a frame and an optional cache manager.
+
+        pandas constructs the accessor with only the frame; the cache manager
+        is supplied by `with_cache(...)`. A None manager is resolved lazily to
+        the shared manager for the default directory on first cached call.
+
+        Args:
+            pandas_obj (pd.DataFrame): Frame the accessor wraps. It is stored
+                by reference, so `inplace=True` mutates this object.
+            cache_manager (CacheManager | None): Manager for cached methods.
+                Defaults to None.
+        """
         self._obj = pandas_obj
         self._cache_manager = cache_manager
 
     @property
     def cache_manager(self) -> CacheManager:
-        """The `CacheManager` used by cached methods."""
+        """The `CacheManager` used by cached methods, created on first use."""
         if self._cache_manager is None:
             self._cache_manager = shared_cache_manager()
 

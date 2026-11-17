@@ -20,7 +20,22 @@ logger = logging.getLogger("bynat.caching.Caching")
 
 
 def quarantine_corrupt_cache_file(file_path: str) -> str | None:
-    """Move a corrupt cache file aside without overwriting a quarantine."""
+    """
+    Move a corrupt cache file aside without overwriting a quarantine.
+
+    A unique `.<name>.corrupt.<timestamp>.<uuid>` path is reserved with
+    `os.open(..., O_CREAT | O_EXCL)` and the source is then moved onto it, so
+    two processes cannot claim the same quarantine path. The source path is
+    left untouched when the move fails.
+
+    Args:
+        file_path (str): Path of the corrupt cache file.
+
+    Returns:
+        str | None: The quarantine path, or None when no unique path could be
+        reserved or the move failed (including when another process had
+        already moved the source).
+    """
     quarantine_path = None
 
     for _ in range(10):
@@ -62,7 +77,40 @@ def migrate_legacy_json_cache(
     initialize_fn: Callable[[], None] | None = None,
     connect_fn: Callable[[], sqlite3.Connection] | None = None,
 ) -> None:
-    """Import one legacy JSON cache into SQLite, without changing the API."""
+    """
+    Import one legacy JSON cache into SQLite, without changing the API.
+
+    The JSON file is read only to migrate it, at most once: the source file
+    name is recorded in `migration_metadata` inside the same transaction, and
+    a recorded name is skipped. Existing SQLite rows take precedence through
+    `INSERT OR IGNORE`.
+
+    Behavior by payload:
+    - Missing file: nothing happens.
+    - Malformed JSON or a non-object top-level value: the file is quarantined
+      with `quarantine_corrupt_cache_file` and a warning is logged.
+    - A bucket whose value is not a JSON object, or a value that cannot be
+      serialized: a warning is logged and the source is left in place,
+      unmarked, for manual recovery.
+    - Unreadable file, or a locked database after the retry loop: a warning
+      or the underlying error is raised after rollback.
+
+    Args:
+        cache_dir_path (str): Directory holding the SQLite database.
+        func_name (str): Function identifier whose rows are written.
+        file_path (str): Path of the legacy JSON file.
+        storage (SQLiteStorage): Storage used when no connection factory is
+            given.
+        initialize_fn (Callable[[], None] | None): Schema initializer used
+            when no connection factory is given. Defaults to None.
+        connect_fn (Callable[[], sqlite3.Connection] | None): Zero-argument
+            connection factory. Defaults to None.
+
+    Raises:
+        sqlite3.Error: If schema initialization or the import transaction
+            fails for a reason other than a lock that the retry loop could
+            not clear.
+    """
     source_name = os.path.basename(file_path)
 
     if not os.path.exists(file_path):

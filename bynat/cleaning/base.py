@@ -2,9 +2,9 @@
 `pandas.DataFrame` subclasses: `BaseData`, `JsonFile`, and `CsvFile`.
 
 They are thin wrappers over the functions in the `columns`, `text`, `stats`,
-`enrich`, and `io` modules, which the `df.bynat` accessor shares. `BaseData`
-also supports the `inplace=True` argument that plain DataFrames with the
-accessor do not, and `JsonFile` / `CsvFile` load data directly from disk.
+`enrich`, and `io` modules, which the `df.bynat` accessor shares. Both APIs
+accept `inplace=True` for the transformations that support it, and
+`JsonFile` / `CsvFile` load data directly from disk.
 """
 
 import os

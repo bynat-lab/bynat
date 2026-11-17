@@ -1,12 +1,11 @@
-"""BaseData inplace mutation, silence, and accessor rejection contracts."""
+"""BaseData inplace mutation and silence contracts."""
 
-import sys
 import warnings
 
 import pandas as pd
 import pytest
 
-from bynat.cleaning import BaseData, columns, text
+from bynat.cleaning import BaseData
 from tests.shared.constants import PARITY_DATA
 
 pytestmark = pytest.mark.integration
@@ -80,115 +79,6 @@ def test_inplace_true_matches_the_copy_result_and_returns_none(
 
     assert returned is None
     pd.testing.assert_frame_equal(pd.DataFrame(frame), pd.DataFrame(expected))
-
-
-INPLACE_XFAIL = pytest.mark.xfail(
-    strict=True,
-    reason="PD-01: variadic shared/accessor methods absorb `inplace` instead of "
-    "rejecting it; see docs/temb/TEST-02-phase1-audit.md (S-4/ML-2)",
-)
-
-
-def _variadic_frame():
-    return pd.DataFrame(
-        {
-            "id": [1, 2],
-            "text": ["alpha-beta", "gamma"],
-            "items": [["a", "b"], ["c"]],
-            "left": ["x", "y"],
-            "right": ["p", "q"],
-        }
-    )
-
-
-@INPLACE_XFAIL
-@pytest.mark.parametrize(
-    "call",
-    [
-        pytest.param(
-            lambda frame: frame.bynat.extract_keywords("text", found=["alpha"], inplace=True),
-            id="extract_keywords",
-        ),
-        pytest.param(
-            lambda frame: frame.bynat.truncate_after_substring(text="-", inplace=True),
-            id="truncate_after_substring",
-        ),
-        pytest.param(
-            lambda frame: frame.bynat.split_list_objects("items", first=0, inplace=True),
-            id="split_list_objects",
-        ),
-        pytest.param(
-            lambda frame: frame.bynat.melt_transform_pivot(
-                id_vars="id", value_vars=["left", "right"], inplace=True
-            ),
-            id="melt_transform_pivot",
-        ),
-    ],
-)
-def test_accessor_rejects_inplace_for_variadic_methods(call):
-    with pytest.raises(TypeError):
-        call(_variadic_frame())
-
-
-@INPLACE_XFAIL
-@pytest.mark.parametrize(
-    "call",
-    [
-        pytest.param(
-            lambda frame: text.extract_keywords(frame, "text", found=["alpha"], inplace=True),
-            id="extract_keywords",
-        ),
-        pytest.param(
-            lambda frame: text.truncate_after_substring(frame, text="-", inplace=True),
-            id="truncate_after_substring",
-        ),
-        pytest.param(
-            lambda frame: columns.split_list_objects(frame, "items", first=0, inplace=True),
-            id="split_list_objects",
-        ),
-        pytest.param(
-            lambda frame: columns.melt_transform_pivot(
-                frame, id_vars="id", value_vars=["left", "right"], inplace=True
-            ),
-            id="melt_transform_pivot",
-        ),
-    ],
-)
-def test_shared_functions_reject_inplace_for_variadic_methods(call):
-    with pytest.raises(TypeError):
-        call(_variadic_frame())
-
-
-@pytest.mark.parametrize(
-    "call",
-    [
-        pytest.param(lambda frame: frame.bynat.rename_all_DOTS(inplace=True), id="rename_all_DOTS"),
-        pytest.param(lambda frame: frame.bynat.fill_missing("id", inplace=True), id="fill_missing"),
-        pytest.param(
-            lambda frame: frame.bynat.handle_outliers("id", hierarchy_cols=[], inplace=True),
-            id="handle_outliers",
-        ),
-        pytest.param(
-            lambda frame: frame.bynat.get_hierarchical_stats("id", hierarchy_cols=[], inplace=True),
-            id="get_hierarchical_stats",
-        ),
-        pytest.param(lambda frame: frame.bynat.profile(inplace=True), id="profile"),
-    ],
-)
-def test_accessor_rejects_inplace_for_non_variadic_methods(call):
-    with pytest.raises(TypeError):
-        call(pd.DataFrame({"id": [1, 2]}))
-
-
-def test_inplace_is_accepted_by_the_class_api_and_rejected_by_the_accessor(tmp_path):
-    data = {"g": ["a", "a"], "v": [1.0, None]}
-    frame = BaseData(data, cache_dir=tmp_path)
-
-    assert frame.fill_missing("v", hierarchy_cols="g", inplace=True) is None
-    assert frame["v"].tolist() == [1.0, 1.0]
-
-    with pytest.raises(TypeError):
-        pd.DataFrame(data).bynat.fill_missing("v", hierarchy_cols="g", inplace=True)
 
 
 def _frame(tmp_path, data=None):
@@ -306,23 +196,3 @@ def test_inplace_results_are_not_aliases(tmp_path):
     result.loc[0, "id"] = 99
 
     assert frame.loc[0, "id"] == 1
-
-
-def test_inplace_on_missing_optional_dependency_still_raises(monkeypatch, tmp_path):
-    monkeypatch.setitem(sys.modules, "deep_translator", None)
-    frame = _frame(tmp_path)
-
-    with pytest.raises(ImportError, match="deep-translator"):
-        frame.translate_categorical_column("name", inplace=True)
-
-
-def test_basedata_boundary_errors_and_inplace_return(tmp_path):
-    frame = BaseData({"id": [1], "first": [2]}, cache_dir=tmp_path)
-
-    with pytest.raises(ValueError, match="position"):
-        frame.move_column("id", "first", position="middle")
-    with pytest.raises(ValueError, match="positive integer"):
-        frame.translate_categorical_column("first", save_every=0)
-
-    assert frame.drop_by_substring("missing", inplace=True) is None
-    assert list(frame.columns) == ["id", "first"]

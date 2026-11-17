@@ -218,7 +218,16 @@ def test_extract_entities_nlp_normalizes_single_string_and_none(
     assert [call[1]["disable"] for call in pipe_calls] == [expected, expected]
 
 
-@pytest.mark.parametrize("disable", ["tok2vec", "tagger", "attribute_ruler", "lemmatizer", "morphologizer"])
+@pytest.mark.parametrize(
+    "disable",
+    [
+        pytest.param("tok2vec", id="tok2vec"),
+        pytest.param("tagger", id="tagger"),
+        pytest.param("attribute_ruler", id="attribute-ruler"),
+        pytest.param("lemmatizer", id="lemmatizer"),
+        pytest.param("morphologizer", id="morphologizer"),
+    ],
+)
 def test_extract_entities_nlp_rejects_required_disable_before_spacy_load(
     monkeypatch, tmp_path, disable
 ):

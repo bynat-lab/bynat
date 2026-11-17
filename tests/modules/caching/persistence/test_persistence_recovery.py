@@ -74,10 +74,10 @@ def test_failed_removal_transaction_rolls_back_and_retries(tmp_path, monkeypatch
 @pytest.mark.parametrize(
     "content, expected_log",
     [
-        ("{not valid json", "is corrupted; moved it to"),
-        ("", "is corrupted; moved it to"),
-        ("[1, 2]", "has an invalid top-level JSON value; moved it to"),
-        (b"\xff\xfe garbage", "is corrupted; moved it to"),
+        pytest.param("{not valid json", "is corrupted; moved it to", id="malformed-json"),
+        pytest.param("", "is corrupted; moved it to", id="empty-file"),
+        pytest.param("[1, 2]", "has an invalid top-level JSON value; moved it to", id="json-array-top-level"),
+        pytest.param(b"\xff\xfe garbage", "is corrupted; moved it to", id="undecodable-bytes"),
     ],
 )
 def test_corrupt_cache_is_quarantined_and_replaced_with_empty_dict(tmp_path, caplog, content, expected_log):

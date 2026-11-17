@@ -9,22 +9,12 @@ import pytest
 from bynat.caching import CacheManager
 from bynat.cleaning import BaseData
 from bynat.cleaning.enrich import geocode
-from tests.modules.enrichment.helpers import install_fake_module
+from tests.modules.enrichment.helpers import Geocoder, Location, install_fake_module
 
 pytestmark = pytest.mark.unit
 
 
 _install = install_fake_module
-
-
-class DictGeocoder:
-    def __init__(self, known):
-        self.known = known
-        self.calls = []
-
-    def geocode(self, query):
-        self.calls.append(query)
-        return self.known.get(query)
 
 
 def test_fill_missing_coordinates_constructs_the_default_nominatim_geocoder(monkeypatch, tmp_path):
@@ -112,7 +102,7 @@ def test_fill_missing_coordinates_defaults_to_nominatim_geocoder(monkeypatch, tm
 
 
 def test_fill_missing_coordinates_accepts_a_plain_provider(tmp_path):
-    geocoder = DictGeocoder({"Springfield, USA": (39.8, -89.6)})
+    geocoder = Geocoder({"Springfield, USA": (39.8, -89.6)})
     frame = pd.DataFrame(
         {
             "street": ["1 Main St", "Nowhere Rd"],
@@ -162,12 +152,6 @@ def test_geocoding_errors_are_not_cached(tmp_path):
     pd.testing.assert_frame_equal(frame, original)
 
 
-class _Location:
-    def __init__(self, latitude, longitude):
-        self.latitude = latitude
-        self.longitude = longitude
-
-
 def _install_geopy(monkeypatch, known, calls, agents):
     class Nominatim:
         def __init__(self, user_agent):
@@ -192,7 +176,7 @@ def _install_geopy(monkeypatch, known, calls, agents):
 
 def test_fill_missing_coordinates_shortens_queries_and_caches_misses(monkeypatch, tmp_path):
     calls, agents = [], []
-    _install_geopy(monkeypatch, {"Springfield, USA": _Location(39.8, -89.6)}, calls, agents)
+    _install_geopy(monkeypatch, {"Springfield, USA": Location(39.8, -89.6)}, calls, agents)
 
     frame = BaseData(
         {

@@ -47,6 +47,7 @@ This document is the authoritative testing constitution for the `bynat` project.
    - 5.5 [Example 5: Strict DataFrame and Immutability Assertions](#55-example-5-strict-dataframe-and-immutability-assertions)
    - 5.6 [Example 6: Property-Based Invariant Testing](#56-example-6-property-based-invariant-testing)
    - 5.7 [Example 7: Strict Xfail Pinning for Tracked Production Defects](#57-example-7-strict-xfail-pinning-for-tracked-production-defects)
+   - 5.8 [Example 8: Test Hierarchy Follows Functional Relationships](#58-example-8-test-hierarchy-follows-functional-relationships)
 6. [Governance Framework](#6-governance-framework)
    - 6.1 [AI Agent Protocol](#61-ai-agent-protocol)
    - 6.2 [Human Review Checklist](#62-human-review-checklist)
@@ -225,7 +226,8 @@ This section contains mandatory, enforceable requirements specific to the `bynat
   4. `tests/shared/`: Genuinely reusable test infrastructure shared across distinct domains. [BP]
 - **BYNAT-ARCH-2: Module Ownership Rules.** Each test file under `tests/modules/<module>/` MUST verify behavior belonging primarily to the corresponding production module under `bynat/`. A module test MAY exercise supporting internal dependencies (e.g. caching managers or helpers) only when directly supporting the primary module behavior under test. Module tests MUST NOT own cross-module contracts or end-to-end workflows. [BP]
 - **BYNAT-ARCH-3: Cross-Cutting Topic Ownership Rules.** Tests that verify interactions spanning multiple production components, assert parity between different APIs (e.g. `BaseData` vs `df.bynat`), verify documentation drift, or execute multi-dataset workflows MUST reside in `tests/cross_cutting/<topic>/`. [BP]
-- **BYNAT-ARCH-4: Size Ceilings and Decomposition Triggers.** No test file in the repository may exceed **800 lines of code**. When any test file exceeds 200 lines or exhibits multiple distinct testing responsibilities, it SHOULD be decomposed into focused, single-responsibility files within its owning directory (e.g. `test_<module>_<topic>.py`). [BP]
+- **BYNAT-ARCH-4: Size Ceiling and Responsibility Ownership.** A test file MUST NOT exceed **200 lines of code**. Test files MUST be split by functional responsibility and architectural ownership, never by line count alone: a file under `tests/modules/<module>/` owns behavior belonging primarily to `bynat/<module>/`, and a file under `tests/cross_cutting/<topic>/` owns one cross-component contract. A file that groups several functional modules because they share a feature (for example, one `inplace` file spanning columns, text, statistics, and enrichment) MUST NOT be created; the shared contract belongs in `tests/cross_cutting/` and method-specific coverage belongs in each owning module directory. Exceeding the ceiling requires a justification recorded in the file that names the single responsibility which cannot be split without breaking ownership or fixture reuse. "These tests all concern the same feature" is not sufficient justification, and a file that is oversized only because it was never split is a defect, not an exception. [BP]
+- **BYNAT-ARCH-4a: Size-Ceiling Adoption Backlog.** The following test files exceed the `BYNAT-ARCH-4` ceiling. They are a tracked backlog rather than sanctioned exceptions: each MUST be split by functional responsibility the next time it is substantively modified, and any file still over the ceiling after that MUST carry the recorded justification `BYNAT-ARCH-4` requires. The backlog is: `tests/cross_cutting/contracts/test_properties.py` (293), `tests/cross_cutting/workflows/fill_missing_from/test_fill_missing_from_contracts.py` (223), `tests/cross_cutting/workflows/fill_missing_from/test_fill_missing_from_imputation.py` (256), `tests/modules/caching/migration/test_migration_sqlite.py` (241), `tests/modules/caching/persistence/test_persistence_recovery.py` (258), `tests/modules/caching/test_concurrency.py` (336), `tests/modules/enrichment/currency/test_currency.py` (226), `tests/modules/enrichment/geocode/test_geocode.py` (261), `tests/modules/enrichment/nlp/test_nlp.py` (359), `tests/modules/enrichment/optional/test_optional_sqlalchemy.py` (204), `tests/modules/enrichment/translate/test_translate_conditional.py` (226), `tests/modules/io/test_io_json.py` (252), `tests/modules/profile/test_profile_contract.py` (203), `tests/modules/profile/test_profile_edges.py` (203), `tests/modules/profile/test_profile_general.py` (354), `tests/modules/stats/hierarchical_stats/test_hierarchical_stats_aggregation.py` (260), `tests/modules/stats/test_fill_missing.py` (321), `tests/modules/text/test_text.py` (239). [BP]
 - **BYNAT-ARCH-5: Conftest Scoping and `tests/shared/` Admission Gate.**
   - Root `tests/conftest.py` is reserved exclusively for suite-wide configuration and universal fixtures.
   - Module-local `conftest.py` files (e.g. `tests/modules/caching/conftest.py`, `tests/modules/enrichment/conftest.py`) are permitted only when justified by module-scoped fixtures (e.g. SQLite handles, provider fakes).
@@ -236,6 +238,15 @@ This section contains mandatory, enforceable requirements specific to the `bynat
 - **BYNAT-ARCH-9: Test Data Management.** All test files, databases, and serialization outputs MUST be written to `tmp_path`. Tests MUST NOT read application data from the repository checkout except for declared static packaging artifacts (`bynat/py.typed`, `bynat/cleaning/accessor.pyi`) and docstring tooling (`tools/sync_docs.py`). [BP]
 - **BYNAT-ARCH-10: Prohibition of Row-Wise Iteration in Data Paths.** Production transformation and cleaning paths MUST NOT use row-wise iteration (`apply(axis=1)`, `iterrows()`, `itertuples()`). Where row-wise iteration is an architectural concern, tests MUST enforce vectorized execution via AST inspection or execution guards. [BP]
 - **BYNAT-ARCH-11: Functionality-Oriented Subdirectory Grouping.** When multiple test files cover the same function, type, or closely related functionality within a module or topic directory, they MUST be grouped inside a dedicated subdirectory named after the functionality being tested (e.g. `persistence/` and `migration/` under `tests/modules/caching/`, `migration/legacy/` for legacy cache migration files, `translate/` and `optional/` under `tests/modules/enrichment/`, and `hierarchical_stats/` under `tests/modules/stats/`). Directory names MUST reflect the target functionality, and single test files that already cover a distinct responsibility MUST remain directly in their parent directory without introducing unnecessary nesting. [BP]
+- **BYNAT-ARCH-12: Test Hierarchy Follows Functional Relationships.** The `tests/` tree is organized by the responsibilities the tests cover and by how closely those responsibilities are related. It is NOT a mirror of the production source layout, and a production package or module boundary is not by itself a reason to create a test directory.
+  1. A parent directory represents a broad functional area. Test files directly inside it MUST cover different, relatively independent aspects of that area, and they remain at that level. A subdirectory MUST NOT be created for a single file, nor for a single independent aspect.
+  2. A nested directory represents a narrower responsibility inside the broader area. It MUST be created only when two or more test files cover different aspects of that same narrower responsibility, and its name MUST name that responsibility.
+  3. A filename suffix MUST NOT be used as a substitute for a directory level. When several files accumulate at one level as `test_<area>_a.py`, `test_<area>_b.py`, and so on because they all cover the same narrower responsibility, they MUST be grouped in a directory named for that responsibility instead.
+  4. Grouping MUST be justified by a genuine functional relationship between the tests. Files MUST NOT be grouped merely because they share a feature name or a keyword, and unrelated files MUST NOT be combined only to reduce the number of directories.
+  5. A file whose responsibility genuinely spans more than one area MUST be placed in `tests/cross_cutting/<topic>/`. A file that belongs to one area MUST stay under that area's directory.
+  6. Splitting or moving files MUST preserve logical grouping, test ownership, fixtures, and existing coverage, and MUST respect the size ceiling in `BYNAT-ARCH-4`.
+  7. Where the correct grouping is ambiguous, the files stay at the parent level unless a concrete narrower responsibility can be named, and the resolution MUST be recorded with the directory.
+  [BP]
 
 ### 3.2 Required DataFrame Cases and Assertion Standards (DF and BYNAT-ASSERT)
 
@@ -277,10 +288,10 @@ Every public transformation and cleaning method MUST be tested against applicabl
 #### 3.3.1 Shared Transformation Requirements (S-1 through S-7)
 The following requirements apply to all public frame-to-frame transformations across `BaseData`, the `df.bynat` accessor, and shared transformation functions:
 
-- **S-1: Input Immutability.** The input DataFrame MUST NOT be modified in place. `before = df.copy(deep=True)`; execute transformation; `pd.testing.assert_frame_equal(df, before)`. [BP]
+- **S-1: Input Immutability.** Unless the caller explicitly requests in-place execution, the input DataFrame MUST NOT be modified. `before = df.copy(deep=True)`; execute the transformation with the default arguments (or `inplace=False`); `pd.testing.assert_frame_equal(df, before)`. [BP]
 - **S-2: New Object Return.** By default, transformations MUST return a new object instance (`assert result is not df`). Early exits on no-op data MUST return an independent copy, never the original reference. [SB]
 - **S-3: Index Preservation.** Output index MUST match input index (`pd.testing.assert_index_equal(result.index, df.index)`), except for operations documented to reshape or explode the index (`split_list_objects(explode_rows=True)`, `melt_transform_pivot`). [BP]
-- **S-4: Return Contract & Inplace Handling.** On class-based APIs (`BaseData`), default calls return a new instance, while `inplace=True` mutates the instance and returns `None` (or statistics). Standalone functions and accessor methods do not accept `inplace`. *(Note: Variadic methods currently absorbing `inplace` are documented as Blocked on production scope PD-01).* [BP]
+- **S-4: Return Contract & Inplace Handling.** On class-based APIs (`BaseData`) and on the `df.bynat` accessor, default calls return a new frame, while `inplace=True` mutates the original object in place and returns `None` (or statistics). Standalone functions do not accept `inplace`. Methods that do not transform the frame (`get_hierarchical_stats`, `profile`, `save_to_json`, `save_to_sql`, `clear_cache_for_column`, `with_cache`) do not accept it either. [BP]
 - **S-5: Class and Accessor Parity.** The `BaseData` class method and the `df.bynat` accessor method MUST produce identical values when called with identical arguments on identical data. [BP]
 - **S-6: No Unexpected Deprecation Warnings.** Valid method invocations MUST NOT emit unexpected `DeprecationWarning` or `FutureWarning` notices. [BP]
 - **S-7: Lenient Handling of Empty/No-Op Inputs.** Lenient methods called with empty frames or missing optional columns MUST return an independent copy without error. Methods with required arguments MUST raise documented validation errors. [BP]
@@ -414,9 +425,9 @@ The following requirements apply to all public frame-to-frame transformations ac
 | **MK-6:** Column in `match_cols` missing | Not applicable | Raises `ValueError` | Not applicable |
 
 #### 3.3.10 Mutation and Leakage Standards (ML-1 through ML-7)
-- **ML-1:** Frame transformations MUST return a new object and leave input data unmodified. [BP]
-- **ML-2:** Class API `inplace=True` mutates the instance in place; shared functions and the accessor do not support `inplace`. *(Note: Variadic methods absorbing `inplace` are pinned by 8 strict `xfail` tests in `tests/cross_cutting/base_api/test_base_inplace.py` linking PD-01).* [BP]
-- **ML-3:** The `df.bynat` accessor MUST NOT mutate the underlying wrapped DataFrame. [BP]
+- **ML-1:** Frame transformations MUST return a new object by default and leave input data unmodified unless `inplace=True` is requested. [BP]
+- **ML-2:** Class API and accessor `inplace=True` mutate the original frame in place and return `None` or the documented statistics; standalone functions do not accept `inplace`. The accessor contract is pinned by `tests/cross_cutting/accessor/inplace/`. *(Note: the variadic standalone functions still absorb an unexpected `inplace` keyword into their `**kwargs`; that function-level defect remains tracked as PD-01 and pinned in `tests/cross_cutting/contracts/test_tracked_defects.py`.)* [BP]
+- **ML-3:** The `df.bynat` accessor MUST NOT mutate the underlying wrapped DataFrame unless `inplace=True` is requested, in which case the mutation MUST target that same object and preserve its identity. [BP]
 - **ML-4:** Cache directories MUST remain isolated. Different cache directories MUST NOT share state. Key normalization (`1`, `1.0`, `"1"` colliding by design) MUST be pinned by tests. [BP]
 - **ML-5:** `fill_missing_from` MUST NOT leak target data into reference statistics and MUST NOT mutate the reference dataset. [BP]
 - **ML-6:** Enrichment caching semantics MUST be verified per provider: exceptions are never cached; translation does not cache empty strings; geocoding and currency may cache missing lookups as `None`; NLP caches valid empty extractions. [BP]
@@ -496,7 +507,7 @@ The adoption roadmap established in §12 of the previous standards has been exec
 
 | Phase | Description | Key Deliverables | Verified Status |
 |---|---|---|---|
-| **Phase 0** | Stop the Bleeding | Anti-cheating enforcement, DataFrame cases (`DF-1`…`DF-20`), transformation rules (`S-*`, `FM-*`, `FF-*`, `HO-*`, `DO-*`, `HF-*`, `MS-*`, `UG-*`, `MK-*`, `ML-*`), removal of unused `tmp_path` fixtures, contract test for caching exports. Tracked defects `MS-3a` (outlier `min_samples`) and `S-4`/`ML-2` (variadic `inplace`) pinned by 20 strict `xfail` tests. | **Complete** *(Tracked defects MS-3a and S-4/ML-2 Blocked on production scope PD-02/PD-01).* |
+| **Phase 0** | Stop the Bleeding | Anti-cheating enforcement, DataFrame cases (`DF-1`…`DF-20`), transformation rules (`S-*`, `FM-*`, `FF-*`, `HO-*`, `DO-*`, `HF-*`, `MS-*`, `UG-*`, `MK-*`, `ML-*`), removal of unused `tmp_path` fixtures, contract test for caching exports. Tracked defect `MS-3a` (outlier `min_samples`) pinned by 12 strict `xfail` tests. | **Complete** *(Tracked defect MS-3a Blocked on production scope PD-02.)* |
 | **Phase 1** | Make Suite Measurable | Pytest configuration in `pyproject.toml`, 7 registered markers, Hypothesis profiles in `conftest.py`, baseline branch coverage measurement. | **Complete** |
 | **Phase 2** | Gates and Properties | Coverage gate (`fail_under = 85`), Hypothesis property tests (`test_properties.py`), full extras matrix CI job (`test-extras`), `PERF-01`/`PERF-03` equivalence tests, scheduled quality CI job. | **Complete** |
 | **Phase 3** | Artifacts and Mutation | Wheel verification in CI (`verify_installed_wheel.py`), `cosmic-ray` declared in `dev` extra, `cosmic-ray.toml` configuration, scheduled advisory mutation run in CI, survivor triage ($MS = 78.9\%$). | **Complete** |
@@ -581,7 +592,7 @@ The examples in this section demonstrate how established rules from Authority Le
 ### 5.1 Example 1: Hierarchical Directory Mapping and Decomposed Responsibility Files
 *Governing Rules:* `BYNAT-ARCH-1`, `BYNAT-ARCH-2`, `BYNAT-ARCH-3`, `BYNAT-ARCH-4`, `BYNAT-ARCH-11`
 
-Under TEST-ARCH-01 and `BYNAT-ARCH-11`, tests are organized strictly by owning module and cross-cutting responsibility, with no single file exceeding 800 lines. When multiple test files cover the same function, type, or closely related functionality, they are grouped in a dedicated functionality subdirectory without introducing unnecessary nesting for single-file responsibilities:
+Under TEST-ARCH-01 and `BYNAT-ARCH-11`, tests are organized strictly by owning module and cross-cutting responsibility, with no single file exceeding 200 lines. When multiple test files cover the same function, type, or closely related functionality, they are grouped in a dedicated functionality subdirectory without introducing unnecessary nesting for single-file responsibilities:
 
 ```
 tests/
@@ -607,20 +618,33 @@ tests/
 │   │       ├── test_persistence_recovery.py      # SQLite failure and corruption recovery (BYNAT-ARCH-2)
 │   │       └── test_persistence_save.py          # Delta checkpoint writes and removals (BYNAT-ARCH-4)
 │   ├── columns/
+│   │   ├── test_columns_inplace.py                # Accessor in-place column transforms (BYNAT-ARCH-12)
 │   │   ├── test_columns_pivot.py                 # Reshaping and pivot operations (BYNAT-ARCH-2)
 │   │   ├── test_columns_split.py                 # List splitting and exploding (BYNAT-ARCH-2)
 │   │   └── test_columns_structural.py            # Renaming, reordering, non-string labels (BYNAT-ARCH-2)
 │   ├── enrichment/
+│   │   ├── currency/                             # Currency conversion behaviour (BYNAT-ARCH-12)
+│   │   │   ├── test_currency.py                  # Provider, rate lookup, and caching contracts (BYNAT-ARCH-2)
+│   │   │   └── test_currency_inplace.py          # In-place conversion of the wrapped frame (BYNAT-ARCH-12)
+│   │   ├── geocode/                              # Geocoding behaviour (BYNAT-ARCH-12)
+│   │   │   ├── test_geocode.py                   # Query building and offline caching (BYNAT-ARCH-2)
+│   │   │   └── test_geocode_inplace.py           # In-place coordinate fill (BYNAT-ARCH-12)
+│   │   ├── nlp/                                  # Entity extraction behaviour (BYNAT-ARCH-12)
+│   │   │   ├── test_nlp.py                       # spaCy pipeline and lexicon contracts (BYNAT-ARCH-2)
+│   │   │   └── test_nlp_inplace.py               # In-place entity extraction (BYNAT-ARCH-12)
 │   │   ├── translate/                            # Translation tests grouped by functionality (BYNAT-ARCH-11)
 │   │   │   ├── test_translate_batch.py           # Batch translation and rate limiting (BYNAT-ARCH-2)
 │   │   │   ├── test_translate_conditional.py     # Conditional translation partitioning (BYNAT-ARCH-2)
-│   │   │   └── test_translate_impute.py          # Missing-value translation imputation (BYNAT-ARCH-2)
+│   │   │   ├── test_translate_impute.py          # Missing-value translation imputation (BYNAT-ARCH-2)
+│   │   │   └── test_translate_inplace.py         # In-place translation (BYNAT-ARCH-12)
+│   │   ├── test_enrich_engine.py                 # Shared cached-lookup engine (BYNAT-ARCH-2)
 │   │   └── optional/                             # Optional dependency enrichment tests (BYNAT-ARCH-11)
 │   │       ├── test_optional_ahocorasick.py      # Real pyahocorasick keyword matching (BYNAT-MARK-3)
 │   │       └── test_optional_sqlalchemy.py       # Real SQLAlchemy SQLite export (BYNAT-MARK-3)
 │   └── stats/
 │       ├── test_fill_missing.py                  # Hierarchical missing-value imputation (BYNAT-ARCH-2)
 │       ├── test_outliers.py                      # Outlier handling and dropping contracts (BYNAT-ARCH-2)
+│       ├── test_stats_inplace.py                 # Accessor in-place statistical transforms (BYNAT-ARCH-12)
 │       └── hierarchical_stats/                   # get_hierarchical_stats suite group (BYNAT-ARCH-11)
 │           ├── test_hierarchical_stats_aggregation.py
 │           ├── test_hierarchical_stats_flags.py
@@ -628,13 +652,28 @@ tests/
 │           ├── test_hierarchical_stats_output_types.py
 │           └── test_hierarchical_stats_validation.py
 └── cross_cutting/
+    ├── accessor/
+    │   ├── test_accessor.py                      # Registration, loaders, cache manager (BYNAT-ARCH-2)
+    │   ├── test_parity.py                        # Class/accessor result parity (BYNAT-ARCH-3)
+    │   └── inplace/                              # Accessor in-place execution (BYNAT-ARCH-12)
+    │       ├── test_argument_binding.py          # Signature parity and positional `inplace` (BYNAT-ARCH-12)
+    │       ├── test_mutation.py                  # Identity, validation, exclusions (BYNAT-ARCH-12)
+    │       └── test_variadic_capture.py          # PD-01 variadic `**kwargs` capture (ML-2)
     ├── base_api/
-    │   └── test_base_inplace.py                  # API-02 inplace copy/mutation contracts (BYNAT-ARCH-3)
+    │   ├── test_base_constructors.py             # Constructor and import contracts (BYNAT-ARCH-2)
+    │   ├── test_base_early_exits.py              # Early-exit copy independence (BYNAT-ARCH-3)
+    │   └── inplace/                              # BaseData in-place execution (BYNAT-ARCH-12)
+    │       ├── test_base_inplace.py              # API-02 inplace copy/mutation contracts (BYNAT-ARCH-3)
+    │       └── test_base_inplace_failures.py     # In-place calls that raise (BYNAT-ARCH-12)
     ├── contracts/
     │   ├── test_doc_drift.py                     # Docstring and accessor.pyi sync (BYNAT-API-4)
-    │   └── test_properties.py                    # Hypothesis property-based invariants (BYNAT-METRIC-7)
+    │   ├── test_properties.py                    # Hypothesis property-based invariants (BYNAT-METRIC-7)
+    │   └── test_tracked_defects.py               # PD-01 function-level pins (ML-2)
     └── workflows/
-        └── test_fill_missing_from_leakage.py     # Statistical isolation verification (BYNAT-ARCH-3)
+        └── fill_missing_from/                    # Reference-imputation workflow (BYNAT-ARCH-12)
+            ├── test_fill_missing_from_contracts.py
+            ├── test_fill_missing_from_imputation.py
+            └── test_fill_missing_from_leakage.py  # Statistical isolation verification (BYNAT-ARCH-3)
 ```
 
 ### 5.2 Example 2: Cross-Domain Shared Constants vs Module-Local Helpers
@@ -722,10 +761,10 @@ def test_save_to_sql_with_real_sqlalchemy_and_sqlite(tmp_path):
 ### 5.5 Example 5: Strict DataFrame and Immutability Assertions
 *Governing Rules:* `A-1`, `A-3`, `BYNAT-ASSERT-1`, `FF-1`, `FF-2`, `FF-3`, `ML-1`
 
-In `tests/cross_cutting/workflows/test_fill_missing_from_leakage.py`, statistical isolation is verified with deep copies and `pd.testing.assert_frame_equal`:
+In `tests/cross_cutting/workflows/fill_missing_from/test_fill_missing_from_leakage.py`, statistical isolation is verified with deep copies and `pd.testing.assert_frame_equal`:
 
 ```python
-# tests/cross_cutting/workflows/test_fill_missing_from_leakage.py
+# tests/cross_cutting/workflows/fill_missing_from/test_fill_missing_from_leakage.py
 import pandas as pd
 import pytest
 
@@ -799,6 +838,36 @@ def test_handle_outliers_rejects_invalid_min_samples(invalid_val):
         stats.handle_outliers(df, target_cols=["val"], hierarchy_cols=["grp"], min_samples=invalid_val)
 ```
 
+### 5.8 Example 8: Test Hierarchy Follows Functional Relationships
+*Governing Rules:* `BYNAT-ARCH-1`, `BYNAT-ARCH-2`, `BYNAT-ARCH-3`, `BYNAT-ARCH-4`, `BYNAT-ARCH-11`, `BYNAT-ARCH-12`
+
+`tests/cross_cutting/accessor/` covers the `df.bynat` accessor. `test_accessor.py` (registration, loaders, cache manager) and `test_parity.py` (class/accessor result parity) cover independent aspects of that area, so they stay at the accessor level. The in-place files all cover one narrower responsibility — accessor in-place execution — so they are grouped in `inplace/` rather than accumulating as `test_accessor_inplace_a.py`, `test_accessor_inplace_b.py`, … at the parent level.
+
+Incorrect — three specialised in-place files flattened at the accessor level, distinguished only by filename suffixes:
+
+```text
+tests/cross_cutting/accessor/
+├── test_accessor.py
+├── test_parity.py
+├── test_accessor_inplace.py
+├── test_accessor_argument_binding.py
+└── test_accessor_variadic_capture.py
+```
+
+Correct — the independent aspects stay at the accessor level, and the files sharing the narrower in-place responsibility move into a directory named for it:
+
+```text
+tests/cross_cutting/accessor/
+├── test_accessor.py
+├── test_parity.py
+└── inplace/
+    ├── test_mutation.py
+    ├── test_argument_binding.py
+    └── test_variadic_capture.py
+```
+
+The same reasoning keeps single-aspect files at their parent level: `tests/modules/columns/test_columns_inplace.py` and `tests/modules/stats/test_stats_inplace.py` each cover one narrower responsibility that has no sibling file, so no subdirectory is created for them. Conversely, `tests/modules/enrichment/` nests `currency/`, `geocode/`, and `nlp/` because each of those narrower responsibilities has two files; `translate/` and `optional/` already existed for the same reason.
+
 ---
 
 ## 6. Governance Framework
@@ -832,7 +901,7 @@ Reviewers of testing pull requests MUST verify the following criteria prior to a
 - [ ] All DataFrame comparisons use `pd.testing.assert_*` helpers with default strictness; `DataFrame.equals()` is not used as the sole assertion (`BYNAT-ASSERT-1`).
 - [ ] The 20 required DataFrame edge cases (`DF-1`…`DF-20`) and transformation rules (`S-*`, `FM-*`, `FF-*`, `HO-*`, `DO-*`, `HF-*`, `MS-*`, `UG-*`, `MK-*`, `ML-*`) are satisfied.
 - [ ] Every test carries appropriate orthogonal markers (`unit`, `integration`, `property`, `extras`, `slow`) (`BYNAT-MARK-1`).
-- [ ] The 800-line per-file limit is respected across all test files (`BYNAT-ARCH-4`).
+- [ ] The 200-line per-file ceiling is respected across all test files, and every file still over it carries a recorded justification or is on the `BYNAT-ARCH-4a` backlog (`BYNAT-ARCH-4`, `BYNAT-ARCH-4a`).
 - [ ] Related test files covering the same function, type, or functionality are grouped into dedicated functionality subdirectories without unnecessary nesting (`BYNAT-ARCH-11`).
 - [ ] All CI matrix legs, lint checks, type checks, and coverage gates pass cleanly.
 

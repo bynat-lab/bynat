@@ -66,6 +66,52 @@ def _newline_of(text: str) -> str:
     return "\r\n" if "\r\n" in text else "\n"
 
 
+def _constant_true(node: ast.AST) -> bool:
+    """Whether a factory keyword argument is the literal `True`."""
+    return isinstance(node, ast.Constant) and node.value is True
+
+
+def _string_flag(keywords: list[ast.keyword], name: str) -> str | None:
+    """The string value of a literal keyword argument, or None."""
+    for keyword in keywords:
+        if (
+            keyword.arg == name
+            and isinstance(keyword.value, ast.Constant)
+            and isinstance(keyword.value.value, str)
+        ):
+            return keyword.value.value
+    return None
+
+
+def _insert_inplace(args: ast.arguments, before: str | None) -> bool:
+    """Insert the `inplace` argument; return True when it is keyword-only."""
+    positional = [*args.posonlyargs, *args.args]
+    if before is not None:
+        index = next(i for i, arg in enumerate(positional) if arg.arg == before)
+        _insert_positional(args, index)
+        return False
+    if args.vararg is not None:
+        args.kwonlyargs.insert(0, ast.arg("inplace"))
+        args.kw_defaults.insert(0, ast.Constant(False))
+        return True
+    _insert_positional(args, len(positional))
+    return False
+
+
+def _insert_positional(args: ast.arguments, index: int) -> None:
+    """Insert `inplace` into the positional block at ``index``."""
+    posonly = len(args.posonlyargs)
+    if index < posonly:
+        args.posonlyargs.insert(index, ast.arg("inplace"))
+        return
+    index -= posonly
+    pad = len(args.args) - len(args.defaults)
+    if index < pad:
+        raise ValueError("cannot insert a defaulted parameter before a required one")
+    args.args.insert(index, ast.arg("inplace"))
+    args.defaults.insert(index - pad, ast.Constant(False))
+
+
 def _shared_doc(func: object) -> str:
     """The docstring exactly as `_shares_doc` and `inspect.getdoc` see it."""
     return inspect.cleandoc(getattr(func, "__doc__", None) or "")
@@ -309,6 +355,9 @@ def _stub_function(
     func: object,
     name: str,
     drop_cache_manager: bool,
+    add_inplace: bool = False,
+    stats: bool = False,
+    inplace_before: str | None = None,
 ) -> tuple[ast.FunctionDef, str]:
     """Build the stub method for one shared function, and its source module."""
     module_name = func.__module__  # type: ignore[attr-defined]
@@ -337,7 +386,15 @@ def _stub_function(
         else:
             raise LookupError(f"{module_name}.{func_name} has no keyword-only cache_manager")
 
+    if add_inplace:
+        _insert_inplace(args, inplace_before)
+
     returns = copy.deepcopy(original.returns)
+    if add_inplace and returns is not None and not stats:
+        returns = ast.copy_location(
+            ast.BinOp(left = returns, op = ast.BitOr(), right = ast.Constant(None)),
+            returns,
+        )
     node = ast.FunctionDef(
         name = name,
         args = args,
@@ -443,8 +500,18 @@ def render_stub() -> str:
             name = node.targets[0].id
             runtime_cls = importlib.import_module(ACCESSOR_MODULE).BynatAccessor
             func = vars(runtime_cls)[name].__wrapped__
+            flags = {
+                keyword.arg: _constant_true(keyword.value)
+                for keyword in node.value.keywords
+                if keyword.arg
+            }
             stub, module_name = _stub_function(
-                func, name, drop_cache_manager = node.value.func.id == "_cached_frame_method"
+                func,
+                name,
+                drop_cache_manager = node.value.func.id == "_cached_frame_method",
+                add_inplace = flags.get("inplace", False),
+                stats = flags.get("stats", False),
+                inplace_before = _string_flag(node.value.keywords, "inplace_before"),
             )
             need(stub.args, module_name)
             if stub.returns is not None:

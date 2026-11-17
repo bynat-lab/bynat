@@ -73,7 +73,9 @@ def test_min_samples_counts_only_non_null_observations():
     assert pd.isna(result.loc[4, "v"])
 
 
-@pytest.mark.parametrize("method_name", ["handle_outliers", "drop_outliers"])
+@pytest.mark.parametrize(
+    "method_name", ["handle_outliers", "drop_outliers"], ids=["handle-outliers", "drop-outliers"]
+)
 @pytest.mark.parametrize("hierarchy_cols", [[], None], ids=["empty-list", "none"])
 def test_outlier_methods_warn_and_return_an_unchanged_copy_without_hierarchy(
     caplog, method_name, hierarchy_cols
@@ -89,7 +91,7 @@ def test_outlier_methods_warn_and_return_an_unchanged_copy_without_hierarchy(
     assert "No hierarchy columns provided." in caplog.text
 
 
-@pytest.mark.parametrize("method_name", ["handle_outliers", "drop_outliers"])
+@pytest.mark.parametrize("method_name", ["handle_outliers", "drop_outliers"], ids=["handle-outliers", "drop-outliers"])
 def test_outlier_methods_raise_keyerror_for_a_missing_named_hierarchy(method_name):
     frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 2.0]})
 

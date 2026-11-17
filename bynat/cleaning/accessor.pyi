@@ -19,11 +19,18 @@ class BynatAccessor:
     """
     bynat cleaning, enrichment, and export methods for any `pandas.DataFrame`.
 
-    Every transformation returns a new DataFrame and never modifies the
-    original. Cached methods (translation, geocoding, currency conversion,
-    and NLP) use one shared `CacheManager` per cache directory: the
-    `BYNAT_CACHE_DIR` environment variable or the default directory, unless
-    `with_cache(...)` selects another one.
+    Every transformation returns a new DataFrame and leaves the original
+    untouched by default. The in-place capable transformations accept
+    `inplace` with the same calling convention as the corresponding
+    `BaseData` method (same parameter kind and positional slot);
+    `inplace=True` mutates the wrapped DataFrame in place and returns `None`
+    (or the hierarchical statistics DataFrame for `handle_outliers`,
+    `drop_outliers`, `fill_missing`, and `fill_missing_from` when
+    `get_hierarchical_stats=True`), while `inplace=False` leaves the original
+    untouched. Cached methods (translation,
+    geocoding, currency conversion, and NLP) use one shared `CacheManager` per
+    cache directory: the `BYNAT_CACHE_DIR` environment variable or the default
+    directory, unless `with_cache(...)` selects another one.
 
     Example:
     ```
@@ -71,7 +78,7 @@ class BynatAccessor:
         """
         ...
 
-    def drop_by_substring(self, substring: str) -> pd.DataFrame:
+    def drop_by_substring(self, substring: str, inplace=False) -> pd.DataFrame | None:
         """
         Drop all columns that contain a specific substring within their names.
 
@@ -95,7 +102,7 @@ class BynatAccessor:
         """
         ...
 
-    def drop_CLASS_columns(self) -> pd.DataFrame:
+    def drop_CLASS_columns(self, inplace=False) -> pd.DataFrame | None:
         """
         Drop all columns that contain the substring "__CLASS__" from the data.
 
@@ -115,7 +122,7 @@ class BynatAccessor:
         """
         ...
 
-    def rename_by_substring(self, old_substring: str, new_substring: str) -> pd.DataFrame:
+    def rename_by_substring(self, old_substring: str, new_substring: str, inplace=False) -> pd.DataFrame | None:
         """
         Rename columns by replacing a specific substring with a new one.
 
@@ -139,7 +146,7 @@ class BynatAccessor:
         """
         ...
 
-    def rename_all_DOTS(self, unified_separator: str='_') -> pd.DataFrame:
+    def rename_all_DOTS(self, unified_separator: str='_', inplace=False) -> pd.DataFrame | None:
         """
         Rename columns by replacing all occurrences of dots ('.') with a unified separator.
 
@@ -163,7 +170,7 @@ class BynatAccessor:
         """
         ...
 
-    def reorder_columns(self, *first_cols: Any) -> pd.DataFrame:
+    def reorder_columns(self, *first_cols: Any, inplace=False) -> pd.DataFrame | None:
         """
         Reorder the dataframe by moving a specified list of columns to the front.
 
@@ -189,7 +196,7 @@ class BynatAccessor:
         """
         ...
 
-    def melt_transform_pivot(self, id_vars: list | str, value_vars: list | str | None=None, transform_func: Callable | None=None, aggfunc: str | Callable='first', var_name: str='variable_name', value_name: str='variable_value', pivot_index: list | str | None=None, pivot_columns: list | str | None=None, **kwargs: Any) -> pd.DataFrame:
+    def melt_transform_pivot(self, id_vars: list | str, value_vars: list | str | None=None, transform_func: Callable | None=None, aggfunc: str | Callable='first', var_name: str='variable_name', value_name: str='variable_value', pivot_index: list | str | None=None, pivot_columns: list | str | None=None, inplace=False, **kwargs: Any) -> pd.DataFrame | None:
         """
         Reshape selected columns to long format, transform their values, and
         pivot them back to wide format.
@@ -250,7 +257,7 @@ class BynatAccessor:
         """
         ...
 
-    def move_column(self, col_to_move: str, col_target: str, position: str='after') -> pd.DataFrame:
+    def move_column(self, col_to_move: str, col_target: str, position: str='after', inplace=False) -> pd.DataFrame | None:
         """
         Move a specific column to a new position relative to a target column.
 
@@ -279,7 +286,7 @@ class BynatAccessor:
         """
         ...
 
-    def align_lat_lng(self) -> pd.DataFrame:
+    def align_lat_lng(self, inplace=False) -> pd.DataFrame | None:
         """
         Standardize the coordinate order by moving the 'longitude' column
         immediately after the 'latitude' column.
@@ -303,7 +310,7 @@ class BynatAccessor:
         """
         ...
 
-    def split_list_objects(self, source_col: str, remove_source_col: bool=False, explode_rows: bool=False, cartesian_explode: bool=False, **target_cols_and_indices: Any) -> pd.DataFrame:
+    def split_list_objects(self, source_col: str, remove_source_col: bool=False, explode_rows: bool=False, cartesian_explode: bool=False, inplace=False, **target_cols_and_indices: Any) -> pd.DataFrame | None:
         """
         Extract specific elements from lists stored within a column into new columns.
 
@@ -362,7 +369,7 @@ class BynatAccessor:
         """
         ...
 
-    def extract_keywords(self, *source_cols: Any, remove_extracted: bool=False, use_regex: bool=False, **target_cols_and_keywords: Any) -> pd.DataFrame:
+    def extract_keywords(self, *source_cols: Any, inplace=False, remove_extracted: bool=False, use_regex: bool=False, **target_cols_and_keywords: Any) -> pd.DataFrame | None:
         """
         Search for keywords or regular expressions across source columns and extract them into new target columns.
         Matches are case-insensitive and are formatted to Title Case in the target column.
@@ -410,7 +417,7 @@ class BynatAccessor:
         """
         ...
 
-    def truncate_after_substring(self, regex: bool=True, **target_cols_and_substrings: Any) -> pd.DataFrame:
+    def truncate_after_substring(self, regex: bool=True, inplace=False, **target_cols_and_substrings: Any) -> pd.DataFrame | None:
         """
         Remove specific substrings and everything following them from target columns.
 
@@ -443,7 +450,7 @@ class BynatAccessor:
         """
         ...
 
-    def categorize_by_reference(self, *source_cols: str, target_col: str, reference: dict, default_category: str='Other') -> pd.DataFrame:
+    def categorize_by_reference(self, *source_cols: str, inplace=False, target_col: str, reference: dict, default_category: str='Other') -> pd.DataFrame | None:
         r"""
         Categorize text data into broader groups based on a reference lexicon dictionary.
 
@@ -488,7 +495,7 @@ class BynatAccessor:
         """
         ...
 
-    def handle_outliers(self, *target_cols: Any, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
+    def handle_outliers(self, *target_cols: Any, inplace=False, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
         """
         Replace outlier values with missing values using hierarchical IQR rules.
 
@@ -515,7 +522,7 @@ class BynatAccessor:
         """
         ...
 
-    def drop_outliers(self, *target_cols: Any, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
+    def drop_outliers(self, *target_cols: Any, inplace=False, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
         """
         Remove rows that contain outlier values based on hierarchical IQR rules.
 
@@ -542,7 +549,7 @@ class BynatAccessor:
         """
         ...
 
-    def fill_missing(self, *target_cols: Any, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
+    def fill_missing(self, *target_cols: Any, inplace=False, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
         """
         Impute missing values by progressively relaxing a grouping hierarchy.
 
@@ -592,7 +599,7 @@ class BynatAccessor:
         """
         ...
 
-    def fill_missing_from(self, dataset: Any, *target_cols: Any, match_cols: dict[str, str] | None=None, targets: Any=None, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
+    def fill_missing_from(self, dataset: Any, *target_cols: Any, inplace=False, match_cols: dict[str, str] | None=None, targets: Any=None, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
         """
         Impute missing values using statistics calculated from a reference dataset.
 
@@ -828,7 +835,7 @@ class BynatAccessor:
         """
         ...
 
-    def impute_by_language(self, reference_col: str, *target_cols: Any, target_lang: str='en') -> pd.DataFrame:
+    def impute_by_language(self, reference_col: str, *target_cols: Any, inplace=False, target_lang: str='en') -> pd.DataFrame | None:
         """
         Impute missing or inconsistent values in target columns based on a reference column
         and a preferred language.
@@ -869,7 +876,7 @@ class BynatAccessor:
         """
         ...
 
-    def translate_conditional_column(self, partition_col: str, detect_col: str, target_col: str, target_lang: str='en', sample_size: int=10, number_of_samples: int=3, threshold: float=0.5, save_every: int=1000, random_state: int | np.random.Generator | np.random.RandomState | None=0, *, provider: Translator | None=None) -> pd.DataFrame:
+    def translate_conditional_column(self, partition_col: str, detect_col: str, target_col: str, target_lang: str='en', sample_size: int=10, number_of_samples: int=3, threshold: float=0.5, save_every: int=1000, inplace=False, random_state: int | np.random.Generator | np.random.RandomState | None=0, *, provider: Translator | None=None) -> pd.DataFrame | None:
         """
         Conditionally translate values in a target column based on language detection of a sample.
 
@@ -924,7 +931,7 @@ class BynatAccessor:
         """
         ...
 
-    def translate_categorical_column(self, target_col: str, target_lang: str='en', save_every: int=1000, *, provider: Translator | None=None) -> pd.DataFrame:
+    def translate_categorical_column(self, target_col: str, target_lang: str='en', save_every: int=1000, inplace=False, *, provider: Translator | None=None) -> pd.DataFrame | None:
         """
         Translate all unique categories in a specific column using an automated translator.
 
@@ -968,7 +975,7 @@ class BynatAccessor:
         """
         ...
 
-    def fill_missing_coordinates(self, *fallback_cols: str, lat_col: str, long_col: str, save_every: int=1000, user_agent: str='data_cleaning_core_geocoder', retry_not_found: bool=False, provider: Geocoder | None=None) -> pd.DataFrame:
+    def fill_missing_coordinates(self, *fallback_cols: str, inplace=False, lat_col: str, long_col: str, save_every: int=1000, user_agent: str='data_cleaning_core_geocoder', retry_not_found: bool=False, provider: Geocoder | None=None) -> pd.DataFrame | None:
         """
         Fill missing latitude and longitude values by geocoding fallback location
         text.
@@ -1007,7 +1014,7 @@ class BynatAccessor:
         """
         ...
 
-    def convert_to_usd(self, *target_cols: Any, country_col: str, year_col: str, new_cols: bool=True, round_decimals: int | None=None, provider: RateSource | None=None) -> pd.DataFrame:
+    def convert_to_usd(self, *target_cols: Any, inplace=False, country_col: str, year_col: str, new_cols: bool=True, round_decimals: int | None=None, provider: RateSource | None=None) -> pd.DataFrame | None:
         """
         Convert numeric salary-like columns into USD using country currency codes
         and year-based exchange rates.
@@ -1039,7 +1046,7 @@ class BynatAccessor:
         """
         ...
 
-    def extract_entities_nlp(self, *source_cols: Any, lexicon_source: str | os.PathLike | dict, spacy_model: str='en_core_web_sm', exclude_pos: set | list | tuple | str | None=None, disable: Iterable[str] | str | None=('parser', 'ner'), save_every: int=1000, noisy_terms: set | None=None, **target_cols_and_json_keys: Any) -> pd.DataFrame:
+    def extract_entities_nlp(self, *source_cols: Any, inplace=False, lexicon_source: str | os.PathLike | dict, spacy_model: str='en_core_web_sm', exclude_pos: set | list | tuple | str | None=None, disable: Iterable[str] | str | None=('parser', 'ner'), save_every: int=1000, noisy_terms: set | None=None, **target_cols_and_json_keys: Any) -> pd.DataFrame | None:
         """
         Extract entities from free text by matching against a cached lexicon with
         spaCy tokenization and lemmatization.

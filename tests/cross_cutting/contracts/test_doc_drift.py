@@ -1,5 +1,6 @@
 """Verify that literal docstrings and the accessor stub match implementations."""
 
+import ast
 import importlib
 import inspect
 from pathlib import Path
@@ -50,12 +51,14 @@ def test_runtime_inspect_signature_and_help_preserved():
 
     class_sig = inspect.signature(BynatAccessor.fill_missing)
     assert list(class_sig.parameters.keys()) == [
-        "self", "target_cols", "strategy", "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+        "self", "target_cols", "inplace", "strategy", "hierarchy_cols", "min_samples",
+        "fallback_global", "get_hierarchical_stats"
     ]
 
     bound_sig = inspect.signature(df.bynat.fill_missing)
     assert list(bound_sig.parameters.keys()) == [
-        "target_cols", "strategy", "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+        "target_cols", "inplace", "strategy", "hierarchy_cols", "min_samples",
+        "fallback_global", "get_hierarchical_stats"
     ]
     assert "cache_manager" not in inspect.signature(df.bynat.convert_to_usd).parameters
     assert df.bynat.convert_to_usd.__doc__ == currency.convert_to_usd.__doc__
@@ -76,13 +79,13 @@ def test_runtime_inspect_signature_and_help_preserved():
 
     class_from_sig = inspect.signature(BynatAccessor.fill_missing_from)
     assert list(class_from_sig.parameters.keys()) == [
-        "self", "dataset", "target_cols", "match_cols", "targets", "strategy",
+        "self", "dataset", "target_cols", "inplace", "match_cols", "targets", "strategy",
         "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
     ]
 
     bound_from_sig = inspect.signature(df.bynat.fill_missing_from)
     assert list(bound_from_sig.parameters.keys()) == [
-        "dataset", "target_cols", "match_cols", "targets", "strategy",
+        "dataset", "target_cols", "inplace", "match_cols", "targets", "strategy",
         "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
     ]
     assert df.bynat.fill_missing_from.__doc__ == stats.fill_missing_from.__doc__
@@ -129,5 +132,35 @@ def test_package_modules_declare_valid_all_and_remove_legacy_shims():
     for removed_shim in ("bynat.cleaning.Cleaning", "bynat.caching.Caching"):
         with pytest.raises(ModuleNotFoundError):
             importlib.import_module(removed_shim)
+
+
+def _stub_parameter_names(path):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    class_def = next(
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "BynatAccessor"
+    )
+    stubs = {}
+    for node in class_def.body:
+        if not isinstance(node, ast.FunctionDef) or node.name == "__init__":
+            continue
+        if any(isinstance(decorator, ast.Name) and decorator.id == "property" for decorator in node.decorator_list):
+            continue
+        names = [argument.arg for argument in node.args.posonlyargs + node.args.args]
+        if node.args.vararg is not None:
+            names.append(node.args.vararg.arg)
+        names.extend(argument.arg for argument in node.args.kwonlyargs)
+        if node.args.kwarg is not None:
+            names.append(node.args.kwarg.arg)
+        stubs[node.name] = names
+    return stubs
+
+
+def test_accessor_stub_matches_runtime_signatures():
+    stubs = _stub_parameter_names(ROOT / "bynat" / "cleaning" / "accessor.pyi")
+    assert stubs
+
+    for name, stub_names in stubs.items():
+        runtime_names = list(inspect.signature(getattr(BynatAccessor, name)).parameters)
+        assert runtime_names == stub_names, f"{name}: runtime {runtime_names} != stub {stub_names}"
 
 

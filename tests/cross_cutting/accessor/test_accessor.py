@@ -15,7 +15,6 @@ from bynat.cleaning.accessor import BynatAccessor
 pytestmark = pytest.mark.integration
 
 
-
 class _Translator:
     def __init__(self, mapping):
         self.mapping = mapping
@@ -34,14 +33,10 @@ def test_importing_bynat_registers_the_accessor():
 
 
 def test_accessor_methods_return_new_plain_frames_and_leave_the_source_alone():
-    frame = pd.DataFrame(
-        {
-            "user.name": ["Ada", "Grace"],
-            "description": ["Blue shoes", "red shirt"],
-            "group": ["x", "x"],
-            "score": [1.0, None],
-        }
-    )
+    frame = pd.DataFrame({
+        "user.name": ["Ada", "Grace"], "description": ["Blue shoes", "red shirt"],
+        "group": ["x", "x"], "score": [1.0, None],
+    })
     original = frame.copy()
 
     renamed = frame.bynat.rename_all_DOTS()
@@ -79,7 +74,9 @@ def test_accessor_methods_expose_signatures_without_the_frame_or_cache_manager()
     assert list(parameters)[:2] == ["self", "target_col"]
     assert "cache_manager" not in parameters
     assert "provider" in parameters
-    assert "inplace" not in inspect.signature(BynatAccessor.drop_by_substring).parameters
+    inplace_parameter = inspect.signature(BynatAccessor.drop_by_substring).parameters["inplace"]
+    assert inplace_parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    assert inplace_parameter.default is False
 
 
 def test_accessor_uses_one_shared_cache_manager_per_directory(monkeypatch, tmp_path):
@@ -191,11 +188,8 @@ def test_pandas_operations_share_the_legacy_cache_manager(monkeypatch, tmp_path)
     monkeypatch.setattr(CacheManager, "__init__", counting_init)
 
     derived = [
-        frame.copy(),
-        frame[frame["v"] > 1],
-        frame.rename_all_DOTS(),
-        frame.sort_values("v"),
-        frame.groupby("g").sum(),
+        frame.copy(), frame[frame["v"] > 1], frame.rename_all_DOTS(),
+        frame.sort_values("v"), frame.groupby("g").sum(),
     ]
 
     assert built == []

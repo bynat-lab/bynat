@@ -10,6 +10,7 @@ pytestmark = pytest.mark.unit
 @pytest.mark.parametrize(
     "method_name",
     ["handle_outliers", "drop_outliers", "fill_missing"],
+    ids=["handle-outliers", "drop-outliers", "fill-missing"],
 )
 def test_hierarchy_methods_keep_existing_return_contract_when_stats_disabled(
     tmp_path, method_name
@@ -32,6 +33,7 @@ def test_hierarchy_methods_keep_existing_return_contract_when_stats_disabled(
 @pytest.mark.parametrize(
     "method_name",
     ["handle_outliers", "drop_outliers", "fill_missing"],
+    ids=["handle-outliers", "drop-outliers", "fill-missing"],
 )
 @pytest.mark.parametrize(
     "stats_kwargs", [{}, {"get_hierarchical_stats": False}],
@@ -64,6 +66,7 @@ def test_hierarchy_methods_skip_stats_calculation_when_disabled(
 @pytest.mark.parametrize(
     "method_name",
     ["handle_outliers", "drop_outliers", "fill_missing"],
+    ids=["handle-outliers", "drop-outliers", "fill-missing"],
 )
 def test_hierarchy_methods_return_stats_for_copy_and_inplace_modes(tmp_path, method_name):
     source = BaseData(

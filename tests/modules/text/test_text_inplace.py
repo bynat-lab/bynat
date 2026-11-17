@@ -11,6 +11,14 @@ from tests.shared.constants import PARITY_DATA
 pytestmark = pytest.mark.unit
 
 
+EXTRAS_METHODS = {"categorize_by_reference"}
+
+
+def _require_optional_dependency(name):
+    if name in EXTRAS_METHODS:
+        pytest.importorskip("ahocorasick")
+
+
 TEXT_TRANSFORMS = [
     pytest.param("extract_keywords", ("description",), {"colors": ["blue", "red"]}, id="extract_keywords"),
     pytest.param("truncate_after_substring", (), {"regex": False, "title": "-"}, id="truncate_after_substring"),
@@ -19,6 +27,7 @@ TEXT_TRANSFORMS = [
         ("description",),
         {"target_col": "field", "reference": {"Colors": ["blue", "red"]}},
         id="categorize_by_reference",
+        marks=pytest.mark.extras,
     ),
 ]
 
@@ -29,6 +38,7 @@ def _frame():
 
 @pytest.mark.parametrize(("name", "args", "kwargs"), TEXT_TRANSFORMS)
 def test_text_inplace_true_mutates_the_wrapped_frame_without_changing_its_identity(name, args, kwargs):
+    _require_optional_dependency(name)
     frame = _frame()
     before = frame.copy(deep=True)
     original_id = id(frame)
@@ -46,6 +56,7 @@ def test_text_inplace_true_mutates_the_wrapped_frame_without_changing_its_identi
 
 @pytest.mark.parametrize(("name", "args", "kwargs"), TEXT_TRANSFORMS)
 def test_text_inplace_false_returns_a_new_frame_and_leaves_the_source_unchanged(name, args, kwargs):
+    _require_optional_dependency(name)
     frame = _frame()
     before = frame.copy(deep=True)
 
@@ -60,6 +71,7 @@ def test_text_inplace_false_returns_a_new_frame_and_leaves_the_source_unchanged(
 
 @pytest.mark.parametrize(("name", "args", "kwargs"), TEXT_TRANSFORMS)
 def test_text_inplace_result_matches_the_class_api(name, args, kwargs):
+    _require_optional_dependency(name)
     base = BaseData(PARITY_DATA)
     plain = _frame()
 

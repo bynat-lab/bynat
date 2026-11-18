@@ -5,6 +5,10 @@ version: 1.0.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [LOC, Code Analysis, pygount, Codebase, Metrics, Repository]
+    related_skills: [github]
 prerequisites:
   commands: [pygount]
 ---

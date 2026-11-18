@@ -25,6 +25,7 @@ and every bundled skill it covers.
 `documenting-python-libraries`, `packaging-python-libraries`,
 `reviewing-python-libraries`, `setting-up-python-libraries`, and
 `testing-python-libraries` are earlier snapshots of the upstream files.
+`reviewing-python-libraries` and `testing-python-libraries` additionally carry audit guidance written for this repository (see §8).
 `api-design`, `improving-python-code-quality`, and `release-management` match
 current upstream apart from the attribution fields noted in §8.
 
@@ -125,5 +126,6 @@ SOFTWARE.
 
 Bundled copies preserve the technical content of their upstream sources.
 Documented changes are limited to attribution metadata, internal link repair,
-and wording localisation for harness portability. No functional instructions
-were removed.
+and wording localisation for harness portability; `reviewing-python-libraries`
+and `testing-python-libraries` additionally include audit guidance written for this
+repository. No functional instructions from an upstream source were removed.

@@ -22,7 +22,7 @@ those as patterns and substitute your own harness's equivalent.
 
 | Skill | Entry point | Purpose |
 | --- | --- | --- |
-| bynat-documentation-conventions | [SKILL.md](bynat-documentation-conventions/SKILL.md) | Repository conventions for `docs/ROADMAP.md`, `CHANGELOG.md`, and `README.md`; Python and test conventions; documentation change procedures; test-suite quality and architecture-migration workflows. |
+| bynat-documentation-conventions | [SKILL.md](bynat-documentation-conventions/SKILL.md) | Repository conventions for `docs/ROADMAP.md`, `CHANGELOG.md`, and `README.md`; Python and test conventions; documentation change procedures; docstring audit; test-suite quality and architecture-migration workflows; graph refresh. |
 | bynat-readme-writing | [SKILL.md](bynat-readme-writing/SKILL.md) | README voice, section structure, where new content belongs, repetition rules, code accuracy, and minimal-change maintenance. |
 
 ## Python library engineering
@@ -32,7 +32,7 @@ those as patterns and substitute your own harness's equivalent.
 | python-project-structure | [SKILL.md](python-project-structure/SKILL.md) | Module organization, `__all__`, public API design, flat vs nested layouts. | None |
 | testing-python-libraries | [SKILL.md](testing-python-libraries/SKILL.md) | pytest suite design, fixtures, parametrization, mocking, Hypothesis property-based tests, CI configuration. | `uv`, `pytest`, `pytest-cov`, `pytest-socket`, `hypothesis` |
 | documenting-python-libraries | [SKILL.md](documenting-python-libraries/SKILL.md) | Google-style docstrings, Sphinx/autodoc/autosummary, MyST, tutorials, ReadTheDocs deployment. | `sphinx`, `furo`, `myst-parser`, `sphinx-copybutton` |
-| reviewing-python-libraries | [SKILL.md](reviewing-python-libraries/SKILL.md) | Release readiness, old-vs-new regression audits, CI evidence levels, structured review report. | `git`, `uv`, `pytest`, `coverage`, `bandit`, `pip-audit`, `detect-secrets`, `twine`, `mypy`, `ruff` |
+| reviewing-python-libraries | [SKILL.md](reviewing-python-libraries/SKILL.md) | Release readiness, old-vs-new regression audits, mutation/in-place contract audits, test-suite integrity audits, CI evidence levels, structured review report. | `git`, `uv`, `pytest`, `coverage`, `bandit`, `pip-audit`, `detect-secrets`, `twine`, `mypy`, `ruff` |
 | packaging-python-libraries | [SKILL.md](packaging-python-libraries/SKILL.md) | `pyproject.toml`, build backends, wheel verification, PyPI trusted publishing, conda-forge. | `uv`, `twine`, `setuptools` or `hatchling`, `grayskull` |
 | setting-up-python-libraries | [SKILL.md](setting-up-python-libraries/SKILL.md) | Scaffold a new library: src layout, uv, ruff, pytest, mypy, pre-commit, GitHub Actions, Makefile. | `uv`, `ruff`, `pytest`, `pre-commit`, `make` |
 | codebase-inspection | [SKILL.md](codebase-inspection/SKILL.md) | Lines of code, language breakdown, and code-vs-comment ratios with `pygount`. | `pygount` |
@@ -73,6 +73,8 @@ references exist, and every one resolves inside `.agents/skills/`:
 | requesting-code-review | `test-driven-development` | Named reference |
 | simplify-code | `requesting-code-review` | Named reference |
 | systematic-debugging | `test-driven-development` | Named reference |
+| bynat-documentation-conventions | `references/accessor-inplace.md`, `references/docstring-audit.md`, `references/graphify-refresh.md`, `references/work-completion-audit.md`, `scripts/verify_docs_only.py` | Own files |
+| reviewing-python-libraries | `references/mutation-contract-audit.md`, `references/test-suite-integrity-audit.md`, `scripts/reconcile_pytest_counts.py` | Own files |
 
 When several apply, load upstream first: `setting-up-python-libraries`, then
 `improving-python-code-quality` / `testing-python-libraries` /

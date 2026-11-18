@@ -109,11 +109,7 @@ def test_invalid_raises():
 For detailed patterns, see:
 - **[FIXTURES.md](FIXTURES.md)** - Advanced fixture patterns
 - **[HYPOTHESIS.md](HYPOTHESIS.md)** - Property-based testing
-- **[../setting-up-python-libraries/CI.md](../setting-up-python-libraries/CI.md)** - CI/CD configuration
-
-**Negative tests for flexible signatures.** If a public function accepts `**kwargs` for dynamic names, absence of an obsolete keyword from `inspect.signature` does not prove rejection: the keyword may be swallowed as data. Add a runtime test that the obsolete spelling raises the documented `TypeError`, and a positive control proving valid dynamic keyword names still work.
-
-**Removing deprecation behavior.** Replace warning assertions with `warnings.catch_warnings()` plus `simplefilter("error", DeprecationWarning)` around supported API calls; retain exact mutation, return-value, and state assertions so the test proves both silence and behavior.
+- **[../setting-up-python-libraries/CI.md](../setting-up-python-libraries/CI.md)** - CI/CD test configuration
 
 ## Test Principles
 
@@ -181,13 +177,29 @@ after the subcommands or flags it builds are renamed or removed upstream. Mock a
 the boundary (the subprocess/HTTP call), then assert on the **parsed result**, not
 on the arguments you passed in.
 
-**Keep persistence assertions on the authoritative backend.** When a feature migrates from files to a database, update integration assertions to query the same backend used by production and decode stored values at the boundary. Do not preserve tests that inspect obsolete files merely because their old assertions are convenient; they create false failures and can tempt a compatibility facade that is outside the requested scope.
-
 **Fakes that ignore the parameters being tested.** A fake client whose
 `list_items` returns all canned rows in one call — ignoring `after` and
 pagination — cannot exercise the pagination or incremental-sync logic those
 parameters drive, so it stays unverified. Make fakes honor the parameters whose
 handling is the point of the test.
+
+**A patch on a wrapper is an inert patch.** Production resolves a name at the
+call site, so patching a method that merely wraps that name changes nothing: the
+real function still runs, the injected failure never fires, and the test passes
+while verifying nothing. It survives review because the patch line looks correct
+and the suite is green.
+
+```python
+# production calls the module-level function, not the method
+monkeypatch.setattr(manager, "_quarantine_corrupt_cache_file", boom)  # inert
+monkeypatch.setattr("pkg.mod.quarantine_corrupt_cache_file", boom)    # effective
+```
+
+Read the call site and patch the name it actually looks up. Then prove the
+injection landed: remove the failure handling from production (or assert the
+injected side effect directly) and confirm the test goes red. A test whose mock
+never fires cannot detect the regression it was written for, and adding
+assertions to it is how the inert patch finally gets exposed.
 
 **Smoke tests that import the wrong thing.** `python -c "import server"` can print
 success by resolving an empty `server/` package that shadows the real `server.py`
@@ -234,6 +246,33 @@ assert result.overall_score < 100
 **Tests written around a bug.** Wrapping a call in `try/except RuinError` to make
 it pass documents the bug as acceptable. Assert the *correct* behavior and let it
 fail until the bug is fixed (use `xfail(strict=True)` to track it without red CI).
+
+### Smoke observations are not regression assertions
+
+A smoke harness can exercise a broken interaction, record its output, and print
+`PASS` because no exception occurred. A screenshot or a logged status proves the
+scenario ran; it does not prove the behavior is correct. Read the assertions
+behind each PASS label before citing a smoke run as regression coverage.
+
+```python
+# BAD — records stale UI just as happily as correct UI.
+observations["completion_text"] = status.inner_text()
+
+# GOOD — checks the promised result in the same still-open view.
+expect(status).to_have_text("1 completed today")
+```
+
+After fixing a previously observed defect, promote the observation to an
+assertion of the intended behavior. For example, if a background reminder must
+not replace an exercise during an active session, capture its identity, trigger
+the reminder, wait for the handler to complete, and assert the identity is
+unchanged. Reloading the view before checking completion would hide a failure to
+refresh the already-open view.
+
+Verify that restoring the old behavior fails that assertion. Keep exploratory
+observations labelled as observations, and report them separately from checked
+outcomes; a historical known-issue scenario does not become a regression guard
+merely because the product fix merged.
 
 ## Prove the Test Can Fail: Mutate the Fix
 
@@ -496,6 +535,28 @@ falls back to 60 seconds when a header is missing, a fixture that omits the head
 passes on both. Supply a value that makes the legitimate result distinct — a reset
 header five seconds out — so the extra wait is visible.
 
+**Random selection is not sampling without replacement.** A picker that avoids
+only the previous item may legitimately return `A, B, A`. Requiring every item
+in a routine to be distinct makes the test flaky and silently demands a stronger
+product contract. Assert the promised invariant instead:
+
+```python
+# BAD — a valid later repeat fails this assertion.
+assert len(set(picks)) == len(picks)
+
+# GOOD — for a catalog with at least two eligible items, only neighbors must differ.
+assert len(picks) == requested_count
+assert all(item in eligible_items for item in picks)
+assert all(left != right for left, right in zip(picks, picks[1:]))
+```
+
+Use controlled random choices that attempt to repeat the previous item so the
+test deterministically exercises repeat avoidance; a lucky random run is not
+coverage. Include a later repeat in the fixture to keep `A, B, A` legal. Test the
+single-eligible-item case separately: repetition is unavoidable there, and the
+picker must still return rather than retry forever. Confirm that removing the
+repeat-avoidance logic makes the controlled multi-item test fail.
+
 **Record the sequence, not the fact.** A no-op stub answers "did it sleep?" and
 nothing else. Collect the arguments instead and assert the whole call sequence;
 that is what catches one extra call in the middle.
@@ -717,6 +778,34 @@ runs afterward. A business-hours branch then follows whatever the runner's local
 time happens to be, so the suite is green during the day and red at night. Drive
 the pending work deterministically instead of sleeping inside a frozen-clock test.
 
+**Pin the timezone, and test the days that are not 24 hours long.** Code that
+groups by local calendar day, computes "midnight today", or adds `24 * 3600`
+seconds is correct on most days and wrong on a DST transition (a 23- or 25-hour
+day). A frozen clock does not help: the same instant lands on a different local
+day depending on the runner's zone, so the test passes on a UTC CI box and on a
+developer laptop for different reasons. Choose a zone with DST, a date on a
+transition, and assert exact per-day values.
+
+The process zone is read once at startup in many runtimes (Node, C-library
+`localtime`), so changing the environment variable inside the test is too late.
+Run the code under test in a child process with the zone set:
+
+```python
+def test_daily_totals_on_spring_forward_day():
+    env = {**os.environ, "TZ": "America/New_York"}   # 2025-03-09 has 23 hours
+    out = subprocess.run(
+        ["node", "summarize.js", "fixtures/dst_week.json"],
+        env=env, capture_output=True, text=True, check=True,
+    ).stdout
+    assert json.loads(out)["2025-03-09"] == 7        # exact, not "> 0"
+```
+
+In pure Python, prefer passing an explicit `ZoneInfo` into the function; where the
+code uses the ambient zone, set `TZ` and call `time.tzset()` (POSIX only) in a
+fixture and restore it afterward. Also write the midnight case: an event at
+exactly 00:00 local belongs to the new day, and a future event must not leak into
+today's total.
+
 ## Prove Async Completion Ordering
 
 An immediately resolved mock can hide a missing `await`: the side effect finishes
@@ -769,28 +858,6 @@ exception must be handled according to the public error contract. Verify the
 ordering test turns red when the final operation is scheduled without awaiting
 it; reverting an await on an earlier operation tests a different claim.
 
-## Audit and remediation workflow
-
-For an existing-suite quality audit or remediation, work in explicit finding order rather than broad cleanup:
-
-1. Revalidate each finding against the current test, implementation, public documentation, and testing standard; assign `FIX`, `JUSTIFIED`, `ALREADY RESOLVED`, or `DEFERRED` so no finding disappears.
-2. Delegate one bounded workstream at a time when files overlap. Inspect the actual diff and `git status` after each subtask, distinguishing pre-existing untracked deliverables from new edits.
-3. Require focused tests, collection accounting, relevant optional-dependency runs, lint, and at least one realistic mutation or incorrect-implementation probe for every assertion-strengthening claim.
-4. Re-review corrections before accepting the workstream; a green suite alone is not evidence that the changed assertion is meaningful.
-5. Keep production defects separate from test-quality fixes. If a stronger test exposes a defect, preserve the evidence and do not weaken the test or silently fix production code.
-
-Use observable behavior as the default assertion target. Retain an internal call-count or private-helper assertion only when the public contract explicitly requires that performance/resource/architectural invariant; an algorithm description or implementation comment alone is not sufficient. Replace unjustified internal assertions with independently derived output, schema, ordering, mutation, and error assertions.
-
-Derive numeric expectations independently before editing the test. Recompute quartiles, IQR, standard deviation, dates, and duplicate-key behavior from the fixture and verify the arithmetic; do not copy an audit's proposed constant when it conflicts with the fixture or documented algorithm. For version-sensitive third-party labels, assert the stable semantic contract and reject known invalid classes instead of pinning a spelling that varies by dependency version.
-
-When testing duplicate or countable output, assert the complete key/value structure and its order or multiplicity where the contract requires it; membership or non-null checks cannot detect silent overwrites. When strengthening DataFrame tests, use `pandas.testing.assert_frame_equal` with default strictness unless the contract explicitly permits a relaxation, and exempt explicit `inplace=True` paths from non-mutation assertions.
-
-## Collection and maintenance gates
-
-When remediating an existing suite, treat collection reliability as part of the test contract: run `python -m pytest` and the installed `pytest` console script from the repository root and from a non-root working directory, then compare collected, skipped, deselected, and error counts. If repository tooling is intentionally imported by tests, prefer a small `tests/conftest.py` path/bootstrap correction over silently skipping tests; preserve every affected test and verify the correction under each supported invocation.
-
-For large pre-existing test modules, do not split mechanically during a quality-remediation phase. Defer the split when the governing standard already classifies it as future maintenance and the current task adds no tests; record the deferral and protect test ownership/counts instead of introducing a broad, risky reorganization.
-
 ## Checklist
 
 ```
@@ -808,7 +875,8 @@ Testing:
       value / pins the bug), and every file embedding the old value updated
 - [ ] Values from third-party computations asserted differentially, or measured
       and pinned with a tolerance sized to the bug's gap — never estimated
-- [ ] No ambient state read unpinned (env vars, module globals, CWD, clock)
+- [ ] No ambient state read unpinned (env vars, module globals, CWD, clock, timezone)
+- [ ] Local-day logic tested on a DST-transition day under a pinned `TZ`
 - [ ] Coverage > 85%
 - [ ] Tests run in CI
 ```

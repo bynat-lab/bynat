@@ -123,20 +123,32 @@ def save_to_json(
         Paths without a directory component, such as `output.json`, are
         written to the current working directory.
 
+        The input `df` is never modified; datetime values are reformatted on
+        an internal copy. An existing file that cannot be read for comparison
+        is overwritten, except with `append=True`, where an unreadable file
+        raises instead of being destroyed. Missing parent directories are
+        created.
+
     Args:
         file_path (str | os.PathLike): Destination JSON file path.
         orient (str): JSON orientation passed to `pandas.DataFrame.to_json`.
             Defaults to `"records"`.
         append (bool): If True and the target file exists, appends current
             rows to the existing JSON data and removes duplicate rows before
-            writing. Defaults to False.
+            writing. Duplicate detection compares list and dictionary cell
+            values by their JSON content. Defaults to False.
         force_ascii (bool): Whether to escape non-ASCII characters in the
             output. Defaults to False.
         indent (int): Indentation width used when writing to disk. Defaults
             to 4.
 
     Returns:
-        None
+        None. Nothing is written when an existing non-append file already
+        holds identical content.
+
+    Raises:
+        ValueError: If `file_path` is empty, or if `append=True` and the
+            existing file cannot be read with the given `orient`.
     """
     file_path = os.fspath(file_path).strip() if file_path is not None else ""
 
@@ -243,6 +255,11 @@ def save_to_sql(
         SQL Server, `database_driver` is required and is URL-encoded.
         For SQLite, only `database_name` is required.
 
+        Credentials are URL-encoded before being placed in the connection
+        URL. Timezone-aware datetime columns are converted to naive datetimes
+        on an internal copy, so the input `df` is never modified. The engine
+        is disposed of after the write, whether it succeeds or fails.
+
     Args:
         table_name (str): The name of the SQL table to write to.
         database_type (str): SQLAlchemy dialect/driver, for example
@@ -252,7 +269,8 @@ def save_to_sql(
         database_password (str): Database password.
         database_host (str): Database host address.
         database_port (str): Database port.
-        database_name (str): Database/schema name, or SQLite file path.
+        database_name (str): Database/schema name, or SQLite file path. The
+            special value `":memory:"` targets an in-memory SQLite database.
         database_driver (str | None): ODBC driver name for SQL Server
             dialects. Defaults to None.
         columns_types (dict | None): Optional SQLAlchemy dtype mapping to
@@ -268,6 +286,15 @@ def save_to_sql(
 
     Returns:
         None
+
+    Raises:
+        ValueError: If `table_name` or `database_type` is empty, if
+            `if_exists` is not one of 'fail', 'replace', or 'append', or if
+            the credentials required by the selected dialect are missing
+            (`database_name` for SQLite, `database_driver` and all
+            connection fields for SQL Server).
+        ImportError: If the optional `SQLAlchemy` dependency is not
+            installed.
 
     Example:
     ```

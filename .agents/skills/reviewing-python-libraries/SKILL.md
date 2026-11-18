@@ -9,7 +9,7 @@ license: MIT
 
 ## When to Use
 
-Use this skill for release-readiness reviews, old-vs-new regression audits, package-quality assessments, CI/test-infrastructure verification, and evidence consolidation after testing. Keep the review read-only unless the user explicitly requests fixes.
+Use this skill for release-readiness reviews, old-vs-new regression audits, mutation/`inplace` contract audits, package-quality assessments, CI/test-infrastructure verification, and evidence consolidation after testing. Keep the review read-only unless the user explicitly requests fixes.
 
 ## Quick Health Check (5 min)
 
@@ -47,6 +47,18 @@ uvx bandit -r src/                          # Security?
 
 Use `references/regression-audit-evidence.md` for the detailed evidence matrix and failure-classification checklist.
 
+## Mutation / In-Place Contract Audit
+
+Use when the question is which public methods should keep, gain, or drop an `inplace` (or otherwise mutating) mode, and whether the existing mutation is correct.
+
+1. **Freeze the boundary.** Record repo path, branch, commit, clean porcelain status, package version, and exact interpreter/framework versions. Re-check porcelain at the end and delete artifacts your own commands created.
+2. **Inventory only library-defined public methods.** List inherited framework methods separately; never count them as library implementations, but do note where their mutating contract diverges.
+3. **Verify in source and at runtime.** For each method check the real mutation site, decorators, object identity, attached state/cache survival, return contract in both modes, failure safety, and subclass preservation. Never infer behavior from names or docstrings.
+4. **Label every method** KEEP / ADD / DO NOT ADD / FIX / INVESTIGATE, and separate confirmed findings from recommendations.
+5. **Probe from a scratch directory outside the repo.** Inject fakes for external services, and test on the oldest and newest supported framework versions.
+
+See `references/mutation-contract-audit.md` for the per-method checklist, the runtime probe recipe, and the pitfalls: private mutation hooks, `**kwargs` flag absorption, copied docstrings, framework dtype changes, inherited-method contract divergence, and test-run artifacts.
+
 ## CI Verification Evidence
 
 Use when verifying CI/test-infrastructure claims: workflow separation, job gates, marker selection, coverage/mutation configuration. Four levels are distinct — accept only the highest the criterion requires:
@@ -68,6 +80,38 @@ Use when verifying CI/test-infrastructure claims: workflow separation, job gates
 - A timing-sensitive suite (bounded `process.join(n)`, wall-clock budgets) can fail under CPU contention from a concurrent run. Re-run it in isolation before classifying the failure; a green isolated rerun means the earlier red was load, not a defect. Record both runs.
 
 See `references/ci-verification-evidence.md` for the GitHub Actions API recipe and the full Cosmic Ray campaign procedure.
+
+## Verification and Test-Suite Integrity Audit
+
+Use when the task is to verify repairs a previous report claimed, or to audit an
+existing suite for integrity: collection completeness, exclusions, compliance
+with a governing testing standard, and anti-cheating. Read-only unless the user
+asks for fixes.
+
+- **Execute it personally.** Do not delegate repository inspection, test
+  execution, or evidence collection for an audit — the report's authority is
+  that the auditor ran the commands. Implementation work may be delegated; the
+  verification that closes it may not. Confirm the delegation scope first.
+- **Verify against the tree, not the report.** Read the file and re-run the
+  probe. A patch that "could not find the old text" usually means the intended
+  state is already present — read before re-applying, or the heading gets
+  rewritten twice.
+- **Reconcile counts before quoting any of them.** `collected = executed +
+  deselected`; `executed = passed + failed + skipped + xfailed (+ errors)`.
+  Derive the deselected set from the configured `addopts` marker expression and
+  confirm each excluded marker group has a documented runner. A `-m <marker>`
+  CLI flag overrides `addopts`, so `pytest -m extras` runs only that group.
+- **Audit-only means report, don't fix.** Hand confirmed findings to a separate
+  corrective task with file:line and a reproduction.
+- **Distinguish verified / confirmed defect / unresolved discrepancy /
+  unverified.** A green suite is not a pass, and a documented gap is not a solved
+  problem.
+
+See `references/test-suite-integrity-audit.md` for the count-reconciliation
+arithmetic, the exclusion inventory, the constitution compliance matrix, the
+mechanical anti-cheating scans, and the stale-path reference sweep. Run
+`scripts/reconcile_pytest_counts.py --python <interpreter>` to produce the count
+table and the per-marker attribution.
 
 ## Red Flags 🚩
 
@@ -115,6 +159,9 @@ See `references/ci-verification-evidence.md` for the GitHub Actions API recipe a
 For detailed checklists, see:
 - **[CHECKLIST.md](CHECKLIST.md)** - Full review checklist
 - **[REPORT_TEMPLATE.md](REPORT_TEMPLATE.md)** - Complete report template
+- **[mutation-contract-audit.md](references/mutation-contract-audit.md)** - In-place/mutation API audit checklist, probe recipe, and pitfalls
+- **[test-suite-integrity-audit.md](references/test-suite-integrity-audit.md)** - Claimed-repair verification, count reconciliation, exclusion and compliance audits
+- **[scripts/reconcile_pytest_counts.py](scripts/reconcile_pytest_counts.py)** - Collection/execution/deselection count reconciler
 
 ## Best Practices Checklist
 

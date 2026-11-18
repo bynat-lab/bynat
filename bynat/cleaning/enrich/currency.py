@@ -45,8 +45,19 @@ def convert_to_usd(
         Unknown countries and past years without data are cached as misses;
         network errors are not cached.
 
+        A row whose country is already USD is divided by 1.0 without any
+        lookup. A row whose currency is unknown, or whose year has no rate
+        anywhere in the lookback range, gets `NaN` rather than its original
+        value. Conversion divides the value by the rate, so the rate is the
+        amount of local currency per one USD.
+
+        The standalone function never modifies `df`. Missing `country_col` or `year_col`,
+        no valid target column, or an empty frame returns an unchanged copy
+        (a warning is logged for the first two).
+
     Args:
-        *target_cols: Numeric columns to convert.
+        *target_cols: Numeric columns to convert. Names that do not exist in
+            `df` are ignored.
         country_col (str): Column containing the country name used to infer
             the local currency.
         year_col (str): Column containing the reference year for historical
@@ -57,9 +68,20 @@ def convert_to_usd(
             round the converted values to. Defaults to None.
         provider (RateSource | None): Exchange-rate provider. Defaults to
             Yahoo Finance through `yfinance`.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with converted values.
+        With `inplace=False` (default), a new dataframe with converted values; the input
+        is not modified. With `inplace=True`, the receiver is mutated in place and None
+        is returned.
+
+    Raises:
+        ImportError: If the optional `pycountry` or `Babel` dependency is not
+            installed, or if the default provider's optional `yfinance`
+            dependency is not installed and no `provider` is given.
     """
     required_cols = [country_col, year_col]
     if not all(col in df.columns for col in required_cols):

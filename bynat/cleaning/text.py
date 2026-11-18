@@ -162,24 +162,43 @@ def extract_keywords(
             Subsequent calls will only populate empty cells (NaNs) and will NEVER overwrite previously extracted values.
         - **Literal Matching**: Keywords are treated as literal text (e.g., `C++`, `.NET`),
           and will not be interpreted as regular expressions unless `use_regex` is set to True.
+        - **Title-Casing**: The extracted value is the matched keyword rendered in
+          Title Case. Under `use_regex=True` the first capture group of the match
+          is used instead; a pattern with no capture group is wrapped so the whole
+          pattern is captured, and a pattern with a group yields that group only.
         - **Text Coercion**: Source columns are converted to strings only
           for matching, so numeric/object columns do not break text search.
         - **Performance**: Each unique combined text is matched once and the
           results are mapped back to every row. Literal keywords are matched
           with one combined pattern (or an Aho-Corasick automaton when the
           optional `pyahocorasick` dependency is installed).
+        - **Optional Dependency**: Literal matching uses `pyahocorasick` when
+          it is installed and every keyword is ASCII; otherwise it falls back to
+          one combined regular expression. Both paths return the same result and
+          neither raises when the dependency is missing.
+        - Source columns that are absent from `df` are ignored. When none of
+          them are present, an unchanged copy of `df` is returned.
+        - The standalone function never modifies `df`.
 
     Args:
-        *source_cols: Variable number of column names to search within.
+        *source_cols: Variable number of column names to search within. Column
+            names that do not exist in `df` are ignored.
         remove_extracted (bool): If True, removes the matched keywords from the
             original source columns to clean the text. Defaults to False.
         use_regex (bool): If True, treats the input strings in **target_cols_and_keywords
             as regular expressions for pattern extraction. Defaults to False.
         **target_cols_and_keywords: Keyword arguments where the key is the new
-            column name and the value is a list of strings to search for.
+            column name and the value is a list of strings to search for. A
+            single string is treated as a one-item list.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with the extracted columns.
+        With `inplace=False` (default), a new dataframe with the extracted columns; the
+        input is not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Example:
     ```
@@ -291,15 +310,26 @@ def truncate_after_substring(df: FrameT, regex: bool = True, **target_cols_and_s
     """
     Remove specific substrings and everything following them from target columns.
 
+    Each named column is processed independently. The first occurrence of each
+    substring cuts the text, and the remaining text is stripped of surrounding
+    whitespace. Column names that are absent from `df` are ignored, and with no
+    keyword arguments an unchanged copy of `df` is returned.
+
     Args:
         regex (bool): Passed to `pandas.Series.str.split`. When True,
             substring values are interpreted as regular expressions.
             Defaults to True.
         **target_cols_and_substrings: Keyword arguments where the key is the column
             name and the value is a string or a list of strings at which to cut off the text.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with truncated columns.
+        With `inplace=False` (default), a new dataframe with truncated columns; the
+        input is not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
 
     Example:
     ```
@@ -356,24 +386,46 @@ def categorize_by_reference(
     is assigned to a new target column.
 
     Notes:
-        - The search uses word boundaries (\\b) to prevent partial word matches
-          (e.g., matching 'React' will not trigger on 'Reactor').
+        - Matching is case-insensitive and restricted to whole words, so
+          'React' does not trigger on 'Reactor' and 'score' does not trigger
+          on 'under_score'.
         - The implementation builds an Aho-Corasick automaton and evaluates
           each unique combined text once, then maps results back to all rows.
         - Longer keywords take precedence over shorter ones (e.g., "Data Analyst"
-          matches before "Data").
+          matches before "Data"). On an equal-length tie the category listed
+          later in `reference` wins.
         - Empty keyword lists and blank keyword values are ignored safely.
+        - A keyword value that is not a list is treated as a one-item list.
+        - A missing `reference` column match, an empty `reference`, or a
+          `reference` that is not a dictionary assigns `default_category` to
+          every row.
+        - Source columns that are absent from `df` are ignored. When none of
+          them are present, an unchanged copy of `df` is returned.
+        - The standalone function never modifies `df`.
 
     Args:
         *source_cols (str): Source columns containing the raw text to search.
+            Names that do not exist in `df` are ignored.
         target_col (str): The new or existing column where categories will be saved.
         reference (dict): A dictionary where keys are category names and values
-            are lists of keywords to search for.
+            are lists of keywords to search for. A non-list value is treated as
+            a one-item list, and a non-dictionary value is treated as empty.
         default_category (str): The fallback value if no keywords are matched.
             Defaults to 'Other'.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with the category column.
+        With `inplace=False` (default), a new dataframe with the category column; the
+        input is not modified. With `inplace=True`, the receiver is mutated in place and
+        None is returned.
+
+    Raises:
+        ImportError: If the optional `pyahocorasick` dependency is not
+            installed. The dependency is required for this method; there is no
+            regex fallback.
 
     Example:
     ```

@@ -138,7 +138,7 @@ from bynat.cleaning import BaseData
 cleaned = BaseData(records).rename_all_DOTS().drop_by_substring("user")
 ```
 
-Both versions return a new object and leave `records` unchanged. Accessor methods always return new DataFrames. Class methods also return a new object by default.
+Both versions return a new object and leave `records` unchanged. Accessor methods return a new DataFrame by default, and class methods return a new object by default. Both accept `inplace=True` for the transformations that support it.
 
 ---
 
@@ -200,8 +200,8 @@ Here is how the two ways in compare:
 | | Class-based API | pandas accessor |
 | --- | --- | --- |
 | Works on | `BaseData`, `JsonFile`, `CsvFile` | Any `pandas.DataFrame` |
-| Return value | A new object by default | Always a new DataFrame |
-| `inplace` argument | Accepted where in-place operation is meaningful | Not accepted |
+| Return value | A new object by default | A new DataFrame by default |
+| `inplace` argument | Accepted by the transformations that support it | Accepted by the same transformations |
 | Cache directory | `cache_dir` constructor argument | `df.bynat.with_cache(...)` |
 
 ### The class-based API
@@ -214,10 +214,13 @@ Here is how the two ways in compare:
 | `JsonFile` | `data=None`, `json_file_path=None`, `key=None`, `cache_dir=None`, `*args`, `**kwargs` | `bynat.read_json(json_file_path, key=None)`, then `df.bynat` methods |
 | `CsvFile` | `data=None`, `csv_file_path=None`, `cache_dir=None`, `read_kwargs=None`, `*args`, `**kwargs` | `bynat.read_csv(csv_file_path, **read_kwargs)`, then `df.bynat` methods |
 
-How `inplace` works:
+How `inplace` works, in both the class-based API and the accessor:
 
-- With `inplace=True`, the method changes the original object and returns `None` (or the documented statistics result). This is supported and is not scheduled for removal.
-- Without `inplace=True`, every method returns a new object, including early exits that previously returned the original object.
+- With `inplace=True`, the method changes the original object in place and returns `None` (or the documented statistics result). The object keeps its identity, so every reference to it sees the change.
+- Without `inplace=True`, every method returns a new object and leaves the original untouched, including early exits that previously returned the original object.
+- Pass `inplace` positionally or by keyword, exactly as on the corresponding `BaseData` method: `df.bynat.rename_all_DOTS("_", True)` and `df.bynat.rename_all_DOTS(inplace=True)` are both accepted.
+
+The class-based API is unchanged: `BaseData`, `JsonFile`, and `CsvFile` keep their existing signatures, defaults, return values, and `inplace` behavior.
 
 `BaseData` creates its `CacheManager` on first use and shares it with every frame pandas derives from it.
 
@@ -225,9 +228,10 @@ How `inplace` works:
 
 The accessor is an optional extra way to use bynat on ordinary DataFrames. It does not replace the class-based API. It exposes the same cleaning operations through `df.bynat`.
 
-- Accessor methods return new DataFrames and do not accept `inplace`.
+- Accessor transformations return a new DataFrame by default, and also accept `inplace=True`, which mutates the DataFrame the accessor wraps and returns `None` (or the documented statistics result).
 - `df.bynat.with_cache(...)` returns an accessor that caches in another directory or in an explicit `CacheManager`.
 - `bynat.read_csv` and `bynat.read_json` return plain DataFrames that you can use the accessor on right away.
+- `get_hierarchical_stats`, `profile`, `save_to_json`, `save_to_sql`, `clear_cache_for_column`, and `with_cache` do not transform the wrapped DataFrame, so they do not accept `inplace`.
 
 ### The same job in both styles
 
@@ -245,7 +249,7 @@ jobs = jobs.bynat.rename_all_DOTS()
 jobs = jobs.bynat.with_cache("cache").translate_categorical_column("status")
 ```
 
-The class-based version uses `JsonFile` and changes the object in place with `inplace=True`. The accessor version works on a plain DataFrame and reassigns the result.
+The class-based version uses `JsonFile` and changes the object in place with `inplace=True`. The accessor version works on a plain DataFrame: reassign the returned frame, or pass `inplace=True` to change `jobs` itself.
 
 ### Common tasks
 
@@ -729,7 +733,7 @@ The four cached enrichment methods and `extract_entities_nlp` all run through on
 
 ## Cleaning method reference
 
-The accessor and the supported classes expose the same cleaning methods. `inplace` works as described in [Cleaning](#cleaning), with one exception: `get_hierarchical_stats` and `profile` return statistics or reports and have no in-place mode.
+The accessor and the supported classes expose the same cleaning methods, and both accept `inplace` for the same transformations; `inplace` works as described in [Cleaning](#cleaning). `get_hierarchical_stats`, `profile`, `save_to_json`, `save_to_sql`, `clear_cache_for_column`, and `with_cache` do not transform the frame, so they do not accept `inplace`.
 
 > **Always use the method's return value.** Most methods skip missing source or target columns with a logged warning and return an unchanged copy. Invalid arguments that would otherwise give silently wrong results raise instead: an unknown `strategy`, an empty `file_path`, invalid `save_to_sql` connection settings, or an unusable `extract_entities_nlp` configuration.
 
@@ -888,7 +892,7 @@ imputed = test_schema.bynat.fill_missing_from(
 For `handle_outliers`, `drop_outliers`, `fill_missing`, and `fill_missing_from`, passing `get_hierarchical_stats=True` reuses `get_hierarchical_stats()`. The statistics are computed from the original data, before the operation changes any values or rows.
 
 - The return value is `(result, stats)`.
-- With `inplace=True`, the operation changes the original object and returns `stats` directly.
+- With `inplace=True`, the operation changes the original object in place and returns `stats` directly. This applies to the class methods and to `df.bynat`.
 - The outlier methods use the default hierarchical `median` statistic. `fill_missing` uses its requested `strategy`.
 
 ### Data profiling

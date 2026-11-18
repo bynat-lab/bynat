@@ -2,55 +2,22 @@
 
 import json
 import sqlite3
-import types
 
 import pandas as pd
 import pytest
 
 from bynat.cleaning import BaseData
 from bynat.cleaning.enrich import YFinanceRateSource
-from tests.modules.enrichment.helpers import install_fake_module
+from tests.modules.enrichment.helpers import (
+    RateSource,
+    install_currency_lookup,
+    install_fake_module,
+)
 
 pytestmark = pytest.mark.unit
 
 
 _install = install_fake_module
-
-
-class FakeRates:
-    def __init__(self, rates, fail=()):
-        self.rates = rates
-        self.fail = set(fail)
-        self.calls = []
-
-    def yearly_rates(self, currency, start_year, end_year):
-        self.calls.append((currency, start_year, end_year))
-        if currency in self.fail:
-            raise ConnectionError("offline")
-        return {
-            year: rate
-            for (code, year), rate in self.rates.items()
-            if code == currency and start_year <= year <= end_year
-        }
-
-
-def _install_currency_lookup(monkeypatch):
-    class Country:
-        def __init__(self, alpha_2):
-            self.alpha_2 = alpha_2
-
-    def search_fuzzy(name):
-        if name == "Atlantis":
-            raise LookupError(name)
-        return [Country({"Egypt": "EG", "United States": "US", "France": "FR"}[name])]
-
-    _install(monkeypatch, "pycountry", countries=types.SimpleNamespace(search_fuzzy=search_fuzzy))
-    _install(monkeypatch, "babel")
-    _install(
-        monkeypatch,
-        "babel.numbers",
-        get_territory_currencies=lambda alpha_2: {"EG": ["EGP"], "US": ["USD"], "FR": ["EUR"]}[alpha_2],
-    )
 
 
 def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch, tmp_path):
@@ -65,7 +32,7 @@ def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch,
             index = pd.to_datetime(["2020-06-01"])
             return pd.DataFrame({"Close": [2.0]}, index=index)
 
-    _install_currency_lookup(monkeypatch)
+    install_currency_lookup(monkeypatch)
     _install(monkeypatch, "yfinance", Ticker=FakeTicker)
     frame = pd.DataFrame({"country": ["Egypt"], "year": [2020], "salary": [100.0]})
     original = frame.copy(deep=True)
@@ -81,8 +48,8 @@ def test_convert_to_usd_constructs_the_default_yfinance_rate_source(monkeypatch,
 
 
 def test_convert_to_usd_downloads_once_per_currency(monkeypatch, tmp_path):
-    _install_currency_lookup(monkeypatch)
-    rates = FakeRates({("EGP", 2019): 17.0, ("EGP", 2021): 20.0, ("EUR", 2020): 0.5})
+    install_currency_lookup(monkeypatch)
+    rates = RateSource({("EGP", 2019): 17.0, ("EGP", 2021): 20.0, ("EUR", 2020): 0.5})
     frame = pd.DataFrame(
         {
             "country": ["Egypt", "Egypt", "Egypt", "France", "United States", "Atlantis"],
@@ -107,15 +74,15 @@ def test_convert_to_usd_downloads_once_per_currency(monkeypatch, tmp_path):
 
 
 def test_convert_to_usd_does_not_cache_provider_failures(monkeypatch, tmp_path):
-    _install_currency_lookup(monkeypatch)
+    install_currency_lookup(monkeypatch)
     frame = pd.DataFrame({"country": ["Egypt"], "year": [2020], "salary": [170.0]})
     original = frame.copy(deep=True)
     accessor = frame.bynat.with_cache(tmp_path)
 
-    offline = FakeRates({}, fail={"EGP"})
+    offline = RateSource({}, fail={"EGP"})
     first = accessor.convert_to_usd("salary", country_col="country", year_col="year", provider=offline)
 
-    online = FakeRates({("EGP", 2020): 17.0})
+    online = RateSource({("EGP", 2020): 17.0})
     second = accessor.convert_to_usd("salary", country_col="country", year_col="year", provider=online)
 
     assert first["salary_usd"].isna().all()
@@ -145,15 +112,6 @@ def test_yfinance_rate_source_computes_yearly_means_from_one_download(monkeypatc
 
 
 def _install_currency(monkeypatch, history_by_ticker_year, fetches):
-    class Country:
-        def __init__(self, alpha_2):
-            self.alpha_2 = alpha_2
-
-    def search_fuzzy(name):
-        if name == "Atlantis":
-            raise LookupError(name)
-        return [Country({"Egypt": "EG", "United States": "US"}[name])]
-
     class Ticker:
         def __init__(self, symbol):
             self.symbol = symbol
@@ -168,13 +126,7 @@ def _install_currency(monkeypatch, history_by_ticker_year, fetches):
                     closes.append(close)
             return pd.DataFrame({"Close": closes}, index=pd.DatetimeIndex(dates))
 
-    _install(monkeypatch, "pycountry", countries=types.SimpleNamespace(search_fuzzy=search_fuzzy))
-    _install(monkeypatch, "babel")
-    _install(
-        monkeypatch,
-        "babel.numbers",
-        get_territory_currencies=lambda alpha_2: {"EG": ["EGP"], "US": ["USD"]}[alpha_2],
-    )
+    install_currency_lookup(monkeypatch)
     _install(monkeypatch, "yfinance", Ticker=Ticker)
 
 

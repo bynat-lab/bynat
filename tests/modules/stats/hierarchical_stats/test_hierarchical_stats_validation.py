@@ -21,7 +21,7 @@ def test_get_hierarchical_stats_rejects_invalid_output_type_before_aggregation(t
         )
 
 
-@pytest.mark.parametrize("strategy", ["median", "mode"])
+@pytest.mark.parametrize("strategy", ["median", "mode"], ids=["median", "mode"])
 def test_get_hierarchical_stats_rejects_target_hierarchy_overlap_before_aggregation(
     monkeypatch, tmp_path, strategy
 ):
@@ -59,7 +59,7 @@ def test_get_hierarchical_stats_rejects_non_string_strategy_values_before_aggreg
         frame.get_hierarchical_stats("value", strategy=["mean", 1], hierarchy_cols="group")
 
 
-@pytest.mark.parametrize("strategy", ["median", "mean"])
+@pytest.mark.parametrize("strategy", ["median", "mean"], ids=["median", "mean"])
 def test_get_hierarchical_stats_non_numeric_target_raises_typeerror(strategy):
     frame = pd.DataFrame({"g": ["a", "a", "b"], "label": ["x", "y", "z"]})
 

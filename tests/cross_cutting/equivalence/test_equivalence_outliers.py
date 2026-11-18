@@ -84,8 +84,8 @@ def _brute_force_outliers(df, target_cols, hierarchy_cols, min_samples, blank_fo
     return flagged, work
 
 
-@pytest.mark.parametrize("seed", [0, 1])
-@pytest.mark.parametrize("min_samples", [3, 20])
+@pytest.mark.parametrize("seed", [0, 1], ids=["seed-0", "seed-1"])
+@pytest.mark.parametrize("min_samples", [3, 20], ids=["min-samples-3", "min-samples-20"])
 def test_outliers_match_a_brute_force_reference(seed, min_samples):
     frame = _outlier_frame(seed).iloc[:150]
     original = frame.copy(deep=True)
@@ -103,8 +103,10 @@ def test_outliers_match_a_brute_force_reference(seed, min_samples):
 
 
 @_LEGACY_RELIABLE
-@pytest.mark.parametrize("seed", [0, 1, 2, 3])
-@pytest.mark.parametrize("min_samples", [1, 3, 5, 20])
+@pytest.mark.parametrize("seed", [0, 1, 2, 3], ids=["seed-0", "seed-1", "seed-2", "seed-3"])
+@pytest.mark.parametrize(
+    "min_samples", [1, 3, 5, 20], ids=["min-samples-1", "min-samples-3", "min-samples-5", "min-samples-20"]
+)
 def test_handle_and_drop_outliers_match_legacy(seed, min_samples):
     frame = _outlier_frame(seed)
     original = frame.copy(deep=True)

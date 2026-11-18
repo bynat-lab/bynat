@@ -4,7 +4,7 @@ Use this reference when implementing a documented bynat test-suite architecture.
 
 ## Procedure
 
-1. Read the complete authoritative testing standard, especially the target layout, ownership rules, markers, fixtures, configuration, and migration plan.
+1. Read the complete authoritative testing standard, especially the target layout, ownership rules, markers, fixtures, configuration, and migration plan. Apply the functional-relationship hierarchy (`BYNAT-ARCH-12`; decision procedure in `references/test-suite-quality.md`) when choosing destinations: group files that share a narrower responsibility into a directory named for it, keep independent aspects at the parent level, and do not mirror the production source layout. A production module boundary is not a reason to create a directory.
 2. Inventory every current test module, function, helper, fixture, constant, marker, skip, strict xfail, support-tool import, benchmark dependency, hardcoded path, and pytest configuration. Record source-to-destination ownership for split files.
 3. Correct only confirmed documentation defects that directly affect migration semantics. Validate target-path calculations from the target file itself; for `tests/cross_cutting/contracts/test_doc_drift.py`, repository root resolution is `Path(__file__).resolve().parents[3]`.
 4. Dispatch one bounded implementation batch at a time through the configured subagent workflow. Keep batches non-overlapping. After each batch, inspect `git status`, the actual diff, target contents, focused tests, collection, Ruff, and target line counts before accepting it.

@@ -185,14 +185,26 @@ def extract_entities_nlp(
         **target_cols_and_json_keys: Mapping where each key is an output
             column name and each value is a lexicon key or list of keys to
             collect terms from.
+        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+            standalone function has no such parameter and always returns a new
+            frame. When True, the receiver is mutated in place. Defaults to
+            False.
 
     Returns:
-        A new dataframe with extracted entity-list columns.
+        With `inplace=False` (default), a new dataframe with extracted entity-list
+        columns; the input is not modified. With `inplace=True`, the receiver is mutated
+        in place and None is returned.
 
     Raises:
         ValueError: If `disable` contains a required spaCy component, a
-            component name is empty, or `save_every` is not a positive
-            integer.
+            component name is empty, `save_every` is not a positive integer,
+            no target column/JSON key keyword argument is supplied, or no
+            valid terms are extracted from the requested lexicon keys. A
+            non-string or blank `spacy_model` also raises `ValueError`.
+        TypeError: If `disable` is not None, a string, or an iterable of
+            strings, or if the misspelled `noisey_terms` keyword is used.
+        ImportError: If the optional `spacy` dependency is not installed.
+        OSError: If the spaCy model cannot be loaded.
 
     Example:
     ```

@@ -20,7 +20,10 @@ def _run_legacy_migration(cache_dir, func_name, start_event, result_queue):
         result_queue.put(f"{type(error).__name__}: {error}")
 
 
-@pytest.mark.parametrize("func_names", [["same"], ["left", "right"]])
+@pytest.mark.parametrize(
+    "func_names",
+    [pytest.param(["same"], id="same-source"), pytest.param(["left", "right"], id="disjoint-sources")],
+)
 def test_legacy_migration_is_safe_for_concurrent_sources(tmp_path, func_names):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()

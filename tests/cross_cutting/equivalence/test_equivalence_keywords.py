@@ -41,14 +41,14 @@ def keyword_frame(request):
     )
 
 
-@pytest.mark.parametrize("remove_extracted", [False, True])
+@pytest.mark.parametrize("remove_extracted", [False, True], ids=["keep-extracted", "remove-extracted"])
 @pytest.mark.parametrize(
     "keywords",
     [
-        ["data", "data analyst", "analyst"],
-        ["analyst", "data analyst", "data"],
-        ["c++", ".net", "x_y", "Ünïcode"],
-        ["RED", "red", "blue", "big data"],
+        pytest.param(["data", "data analyst", "analyst"], id="overlapping-substrings"),
+        pytest.param(["analyst", "data analyst", "data"], id="reordered-overlap"),
+        pytest.param(["c++", ".net", "x_y", "Ünïcode"], id="special-chars-and-unicode"),
+        pytest.param(["RED", "red", "blue", "big data"], id="case-variants"),
     ],
 )
 def test_extract_keywords_literal_matches_legacy(keyword_frame, keywords, remove_extracted):
@@ -62,13 +62,13 @@ def test_extract_keywords_literal_matches_legacy(keyword_frame, keywords, remove
     pd.testing.assert_frame_equal(keyword_frame, original)
 
 
-@pytest.mark.parametrize("remove_extracted", [False, True])
+@pytest.mark.parametrize("remove_extracted", [False, True], ids=["keep-extracted", "remove-extracted"])
 @pytest.mark.parametrize(
     "patterns",
     [
-        [r"(?i)(\bdata\b)", r"analyst"],
-        [r"(red|blue)", r"(?P<lang>c\+\+|\.net)"],
-        [r"b(lue)?", r"(?i)x_(y)"],
+        pytest.param([r"(?i)(\bdata\b)", r"analyst"], id="word-boundary-and-plain"),
+        pytest.param([r"(red|blue)", r"(?P<lang>c\+\+|\.net)"], id="alternation-and-named-group"),
+        pytest.param([r"b(lue)?", r"(?i)x_(y)"], id="optional-group-and-ignorecase"),
     ],
 )
 def test_extract_keywords_regex_matches_legacy(keyword_frame, patterns, remove_extracted):
@@ -84,7 +84,7 @@ def test_extract_keywords_regex_matches_legacy(keyword_frame, patterns, remove_e
     pd.testing.assert_frame_equal(keyword_frame, original)
 
 
-@pytest.mark.parametrize("use_regex", [False, True])
+@pytest.mark.parametrize("use_regex", [False, True], ids=["literal", "regex"])
 def test_extract_keywords_repeated_calls_into_existing_column_match_legacy(keyword_frame, use_regex):
     original = keyword_frame.copy(deep=True)
     first = ["blue"] if not use_regex else [r"(blue)"]

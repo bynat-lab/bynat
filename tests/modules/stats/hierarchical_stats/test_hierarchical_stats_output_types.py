@@ -43,7 +43,7 @@ def test_get_hierarchical_stats_supports_explicit_dataframe_and_dict_outputs(tmp
     assert dict_result["statistic"] == [2.0, 5.0]
 
 
-@pytest.mark.parametrize("output_type", [JsonFile, CsvFile])
+@pytest.mark.parametrize("output_type", [JsonFile, CsvFile], ids=["json-file", "csv-file"])
 def test_get_hierarchical_stats_supports_explicit_basedata_family_outputs(
     tmp_path, output_type
 ):

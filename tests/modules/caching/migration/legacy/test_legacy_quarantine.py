@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 
 import pytest
@@ -7,7 +8,13 @@ from bynat.caching import CacheManager
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("content", ["{not json", "[1, 2]"])
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param("{not json", id="malformed-json-object"),
+        pytest.param("[1, 2]", id="json-array-top-level"),
+    ],
+)
 def test_legacy_migration_quarantines_corrupt_source_without_marker(tmp_path, content, caplog):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
@@ -59,22 +66,42 @@ def test_quarantine_corrupt_cache_file_fallbacks(tmp_path, monkeypatch):
     assert manager._quarantine_corrupt_cache_file(str(source_file)) is None
 
 
-def test_legacy_migration_quarantine_and_read_errors(tmp_path, monkeypatch):
+def test_legacy_migration_quarantine_and_read_errors(tmp_path, monkeypatch, caplog):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
     source_file = cache_dir / "translate_cache.json"
-    source_file.write_text("invalid json {", encoding="utf-8")
     manager = CacheManager(cache_dir)
 
-    monkeypatch.setattr(manager, "_quarantine_corrupt_cache_file", lambda f: (_ for _ in ()).throw(OSError("perm error")))
-    manager._migrate_legacy_json_cache("translate")
+    source_file.write_text("invalid json {", encoding="utf-8")
+    monkeypatch.setattr(
+        "bynat.caching._migration.quarantine_corrupt_cache_file",
+        lambda f: (_ for _ in ()).throw(OSError("perm error")),
+    )
+    with caplog.at_level(logging.WARNING, logger = "bynat.caching.Caching"):
+        manager._migrate_legacy_json_cache("translate")
+    assert "is corrupted; could not move it aside" in caplog.text
+    assert source_file.exists()
+    assert not (cache_dir / "cache.sqlite3").exists()
 
+    caplog.clear()
     monkeypatch.undo()
     source_file.write_text("{}", encoding="utf-8")
     monkeypatch.setattr("builtins.open", lambda *a, **k: (_ for _ in ()).throw(OSError("cannot read")))
-    manager._migrate_legacy_json_cache("translate")
+    with caplog.at_level(logging.WARNING, logger = "bynat.caching.Caching"):
+        manager._migrate_legacy_json_cache("translate")
+    assert "Could not read legacy cache file" in caplog.text
+    assert source_file.exists()
+    assert not (cache_dir / "cache.sqlite3").exists()
 
+    caplog.clear()
     monkeypatch.undo()
     source_file.write_text("[1, 2, 3]", encoding="utf-8")
-    monkeypatch.setattr(manager, "_quarantine_corrupt_cache_file", lambda f: (_ for _ in ()).throw(OSError("perm error")))
-    manager._migrate_legacy_json_cache("translate")
+    monkeypatch.setattr(
+        "bynat.caching._migration.quarantine_corrupt_cache_file",
+        lambda f: (_ for _ in ()).throw(OSError("perm error")),
+    )
+    with caplog.at_level(logging.WARNING, logger = "bynat.caching.Caching"):
+        manager._migrate_legacy_json_cache("translate")
+    assert "has an invalid top-level JSON value; could not move it aside" in caplog.text
+    assert source_file.exists()
+    assert not (cache_dir / "cache.sqlite3").exists()

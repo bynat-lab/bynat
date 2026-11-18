@@ -31,13 +31,30 @@ __all__ = [
 logger = logging.getLogger("bynat.caching.Caching")
 
 CACHE_DIR_ENV_VAR = "BYNAT_CACHE_DIR"
+"""Environment variable that overrides the default cache directory."""
+
 DEFAULT_CACHE_DIR = "Settings/Cache Data/Automated"
+"""Legacy relative default cache directory, resolved from the working directory."""
 _SQLITE_DATABASE_NAME = SQLITE_DATABASE_NAME
 _SQLITE_TIMEOUT_SECONDS = SQLITE_TIMEOUT_SECONDS
 
 
 def resolve_cache_dir(cache_dir: str | PathLike | None) -> str | PathLike:
-    """Return `cache_dir`, else `$BYNAT_CACHE_DIR`, else the legacy relative default."""
+    """
+    Resolve the cache directory without creating anything.
+
+    Resolution order: `cache_dir` when it is not None, otherwise the
+    `BYNAT_CACHE_DIR` environment variable when it is set and non-empty,
+    otherwise `DEFAULT_CACHE_DIR`. The value is returned as given; expansion
+    of `~` and environment variables happens in `CacheManager`.
+
+    Args:
+        cache_dir (str | os.PathLike | None): Caller-supplied directory, or
+            None to fall back to the environment variable and default.
+
+    Returns:
+        str | os.PathLike: The resolved directory.
+    """
     if cache_dir is not None:
         return cache_dir
 
@@ -54,6 +71,15 @@ class CacheManager:
         the configured cache directory (with automatic one-time migration from
         legacy per-function JSON cache files). Individual methods can then store
         nested objects keyed by column name or another logical cache bucket.
+
+        Construction creates nothing on disk. The SQLite database file and its
+        directory are created lazily on the first cache access or the first
+        save of in-memory changes.
+
+    Attributes:
+        cache_dir_path (str): Absolute, normalized path of the cache directory.
+        cache_dir (str): Normalized path as given after expansion.
+        caches (dict[str, dict]): Live in-memory cache per function name.
     """
 
     def __init__(self, cache_dir: str | PathLike | None = None) -> None:
@@ -247,7 +273,14 @@ class CacheManager:
 
         Returns:
             dict: The cache dictionary stored under the requested nested key.
-            The dictionary is created automatically if it does not yet exist.
+            The dictionary is created automatically in the live cache if it
+            does not yet exist, so mutating the returned dict is persisted by
+            the next `save_function_cache`.
+
+        Raises:
+            TypeError: If `func_name` or `col_name` is not a string.
+            ValueError: If `func_name` or `col_name` is empty or contains
+                path separators.
         """
         col_name = self._validate_cache_key(col_name, "col_name")
         func_cache = self.load_function_cache(func_name)
@@ -284,9 +317,15 @@ class CacheManager:
 
         Args:
             func_name (str): Function identifier whose cache should be written.
+                An unknown name starts an empty live cache, so saving without a
+                prior load writes nothing.
 
         Returns:
-            None
+            None. Failures are logged, not raised.
+
+        Raises:
+            TypeError: If `func_name` is not a string.
+            ValueError: If `func_name` is empty or contains path separators.
         """
         func_name = self._validate_cache_key(func_name, "func_name")
 
@@ -369,7 +408,12 @@ class CacheManager:
             col_name (str): Nested cache key to remove.
 
         Returns:
-            None
+            None. An `INFO` message is logged whether the bucket existed.
+
+        Raises:
+            TypeError: If `func_name` or `col_name` is not a string.
+            ValueError: If `func_name` or `col_name` is empty or contains
+                path separators.
         """
         col_name = self._validate_cache_key(col_name, "col_name")
         func_cache = self.load_function_cache(func_name)
@@ -393,13 +437,22 @@ def shared_cache_manager(cache_dir: str | PathLike | None = None) -> CacheManage
 
     The `df.bynat` accessor uses this so pandas operations never build a new
     manager; every frame that targets the same directory shares one instance.
+    The registry is process-wide and thread-safe, and managers are never
+    removed from it.
 
     Args:
         cache_dir (str | os.PathLike | None): Cache directory, resolved like
-            `CacheManager(cache_dir)`.
+            `CacheManager(cache_dir)`. Managers are keyed by the resolved
+            absolute path, so different spellings of the same directory share
+            one instance.
 
     Returns:
-        CacheManager: The shared manager for that directory.
+        CacheManager: The shared manager for that directory. A manager is
+        created on first request for a directory and reused afterwards.
+
+    Raises:
+        TypeError: If `cache_dir` is not a string or path-like object.
+        ValueError: If `cache_dir` is empty after normalization.
     """
     probe = CacheManager(cache_dir)
 

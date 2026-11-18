@@ -112,6 +112,8 @@ git push origin main --tags
 # 4. CI publishes automatically
 ```
 
+In this repository the authoritative version source is `pyproject.toml` (the package defines no `__version__`); bump only there and do not add or hand-edit one.
+
 For detailed workflows, see:
 - **[AUTOMATION.md](AUTOMATION.md)** - Version bump scripts
 - **[MIGRATION.md](MIGRATION.md)** - Migration guide template

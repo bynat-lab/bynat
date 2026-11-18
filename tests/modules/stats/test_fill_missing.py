@@ -122,9 +122,12 @@ def test_fill_missing_skips_missing_targets_and_fills_valid_ones():
 @pytest.mark.parametrize(
     "index",
     [
-        pd.Index(range(10, 16), name="row_id"),
-        pd.MultiIndex.from_tuples([("k", i) for i in range(6)], names=["k", "i"]),
-        pd.Index([0, 0, 1, 1, 2, 2]),
+        pytest.param(pd.Index(range(10, 16), name="row_id"), id="named-range-index"),
+        pytest.param(
+            pd.MultiIndex.from_tuples([("k", i) for i in range(6)], names=["k", "i"]),
+            id="named-multi-index",
+        ),
+        pytest.param(pd.Index([0, 0, 1, 1, 2, 2]), id="duplicate-label-index"),
     ],
 )
 def test_hierarchy_methods_support_named_multi_and_duplicate_indexes(tmp_path, index):

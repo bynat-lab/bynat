@@ -22,7 +22,7 @@ those as patterns and substitute your own harness's equivalent.
 
 | Skill | Entry point | Purpose |
 | --- | --- | --- |
-| bynat-documentation-conventions | [SKILL.md](bynat-documentation-conventions/SKILL.md) | Repository conventions for `docs/ROADMAP.md`, `CHANGELOG.md`, and `README.md`; Python and test conventions; documentation change procedures; test-suite quality and architecture-migration workflows. |
+| bynat-documentation-conventions | [SKILL.md](bynat-documentation-conventions/SKILL.md) | Repository conventions for `docs/ROADMAP.md`, `CHANGELOG.md`, and `README.md`; Python and test conventions; documentation change procedures; docstring audit; test-suite quality and architecture-migration workflows; graph refresh. |
 | bynat-readme-writing | [SKILL.md](bynat-readme-writing/SKILL.md) | README voice, section structure, where new content belongs, repetition rules, code accuracy, and minimal-change maintenance. |
 
 ## Python library engineering
@@ -32,7 +32,7 @@ those as patterns and substitute your own harness's equivalent.
 | python-project-structure | [SKILL.md](python-project-structure/SKILL.md) | Module organization, `__all__`, public API design, flat vs nested layouts. | None |
 | testing-python-libraries | [SKILL.md](testing-python-libraries/SKILL.md) | pytest suite design, fixtures, parametrization, mocking, Hypothesis property-based tests, CI configuration. | `uv`, `pytest`, `pytest-cov`, `pytest-socket`, `hypothesis` |
 | documenting-python-libraries | [SKILL.md](documenting-python-libraries/SKILL.md) | Google-style docstrings, Sphinx/autodoc/autosummary, MyST, tutorials, ReadTheDocs deployment. | `sphinx`, `furo`, `myst-parser`, `sphinx-copybutton` |
-| reviewing-python-libraries | [SKILL.md](reviewing-python-libraries/SKILL.md) | Release readiness, old-vs-new regression audits, CI evidence levels, structured review report. | `git`, `uv`, `pytest`, `coverage`, `bandit`, `pip-audit`, `detect-secrets`, `twine`, `mypy`, `ruff` |
+| reviewing-python-libraries | [SKILL.md](reviewing-python-libraries/SKILL.md) | Release readiness, old-vs-new regression audits, mutation/in-place contract audits, test-suite integrity audits, CI evidence levels, structured review report. | `git`, `uv`, `pytest`, `coverage`, `bandit`, `pip-audit`, `detect-secrets`, `twine`, `mypy`, `ruff` |
 | packaging-python-libraries | [SKILL.md](packaging-python-libraries/SKILL.md) | `pyproject.toml`, build backends, wheel verification, PyPI trusted publishing, conda-forge. | `uv`, `twine`, `setuptools` or `hatchling`, `grayskull` |
 | setting-up-python-libraries | [SKILL.md](setting-up-python-libraries/SKILL.md) | Scaffold a new library: src layout, uv, ruff, pytest, mypy, pre-commit, GitHub Actions, Makefile. | `uv`, `ruff`, `pytest`, `pre-commit`, `make` |
 | codebase-inspection | [SKILL.md](codebase-inspection/SKILL.md) | Lines of code, language breakdown, and code-vs-comment ratios with `pygount`. | `pygount` |
@@ -51,6 +51,14 @@ those as patterns and substitute your own harness's equivalent.
 | simplify-code | [SKILL.md](simplify-code/SKILL.md) | Parallel multi-angle cleanup review of recent changes, then apply what is worth applying. |
 | spike | [SKILL.md](spike/SKILL.md) | Throwaway feasibility experiments and head-to-head approach comparisons before committing to a build. |
 | handoff | [SKILL.md](handoff/SKILL.md) | Write a compact, redaction-aware handoff document for a fresh agent. |
+| improve-codebase-architecture | [SKILL.md](improve-codebase-architecture/SKILL.md) | Scan a codebase for deepening opportunities, present a visual HTML report, then grill the chosen one. |
+
+## Writing and language
+
+| Skill | Entry point | Purpose |
+| --- | --- | --- |
+| humanizer | [SKILL.md](humanizer/SKILL.md) | Rewrite AI-sounding prose so it reads like the writer, preserving meaning. |
+| humanizer-zh | [SKILL.md](humanizer-zh/SKILL.md) | Edit Chinese prose to remove filler, repetition, and template phrasing while preserving facts and the author's voice. |
 
 ## Dependencies and loading order
 
@@ -73,21 +81,26 @@ references exist, and every one resolves inside `.agents/skills/`:
 | requesting-code-review | `test-driven-development` | Named reference |
 | simplify-code | `requesting-code-review` | Named reference |
 | systematic-debugging | `test-driven-development` | Named reference |
+| bynat-documentation-conventions | `references/accessor-inplace.md`, `references/docstring-audit.md`, `references/graphify-refresh.md`, `references/work-completion-audit.md`, `scripts/verify_docs_only.py` | Own files |
+| reviewing-python-libraries | `references/mutation-contract-audit.md`, `references/test-suite-integrity-audit.md`, `scripts/reconcile_pytest_counts.py` | Own files |
 
 When several apply, load upstream first: `setting-up-python-libraries`, then
 `improving-python-code-quality` / `testing-python-libraries` /
 `packaging-python-libraries`, then `release-management` and `api-design`. The
 workflow skills (`systematic-debugging`, `test-driven-development`,
-`requesting-code-review`, `simplify-code`, `spike`, `handoff`) are independent.
+`requesting-code-review`, `simplify-code`, `spike`, `handoff`,
+`improve-codebase-architecture`) are independent.
 
 A few skills name complementary skills that are deliberately outside this
 bundle: `subagent-driven-development` (Claude Code/superpowers orchestration),
-`github` (Hermes-adapted gh CLI workflow), `plan`, and `gsd-spike`. None is
-invoked by a procedure step; the naming skills remain usable without them.
+`github` (Hermes-adapted gh CLI workflow), `plan`, `gsd-spike`, and
+`codebase-design` (architecture vocabulary used by
+`improve-codebase-architecture`). None is invoked by a procedure step; the
+naming skills remain usable without them.
 
 ## Notes
 
 - Supporting files stay inside their own skill directory; a few skills additionally link into sibling skills' files (see the dependency table above).
-- Licensing and attribution are documented per source in [LICENSE.md](LICENSE.md). Six upstream sources are covered: `wdm0006/python-skills`, `obra/superpowers`, `NousResearch/hermes-agent`, `gsd-build/get-shit-done`, `wshobson/agents`, and `mattpocock/skills`. The remaining three skills are original `bynat` work under the repository licence.
+- Licensing and attribution are documented per source in [LICENSE.md](LICENSE.md). Eight upstream sources are covered: `wdm0006/python-skills`, `obra/superpowers`, `NousResearch/hermes-agent`, `gsd-build/get-shit-done`, `wshobson/agents`, `mattpocock/skills`, `blader/humanizer`, and `op7418/Humanizer-zh`. The remaining three skills are original `bynat` work under the repository licence.
 - Author and licence fields from the original skills are preserved in each
   `SKILL.md`.

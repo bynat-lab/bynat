@@ -552,9 +552,15 @@ class DatasetProfile(Mapping[str, Any]):
         empty_column_count (int): Number of profiled columns where all values
             are missing (``count == 0``).
         memory_bytes (int): Estimated memory footprint of the profiled columns
-            in bytes (via ``df.memory_usage(deep=True).sum()``).
+            in bytes (via ``df.memory_usage(deep=True).sum()``). ``0`` for an
+            empty frame or when the measurement fails.
         dtype_counts (dict[str, int]): Mapping from pandas dtype string
             (e.g., ``'int64'``, ``'object'``) to the number of columns with that dtype.
+
+    Notes:
+        Every metric is a native Python value (``int``, ``float``, ``str``,
+        ``bool``, ``list``, ``dict``, or ``None``), so the profile is JSON
+        serializable. The instance has 10 fields.
     """
 
     row_count: int
@@ -656,6 +662,10 @@ class ColumnProfile(Mapping[str, Any]):
             - When ``kind == 'datetime'``: ``min``, ``max``, ``range_days``.
             - When ``kind == 'other'``: ``top``, ``top_frequency``,
               ``top_proportion``.
+
+    Notes:
+        Every metric is a native Python value, so the profile is JSON
+        serializable. The instance has 11 fields.
     """
 
     name: Any
@@ -738,6 +748,11 @@ class ProfileReport(Mapping[str, Any]):
         column_list (list[ColumnProfile]): Positional list of
             :class:`ColumnProfile` objects in the exact order the columns appear
             in the profiled DataFrame.
+
+    Notes:
+        The instance has two mapping keys (``'dataset'`` and ``'columns'``).
+        With duplicate column names, ``columns`` holds the last occurrence
+        while ``column_list`` keeps every column by position.
     """
 
     dataset: DatasetProfile
@@ -872,6 +887,9 @@ def profile(
         - Unavailable or inapplicable statistics (such as ``std`` for a single
           observation or ``outliers_count`` when ``count < 5``) are represented
           as ``None``.
+        - Column metrics are always computed over the selected columns, so
+          proportions are relative to the profiled subset rather than the
+          whole frame.
 
     Args:
         df (pd.DataFrame): The DataFrame (or ``BaseData`` instance) to profile.

@@ -45,7 +45,18 @@ EARLY_EXITS = {
 }
 
 
-@pytest.mark.parametrize("method_name", sorted(EARLY_EXITS))
+@pytest.mark.parametrize(
+    "method_name",
+    sorted(EARLY_EXITS),
+    ids=[
+        "align_lat_lng", "categorize_by_reference", "convert_to_usd", "drop_CLASS_columns",
+        "drop_by_substring", "drop_outliers", "extract_entities_nlp", "extract_keywords",
+        "fill_missing", "fill_missing_coordinates", "fill_missing_from", "handle_outliers",
+        "impute_by_language", "move_column", "rename_all_DOTS", "rename_by_substring",
+        "reorder_columns", "split_list_objects", "translate_categorical_column",
+        "translate_conditional_column", "truncate_after_substring",
+    ],
+)
 def test_early_exits_return_an_independent_copy(tmp_path, method_name):
     frame = _frame(tmp_path)
     original = frame.copy()

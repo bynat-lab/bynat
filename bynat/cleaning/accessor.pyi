@@ -19,11 +19,18 @@ class BynatAccessor:
     """
     bynat cleaning, enrichment, and export methods for any `pandas.DataFrame`.
 
-    Every transformation returns a new DataFrame and never modifies the
-    original. Cached methods (translation, geocoding, currency conversion,
-    and NLP) use one shared `CacheManager` per cache directory: the
-    `BYNAT_CACHE_DIR` environment variable or the default directory, unless
-    `with_cache(...)` selects another one.
+    Every transformation returns a new DataFrame and leaves the original
+    untouched by default. The in-place capable transformations accept
+    `inplace` with the same calling convention as the corresponding
+    `BaseData` method (same parameter kind and positional slot);
+    `inplace=True` mutates the wrapped DataFrame in place and returns `None`
+    (or the hierarchical statistics DataFrame for `handle_outliers`,
+    `drop_outliers`, `fill_missing`, and `fill_missing_from` when
+    `get_hierarchical_stats=True`), while `inplace=False` leaves the original
+    untouched. Cached methods (translation,
+    geocoding, currency conversion, and NLP) use one shared `CacheManager` per
+    cache directory: the `BYNAT_CACHE_DIR` environment variable or the default
+    directory, unless `with_cache(...)` selects another one.
 
     Example:
     ```
@@ -38,12 +45,25 @@ class BynatAccessor:
     """
 
     def __init__(self, pandas_obj: pd.DataFrame, cache_manager: CacheManager | None=None) -> None:
+        """
+        Bind the accessor to a frame and an optional cache manager.
+
+        pandas constructs the accessor with only the frame; the cache manager
+        is supplied by `with_cache(...)`. A None manager is resolved lazily to
+        the shared manager for the default directory on first cached call.
+
+        Args:
+            pandas_obj (pd.DataFrame): Frame the accessor wraps. It is stored
+                by reference, so `inplace=True` mutates this object.
+            cache_manager (CacheManager | None): Manager for cached methods.
+                Defaults to None.
+        """
         ...
 
     @property
     def cache_manager(self) -> CacheManager:
         """
-        The `CacheManager` used by cached methods.
+        The `CacheManager` used by cached methods, created on first use.
         """
         ...
 
@@ -71,16 +91,27 @@ class BynatAccessor:
         """
         ...
 
-    def drop_by_substring(self, substring: str) -> pd.DataFrame:
+    def drop_by_substring(self, substring: str, inplace=False) -> pd.DataFrame | None:
         """
         Drop all columns that contain a specific substring within their names.
+
+        Columns are matched with a plain ``substring in col`` test, so the value is
+        literal text rather than a regular expression. A column whose name does not
+        contain `substring` is kept unchanged. When no column matches, a copy of
+        `df` is returned rather than `df` itself.
 
         Args:
             substring (str): The text to search for; any column containing this
                 string will be removed.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe without the matching columns.
+            With `inplace=False` (default), a new dataframe without the matching columns;
+            the input is not modified. With `inplace=True`, the receiver is mutated in place
+            and None is returned.
 
         Example:
         ```
@@ -95,12 +126,23 @@ class BynatAccessor:
         """
         ...
 
-    def drop_CLASS_columns(self) -> pd.DataFrame:
+    def drop_CLASS_columns(self, inplace=False) -> pd.DataFrame | None:
         """
         Drop all columns that contain the substring "__CLASS__" from the data.
 
+        Equivalent to `drop_by_substring(df, "__CLASS__")`; the marker is matched
+        literally.
+
+        Args:
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
+
         Returns:
-            A new dataframe without the matching columns.
+            With `inplace=False` (default), a new dataframe without the matching columns;
+            the input is not modified. With `inplace=True`, the receiver is mutated in place
+            and None is returned.
 
         Example:
         ```
@@ -115,16 +157,25 @@ class BynatAccessor:
         """
         ...
 
-    def rename_by_substring(self, old_substring: str, new_substring: str) -> pd.DataFrame:
+    def rename_by_substring(self, old_substring: str, new_substring: str, inplace=False) -> pd.DataFrame | None:
         """
         Rename columns by replacing a specific substring with a new one.
 
         Args:
             old_substring (str): The text to search for within the column names.
+                Matched literally and replaced everywhere it occurs.
             new_substring (str): The text to replace the old substring with.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with renamed columns.
+            With `inplace=False` (default), a new dataframe with renamed columns;
+            the input is not modified. Columns without the substring are kept
+            unchanged, and when no column name contains `old_substring` a copy of
+            the input is returned. With `inplace=True`, the receiver is mutated in
+            place and None is returned.
 
         Example:
         ```
@@ -139,16 +190,23 @@ class BynatAccessor:
         """
         ...
 
-    def rename_all_DOTS(self, unified_separator: str='_') -> pd.DataFrame:
+    def rename_all_DOTS(self, unified_separator: str='_', inplace=False) -> pd.DataFrame | None:
         """
         Rename columns by replacing all occurrences of dots ('.') with a unified separator.
 
         Args:
             unified_separator (str): The new string to replace dots with.
                 Defaults to "_".
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with renamed columns.
+            With `inplace=False` (default), a new dataframe with renamed columns;
+            the input is not modified. Column names without a dot are kept
+            unchanged. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -163,7 +221,7 @@ class BynatAccessor:
         """
         ...
 
-    def reorder_columns(self, *first_cols: Any) -> pd.DataFrame:
+    def reorder_columns(self, *first_cols: Any, inplace=False) -> pd.DataFrame | None:
         """
         Reorder the dataframe by moving a specified list of columns to the front.
 
@@ -171,10 +229,19 @@ class BynatAccessor:
         preserving their original relative order.
 
         Args:
-            first_cols (tuple): Column names that should appear first.
+            first_cols (tuple): Column names that should appear first. Names that
+                are not present in `df.columns` are ignored.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with reordered columns.
+            With `inplace=False` (default), a new dataframe with reordered columns;
+            the input is not modified. Unlisted columns keep their relative order
+            at the end, and when none of `first_cols` exist a copy of the input is
+            returned. With `inplace=True`, the receiver is mutated in place and None
+            is returned.
 
         Example:
         ```
@@ -189,7 +256,7 @@ class BynatAccessor:
         """
         ...
 
-    def melt_transform_pivot(self, id_vars: list | str, value_vars: list | str | None=None, transform_func: Callable | None=None, aggfunc: str | Callable='first', var_name: str='variable_name', value_name: str='variable_value', pivot_index: list | str | None=None, pivot_columns: list | str | None=None, **kwargs: Any) -> pd.DataFrame:
+    def melt_transform_pivot(self, id_vars: list | str, value_vars: list | str | None=None, transform_func: Callable | None=None, aggfunc: str | Callable='first', var_name: str='variable_name', value_name: str='variable_value', pivot_index: list | str | None=None, pivot_columns: list | str | None=None, inplace=False, **kwargs: Any) -> pd.DataFrame | None:
         """
         Reshape selected columns to long format, transform their values, and
         pivot them back to wide format.
@@ -203,6 +270,8 @@ class BynatAccessor:
             as rows and the melted variable column (`var_name`) as output columns.
             Use `pivot_index` and `pivot_columns` only when you want a different
             pivot layout from the melted dataframe.
+
+            The standalone function never modifies `df`.
 
         Args:
             id_vars (list | str): Column(s) to use as identifier variables.
@@ -224,9 +293,15 @@ class BynatAccessor:
                 dataframe to use as pivot columns. Allowed columns are `id_vars`
                 and `var_name`. Defaults to `var_name`.
             **kwargs: Additional keyword arguments to pass to `transform_func`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new, reshaped dataframe.
+            With `inplace=False` (default), a new, reshaped dataframe; the input is
+            not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             TypeError: If a column argument has an invalid type, if `aggfunc`
@@ -235,7 +310,8 @@ class BynatAccessor:
             ValueError: If `id_vars`, `value_vars`, `var_name`, or
                 `value_name` is invalid, if identifier/value/pivot columns
                 overlap incorrectly, or if `transform_func` returns invalid
-                output.
+                output. A failure raised by `pandas.DataFrame.pivot_table` is
+                also reported as `ValueError`.
             RuntimeError: If `transform_func` raises an exception.
 
         Example:
@@ -250,7 +326,7 @@ class BynatAccessor:
         """
         ...
 
-    def move_column(self, col_to_move: str, col_target: str, position: str='after') -> pd.DataFrame:
+    def move_column(self, col_to_move: str, col_target: str, position: str='after', inplace=False) -> pd.DataFrame | None:
         """
         Move a specific column to a new position relative to a target column.
 
@@ -259,12 +335,21 @@ class BynatAccessor:
             col_target (str): The reference column where the move will happen.
             position (str): Whether to place the column "after" or "before" the
                 target column. Defaults to "after".
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the column moved.
+            With `inplace=False` (default), a new dataframe with the column moved;
+            the input is not modified. If either column is absent, an unchanged
+            copy is returned. With `inplace=True`, the receiver is mutated in place
+            and None is returned.
 
         Raises:
             ValueError: If the `position` argument is not 'after' or 'before'.
+                The check runs after the missing-column check, so an unknown
+                column returns a copy rather than raising.
 
         Example:
         ```
@@ -279,7 +364,7 @@ class BynatAccessor:
         """
         ...
 
-    def align_lat_lng(self) -> pd.DataFrame:
+    def align_lat_lng(self, inplace=False) -> pd.DataFrame | None:
         """
         Standardize the coordinate order by moving the 'longitude' column
         immediately after the 'latitude' column.
@@ -289,8 +374,17 @@ class BynatAccessor:
         and **'longitude'** (case-sensitive). If the columns are named differently
         (e.g., 'lat' or 'LONG'), the alignment will not occur.
 
+        Args:
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
+
         Returns:
-            A new dataframe with aligned coordinate columns.
+            With `inplace=False` (default), a new dataframe with aligned coordinate
+            columns; the input is not modified, and when either column is absent an
+            unchanged copy is returned. With `inplace=True`, the receiver is
+            mutated in place and None is returned.
 
         Example:
         ```
@@ -303,7 +397,7 @@ class BynatAccessor:
         """
         ...
 
-    def split_list_objects(self, source_col: str, remove_source_col: bool=False, explode_rows: bool=False, cartesian_explode: bool=False, **target_cols_and_indices: Any) -> pd.DataFrame:
+    def split_list_objects(self, source_col: str, remove_source_col: bool=False, explode_rows: bool=False, cartesian_explode: bool=False, inplace=False, **target_cols_and_indices: Any) -> pd.DataFrame | None:
         """
         Extract specific elements from lists stored within a column into new columns.
 
@@ -319,22 +413,35 @@ class BynatAccessor:
               `cartesian_explode=False` (default) explodes them in parallel (requires
               lists to be of equal length). `cartesian_explode=True` explodes them
               sequentially, creating a cross-join (cartesian product) of all elements.
+            - **Scalar Indices**: A scalar index extracts one element per row and
+              does not explode, even when `explode_rows=True`.
+            - **Sentinel Values**: An index of `None` or `'all'` copies the whole
+              source list into the target column.
             - Exploding rows changes the row count and resets the index.
+            - The standalone function never modifies `df`. A missing `source_col` returns an
+              unchanged copy.
 
         Args:
             source_col (str): The name of the column containing list-like objects.
             remove_source_col (bool): If True, deletes the original source column after
                 extraction. Defaults to False.
             explode_rows (bool): If True, and an index list is provided, expands the
-                dataframe so each extracted element gets its own row. Defaults to False.
+                dataframe so each extracted element gets its own row. With no target
+                columns it explodes `source_col` itself. Defaults to False.
             cartesian_explode (bool): If True and multiple target columns are exploded,
                 performs a sequential explode resulting in a cartesian product. Defaults to False.
             **target_cols_and_indices: Keyword arguments where the key is the new
-                column name and the value is the index (int) or list of indices (list)
-                to extract from the source list.
+                column name and the value is the index (int), the sentinel `None` or
+                `'all'`, or a list of indices (list) to extract from the source list.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the extracted columns.
+            With `inplace=False` (default), a new dataframe with the extracted columns; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -362,7 +469,7 @@ class BynatAccessor:
         """
         ...
 
-    def extract_keywords(self, *source_cols: Any, remove_extracted: bool=False, use_regex: bool=False, **target_cols_and_keywords: Any) -> pd.DataFrame:
+    def extract_keywords(self, *source_cols: Any, inplace=False, remove_extracted: bool=False, use_regex: bool=False, **target_cols_and_keywords: Any) -> pd.DataFrame | None:
         """
         Search for keywords or regular expressions across source columns and extract them into new target columns.
         Matches are case-insensitive and are formatted to Title Case in the target column.
@@ -373,24 +480,43 @@ class BynatAccessor:
                 Subsequent calls will only populate empty cells (NaNs) and will NEVER overwrite previously extracted values.
             - **Literal Matching**: Keywords are treated as literal text (e.g., `C++`, `.NET`),
               and will not be interpreted as regular expressions unless `use_regex` is set to True.
+            - **Title-Casing**: The extracted value is the matched keyword rendered in
+              Title Case. Under `use_regex=True` the first capture group of the match
+              is used instead; a pattern with no capture group is wrapped so the whole
+              pattern is captured, and a pattern with a group yields that group only.
             - **Text Coercion**: Source columns are converted to strings only
               for matching, so numeric/object columns do not break text search.
             - **Performance**: Each unique combined text is matched once and the
               results are mapped back to every row. Literal keywords are matched
               with one combined pattern (or an Aho-Corasick automaton when the
               optional `pyahocorasick` dependency is installed).
+            - **Optional Dependency**: Literal matching uses `pyahocorasick` when
+              it is installed and every keyword is ASCII; otherwise it falls back to
+              one combined regular expression. Both paths return the same result and
+              neither raises when the dependency is missing.
+            - Source columns that are absent from `df` are ignored. When none of
+              them are present, an unchanged copy of `df` is returned.
+            - The standalone function never modifies `df`.
 
         Args:
-            *source_cols: Variable number of column names to search within.
+            *source_cols: Variable number of column names to search within. Column
+                names that do not exist in `df` are ignored.
             remove_extracted (bool): If True, removes the matched keywords from the
                 original source columns to clean the text. Defaults to False.
             use_regex (bool): If True, treats the input strings in **target_cols_and_keywords
                 as regular expressions for pattern extraction. Defaults to False.
             **target_cols_and_keywords: Keyword arguments where the key is the new
-                column name and the value is a list of strings to search for.
+                column name and the value is a list of strings to search for. A
+                single string is treated as a one-item list.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the extracted columns.
+            With `inplace=False` (default), a new dataframe with the extracted columns; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -410,9 +536,14 @@ class BynatAccessor:
         """
         ...
 
-    def truncate_after_substring(self, regex: bool=True, **target_cols_and_substrings: Any) -> pd.DataFrame:
+    def truncate_after_substring(self, regex: bool=True, inplace=False, **target_cols_and_substrings: Any) -> pd.DataFrame | None:
         """
         Remove specific substrings and everything following them from target columns.
+
+        Each named column is processed independently. The first occurrence of each
+        substring cuts the text, and the remaining text is stripped of surrounding
+        whitespace. Column names that are absent from `df` are ignored, and with no
+        keyword arguments an unchanged copy of `df` is returned.
 
         Args:
             regex (bool): Passed to `pandas.Series.str.split`. When True,
@@ -420,9 +551,15 @@ class BynatAccessor:
                 Defaults to True.
             **target_cols_and_substrings: Keyword arguments where the key is the column
                 name and the value is a string or a list of strings at which to cut off the text.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with truncated columns.
+            With `inplace=False` (default), a new dataframe with truncated columns; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Example:
         ```
@@ -443,8 +580,8 @@ class BynatAccessor:
         """
         ...
 
-    def categorize_by_reference(self, *source_cols: str, target_col: str, reference: dict, default_category: str='Other') -> pd.DataFrame:
-        r"""
+    def categorize_by_reference(self, *source_cols: str, inplace=False, target_col: str, reference: dict, default_category: str='Other') -> pd.DataFrame | None:
+        """
         Categorize text data into broader groups based on a reference lexicon dictionary.
 
         This method scans one or more source text columns for specific keywords defined in a
@@ -452,24 +589,46 @@ class BynatAccessor:
         is assigned to a new target column.
 
         Notes:
-            - The search uses word boundaries (\b) to prevent partial word matches
-              (e.g., matching 'React' will not trigger on 'Reactor').
+            - Matching is case-insensitive and restricted to whole words, so
+              'React' does not trigger on 'Reactor' and 'score' does not trigger
+              on 'under_score'.
             - The implementation builds an Aho-Corasick automaton and evaluates
               each unique combined text once, then maps results back to all rows.
             - Longer keywords take precedence over shorter ones (e.g., "Data Analyst"
-              matches before "Data").
+              matches before "Data"). On an equal-length tie the category listed
+              later in `reference` wins.
             - Empty keyword lists and blank keyword values are ignored safely.
+            - A keyword value that is not a list is treated as a one-item list.
+            - A missing `reference` column match, an empty `reference`, or a
+              `reference` that is not a dictionary assigns `default_category` to
+              every row.
+            - Source columns that are absent from `df` are ignored. When none of
+              them are present, an unchanged copy of `df` is returned.
+            - The standalone function never modifies `df`.
 
         Args:
             *source_cols (str): Source columns containing the raw text to search.
+                Names that do not exist in `df` are ignored.
             target_col (str): The new or existing column where categories will be saved.
             reference (dict): A dictionary where keys are category names and values
-                are lists of keywords to search for.
+                are lists of keywords to search for. A non-list value is treated as
+                a one-item list, and a non-dictionary value is treated as empty.
             default_category (str): The fallback value if no keywords are matched.
                 Defaults to 'Other'.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with the category column.
+            With `inplace=False` (default), a new dataframe with the category column; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
+
+        Raises:
+            ImportError: If the optional `pyahocorasick` dependency is not
+                installed. The dependency is required for this method; there is no
+                regex fallback.
 
         Example:
         ```
@@ -488,81 +647,124 @@ class BynatAccessor:
         """
         ...
 
-    def handle_outliers(self, *target_cols: Any, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
+    def handle_outliers(self, *target_cols: Any, inplace=False, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
         """
         Replace outlier values with missing values using hierarchical IQR rules.
 
         Notes:
-            The method starts with the full grouping hierarchy and progressively
-            relaxes it by removing the last grouping column at each pass. Within
-            every valid group, values outside the 1.5 IQR bounds are converted
-            to `NaN`. Values replaced at one level are excluded from the
-            quartiles of later levels.
+            - The method starts with the full grouping hierarchy and progressively
+                relaxes it by removing the last grouping column at each pass. Within
+                every valid group, values outside the 1.5 IQR bounds are converted
+                to `NaN`. Values replaced at one level are excluded from the
+                quartiles of later levels.
+            - A row is judged only at the most specific level where its group has
+                at least `min_samples` non-null values. Groups that are too small
+                fall through to the next coarser level.
+            - Target columns that are not present in `df` are ignored.
+            - `min_samples` is not validated; it is compared against group sizes
+                as given. When `hierarchy_cols` is empty a warning is logged and
+                the values are returned unchanged.
+            - The standalone function never modifies `df`.
 
         Args:
-            *target_cols: Numeric columns to evaluate for outliers.
+            *target_cols: Numeric columns to evaluate for outliers. Names that do
+                not exist in `df` are ignored.
             hierarchy_cols (list): Ordered grouping columns used to define peer
-                groups.
-            min_samples (int): Minimum number of rows required for a group to be
-                considered valid. Defaults to 5.
-            get_hierarchical_stats (bool): If True, also return the existing
-                hierarchical median statistics computed from the original data
-                before outliers are replaced. Defaults to False.
+                groups. A single string is treated as a one-item list.
+            min_samples (int): Minimum number of non-null rows required for a group
+                to be considered valid. Defaults to 5.
+            get_hierarchical_stats (bool): If True, also return the hierarchical
+                statistics computed from the original data before outliers are
+                replaced. The default `median` strategy is used. Defaults to
+                False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new cleaned dataframe, or `(cleaned_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            With `inplace=False` (default), a new cleaned dataframe, or
+            `(cleaned_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and the statistics dataframe is returned when
+            `get_hierarchical_stats=True`, otherwise None.
         """
         ...
 
-    def drop_outliers(self, *target_cols: Any, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
+    def drop_outliers(self, *target_cols: Any, inplace=False, hierarchy_cols: list, min_samples: int=5, get_hierarchical_stats: bool=False) -> Any:
         """
         Remove rows that contain outlier values based on hierarchical IQR rules.
 
         Notes:
-            This method shares the same grouping logic as `handle_outliers`, but
-            instead of replacing detected outliers with `NaN`, it drops the
-            affected rows after scanning all requested target columns. Rows are
-            dropped by position, so a duplicated index label never removes its
-            twin row.
+            - This method shares the same grouping logic as `handle_outliers`, but
+                instead of replacing detected outliers with `NaN`, it drops the
+                affected rows after scanning all requested target columns. Rows are
+                dropped by position, so a duplicated index label never removes its
+                twin row.
+            - Outliers are accumulated across every target column, so a row is
+                dropped when any requested column flags it.
+            - Target columns that are not present in `df` are ignored.
+            - `min_samples` is not validated; it is compared against group sizes
+                as given. When `hierarchy_cols` is empty a warning is logged and
+                no rows are dropped.
+            - The standalone function never modifies `df`.
 
         Args:
-            *target_cols: Numeric columns to inspect for outliers.
+            *target_cols: Numeric columns to inspect for outliers. Names that do
+                not exist in `df` are ignored.
             hierarchy_cols (list): Ordered grouping columns used to define peer
-                groups.
-            min_samples (int): Minimum number of rows required for a group to be
-                considered valid. Defaults to 5.
-            get_hierarchical_stats (bool): If True, also return the existing
-                hierarchical median statistics computed from the original data
-                before outlier rows are dropped. Defaults to False.
+                groups. A single string is treated as a one-item list.
+            min_samples (int): Minimum number of non-null rows required for a group
+                to be considered valid. Defaults to 5.
+            get_hierarchical_stats (bool): If True, also return the hierarchical
+                statistics computed from the original data before outlier rows are
+                dropped. The default `median` strategy is used. Defaults to
+                False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new filtered dataframe, or `(filtered_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            With `inplace=False` (default), a new filtered dataframe, or
+            `(filtered_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and the statistics dataframe is returned when
+            `get_hierarchical_stats=True`, otherwise None.
         """
         ...
 
-    def fill_missing(self, *target_cols: Any, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
+    def fill_missing(self, *target_cols: Any, inplace=False, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
         """
         Impute missing values by progressively relaxing a grouping hierarchy.
 
         Notes:
-            Supported strategies are `median`, `mean`, and `mode`. The method
-            attempts imputation using the full hierarchy first, then removes the
-            last grouping column one level at a time until no grouping columns
-            remain or the column is fully imputed.
-
-            Unfilled values remain `NaN` by default unless `fallback_global=True`
-            is set, in which case any remaining `NaN` values after exhausting the
-            hierarchy are filled using the column-wide statistic.
+            - Supported strategies are `median`, `mean`, and `mode`. The method
+                attempts imputation using the full hierarchy first, then removes the
+                last grouping column one level at a time until no grouping columns
+                remain or the column is fully imputed. The `mod` alias is
+                normalized to `mode`.
+            - Unfilled values remain `NaN` by default unless `fallback_global=True`
+                is set, in which case any remaining `NaN` values after exhausting the
+                hierarchy are filled using the column-wide statistic.
+            - A single string `hierarchy_cols` is treated as a one-item list.
+                Hierarchy columns that are not present in `df` are ignored.
+            - Target columns that are not present in `df` are ignored; when none are
+                valid a warning is logged and an unchanged copy is returned.
+            - The standalone function never modifies `df`. Statistics always come from `df`
+                itself, so this method does not prevent leakage from a test set.
 
         Args:
-            *target_cols: Columns whose missing values should be filled.
+            *target_cols: Columns whose missing values should be filled. Names that
+                do not exist in `df` are ignored.
             strategy (str): Aggregation strategy to use. Supported values are
-                `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+                `median`, `mean`, `mode`, and `mod`. The value is lowercased before
+                validation. Defaults to `median`.
             hierarchy_cols (list | str, optional): Grouping columns that define
                 the imputation hierarchy. A single string is treated as a
-                one-item list.
+                one-item list, and missing columns are ignored. Defaults to None,
+                which skips the hierarchy and only imputes when
+                `fallback_global=True`.
             min_samples (int): Minimum number of non-null observations required
                 for a group to supply an imputation statistic. Groups with fewer
                 observations fall through to coarser hierarchy levels. Defaults
@@ -575,10 +777,22 @@ class BynatAccessor:
                 hierarchical statistics computed from the original data before
                 imputation. The requested `strategy` is used. Defaults to
                 False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            With `inplace=False` (default), a new imputed dataframe, or
+            `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and the statistics dataframe is returned when
+            `get_hierarchical_stats=True`, otherwise None.
+
+        Raises:
+            ValueError: If `strategy` is not one of the supported values, or if
+                `min_samples` is not an integer greater than or equal to 1
+                (booleans are rejected).
 
         Example:
         ```
@@ -592,7 +806,7 @@ class BynatAccessor:
         """
         ...
 
-    def fill_missing_from(self, dataset: Any, *target_cols: Any, match_cols: dict[str, str] | None=None, targets: Any=None, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
+    def fill_missing_from(self, dataset: Any, *target_cols: Any, inplace=False, match_cols: dict[str, str] | None=None, targets: Any=None, strategy: str='median', hierarchy_cols: list | str | None=None, min_samples: int=1, fallback_global: bool=False, get_hierarchical_stats: bool=False) -> Any:
         """
         Impute missing values using statistics calculated from a reference dataset.
 
@@ -602,21 +816,32 @@ class BynatAccessor:
         row order, and un-imputed values are preserved.
 
         Notes:
-            Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
-            When `hierarchy_cols` are specified, imputation evaluates the most
-            specific grouping level first, then progressively drops grouping columns
-            until the column is fully imputed or the hierarchy is exhausted.
-
-            Groups in `dataset` with fewer than `min_samples` non-null observations
-            do not supply an imputation statistic, falling through to coarser levels.
-            If a group exists in `df` but has no matching rows (or insufficient samples)
-            in `dataset`, it falls through to coarser levels.
-
-            Unfilled values remain `NaN` by default unless `fallback_global=True` is
-            specified, in which case any remaining `NaN` values after exhausting the
-            hierarchy are filled using the reference dataset's column-wide statistic.
-            When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
-            imputation is performed using reference statistics.
+            - Supported strategies are `median`, `mean`, and `mode` (with alias `mod`).
+                When `hierarchy_cols` are specified, imputation evaluates the most
+                specific grouping level first, then progressively drops grouping columns
+                until the column is fully imputed or the hierarchy is exhausted.
+            - Groups in `dataset` with fewer than `min_samples` non-null observations
+                do not supply an imputation statistic, falling through to coarser levels.
+                If a group exists in `df` but has no matching rows (or insufficient samples)
+                in `dataset`, it falls through to coarser levels.
+            - Unfilled values remain `NaN` by default unless `fallback_global=True` is
+                specified, in which case any remaining `NaN` values after exhausting the
+                hierarchy are filled using the reference dataset's column-wide statistic.
+                When `hierarchy_cols=None` and `fallback_global=True`, plain column-wide
+                imputation is performed using reference statistics.
+            - `target_cols` accepts individual names and nested lists/tuples/sets,
+                which are flattened. Duplicates are removed in first-seen order. The
+                `targets` keyword accepts a single name or an iterable and is combined
+                with `*target_cols`.
+            - `match_cols` maps target column names to reference column names and
+                applies to both target and hierarchy columns. When omitted, identical
+                column names are used. When `get_hierarchical_stats=True`, the
+                returned statistics report target and hierarchy column names in the
+                target `df` spelling.
+            - Target columns that are not present in `df` are ignored; when none are
+                valid a warning is logged and an unchanged copy is returned. Hierarchy
+                columns must exist in both `df` and `dataset`.
+            - The standalone function never modifies `df`, and `dataset` is never modified.
 
         Args:
             dataset (pd.DataFrame | BaseData): Reference dataset used to compute
@@ -631,7 +856,8 @@ class BynatAccessor:
             targets (Any, optional): Alternative way to specify target columns
                 (e.g., a single column name or iterable of column names). Defaults to None.
             strategy (str): Aggregation strategy to use. Supported values are
-                `median`, `mean`, `mode`, and `mod`. Defaults to `median`.
+                `median`, `mean`, `mode`, and `mod`. The value is lowercased before
+                validation. Defaults to `median`.
             hierarchy_cols (list | str, optional): Grouping columns that define
                 the imputation hierarchy in `df`. A single string is treated as a
                 one-item list.
@@ -644,10 +870,18 @@ class BynatAccessor:
                 Defaults to False.
             get_hierarchical_stats (bool): If True, also return the hierarchical
                 statistics computed from `dataset`. Defaults to False.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new imputed dataframe, or `(imputed_dataframe, statistics)` when
-            `get_hierarchical_stats=True`.
+            With `inplace=False` (default), a new imputed dataframe, or
+            `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
+            neither `df` nor `dataset` is modified. With `inplace=True`, the
+            receiver is mutated in place, `dataset` is still not modified, and the
+            statistics dataframe is returned when `get_hierarchical_stats=True`,
+            otherwise None.
 
         Raises:
             ValueError: If `dataset` is missing or empty, contains duplicate column
@@ -738,6 +972,14 @@ class BynatAccessor:
             output schema. Empty and invalid-result cases use the requested
             output type whenever possible.
 
+        Raises:
+            TypeError: If `strategy` is neither a string nor an iterable of
+                strings, or if `output_type` is not a supported type.
+            ValueError: If a requested strategy is not supported, if a strategy
+                iterable is empty, or if a target column overlaps a valid
+                hierarchy column. Construction errors from an explicitly
+                requested `output_type` propagate unchanged.
+
         Examples:
         ```
             default_stats = df.get_hierarchical_stats(
@@ -780,6 +1022,9 @@ class BynatAccessor:
             - Unavailable or inapplicable statistics (such as ``std`` for a single
               observation or ``outliers_count`` when ``count < 5``) are represented
               as ``None``.
+            - Column metrics are always computed over the selected columns, so
+              proportions are relative to the profiled subset rather than the
+              whole frame.
 
         Args:
             df (pd.DataFrame): The DataFrame (or ``BaseData`` instance) to profile.
@@ -828,7 +1073,7 @@ class BynatAccessor:
         """
         ...
 
-    def impute_by_language(self, reference_col: str, *target_cols: Any, target_lang: str='en') -> pd.DataFrame:
+    def impute_by_language(self, reference_col: str, *target_cols: Any, inplace=False, target_lang: str='en') -> pd.DataFrame | None:
         """
         Impute missing or inconsistent values in target columns based on a reference column
         and a preferred language.
@@ -842,14 +1087,28 @@ class BynatAccessor:
                 3. Auto-Generation: If no valid translation is found, it generates a fallback name by title-casing the reference column.
             - **Deterministic Output**:
                 The `langdetect` seed is fixed to 0 to ensure consistent results across multiple runs.
+            - The standalone function never modifies `df`. A missing `reference_col` or a
+                target column that is not present in `df` is skipped, and a frame
+                with no valid target column is returned unchanged.
 
         Args:
             reference_col (str): The column used as a key (e.g., 'category_slug').
             *target_cols: One or more columns to be updated/imputed (e.g., 'category_name').
+                Names that do not exist in `df` are skipped.
             target_lang (str): The ISO 639-1 language code to prefer. Defaults to 'en'.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with imputed columns.
+            With `inplace=False` (default), a new dataframe with imputed columns; the input
+            is not modified. With `inplace=True`, the receiver is mutated in place and None
+            is returned.
+
+        Raises:
+            ImportError: If the optional `langdetect` dependency is not
+                installed.
 
         Example:
         ```
@@ -869,7 +1128,7 @@ class BynatAccessor:
         """
         ...
 
-    def translate_conditional_column(self, partition_col: str, detect_col: str, target_col: str, target_lang: str='en', sample_size: int=10, number_of_samples: int=3, threshold: float=0.5, save_every: int=1000, random_state: int | np.random.Generator | np.random.RandomState | None=0, *, provider: Translator | None=None) -> pd.DataFrame:
+    def translate_conditional_column(self, partition_col: str, detect_col: str, target_col: str, target_lang: str='en', sample_size: int=10, number_of_samples: int=3, threshold: float=0.5, save_every: int=1000, inplace=False, random_state: int | np.random.Generator | np.random.RandomState | None=0, *, provider: Translator | None=None) -> pd.DataFrame | None:
         """
         Conditionally translate values in a target column based on language detection of a sample.
 
@@ -877,6 +1136,12 @@ class BynatAccessor:
         if the language matches `target_lang`. If the percentage of matches is below the
         `threshold`, the unique values in `target_col` for that partition are translated.
         Results are cached to minimize API calls.
+
+        A partition is skipped when it has no detectable text, and its rows keep
+        their original values. A translated value is Title-Cased, and a value
+        that came back empty or as an error string is left untranslated and
+        uncached. The standalone function never modifies `df`; when any of the three
+        required columns is missing an unchanged copy is returned.
 
         Args:
             partition_col (str): The column used to group or partition the data (e.g., 'category' or 'group_id').
@@ -897,14 +1162,23 @@ class BynatAccessor:
                 unseeded sampling. Defaults to 0.
             provider (Translator | None): Translation provider. Defaults to
                 Google Translate through `deep-translator`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with translated values.
+            With `inplace=False` (default), a new dataframe with translated values; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             ValueError: If `threshold` is not between 0.0 and 1.0.
             ValueError: If `sample_size`, `number_of_samples`, or `save_every`
                 is not a positive integer.
+            ImportError: If the optional `langdetect` dependency is not
+                installed. The default provider also requires `deep-translator`,
+                imported lazily when a translation is actually needed.
 
         Example:
         ```
@@ -924,7 +1198,7 @@ class BynatAccessor:
         """
         ...
 
-    def translate_categorical_column(self, target_col: str, target_lang: str='en', save_every: int=1000, *, provider: Translator | None=None) -> pd.DataFrame:
+    def translate_categorical_column(self, target_col: str, target_lang: str='en', save_every: int=1000, inplace=False, *, provider: Translator | None=None) -> pd.DataFrame | None:
         """
         Translate all unique categories in a specific column using an automated translator.
 
@@ -935,6 +1209,9 @@ class BynatAccessor:
         Notes:
             Cache keys are stored as strings so non-string categories remain
             reusable after the cache is saved and loaded again.
+            The standalone function never modifies `df`. A missing `target_col` or a column
+            with no non-null values returns an unchanged copy, and a translation
+            that came back empty is left untranslated and uncached.
 
         Args:
             target_col (str): The name of the column containing categorical text to translate.
@@ -944,12 +1221,20 @@ class BynatAccessor:
                 Defaults to 1000.
             provider (Translator | None): Translation provider. Defaults to
                 Google Translate through `deep-translator`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with translated values.
+            With `inplace=False` (default), a new dataframe with translated values; the
+            input is not modified. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             ValueError: If `save_every` is not a positive integer.
+            ImportError: If the default provider's optional `deep-translator`
+                dependency is not installed and no `provider` is given.
 
         Example:
         ```
@@ -968,7 +1253,7 @@ class BynatAccessor:
         """
         ...
 
-    def fill_missing_coordinates(self, *fallback_cols: str, lat_col: str, long_col: str, save_every: int=1000, user_agent: str='data_cleaning_core_geocoder', retry_not_found: bool=False, provider: Geocoder | None=None) -> pd.DataFrame:
+    def fill_missing_coordinates(self, *fallback_cols: str, inplace=False, lat_col: str, long_col: str, save_every: int=1000, user_agent: str='data_cleaning_core_geocoder', retry_not_found: bool=False, provider: Geocoder | None=None) -> pd.DataFrame | None:
         """
         Fill missing latitude and longitude values by geocoding fallback location
         text.
@@ -984,8 +1269,18 @@ class BynatAccessor:
             Queries that cannot be resolved are cached as `null`, so later runs
             do not re-query them. Network or service errors are not cached.
 
+            The query is built from the fallback columns in order, joined with
+            `", "`, skipping null, empty, `"nan"`/`"none"`, and purely numeric
+            values. A failed query drops its leftmost comma-separated part and is
+            retried until it resolves or runs out of parts.
+
+            The standalone function never modifies `df`. A missing coordinate column or no
+            usable fallback column returns an unchanged copy; an internal helper
+            query column is always removed before returning.
+
         Args:
             *fallback_cols: Ordered columns used to build the geocoding query.
+                Names that do not exist in `df` are ignored.
             lat_col (str): Latitude column name.
             long_col (str): Longitude column name.
             save_every (int): Cache checkpoint frequency while geocoding.
@@ -998,16 +1293,25 @@ class BynatAccessor:
             provider (Geocoder | None): Geocoding provider. Defaults to
                 Nominatim through `geopy`, rate-limited to one request per
                 second.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with completed coordinates.
+            With `inplace=False` (default), a new dataframe with completed
+            coordinates; the input is not modified and existing valid coordinates
+            are preserved. With `inplace=True`, the receiver is mutated in place and
+            None is returned.
 
         Raises:
             ValueError: If `save_every` is not a positive integer.
+            ImportError: If the default provider's optional `geopy` dependency
+                is not installed and no `provider` is given.
         """
         ...
 
-    def convert_to_usd(self, *target_cols: Any, country_col: str, year_col: str, new_cols: bool=True, round_decimals: int | None=None, provider: RateSource | None=None) -> pd.DataFrame:
+    def convert_to_usd(self, *target_cols: Any, inplace=False, country_col: str, year_col: str, new_cols: bool=True, round_decimals: int | None=None, provider: RateSource | None=None) -> pd.DataFrame | None:
         """
         Convert numeric salary-like columns into USD using country currency codes
         and year-based exchange rates.
@@ -1021,8 +1325,19 @@ class BynatAccessor:
             Unknown countries and past years without data are cached as misses;
             network errors are not cached.
 
+            A row whose country is already USD is divided by 1.0 without any
+            lookup. A row whose currency is unknown, or whose year has no rate
+            anywhere in the lookback range, gets `NaN` rather than its original
+            value. Conversion divides the value by the rate, so the rate is the
+            amount of local currency per one USD.
+
+            The standalone function never modifies `df`. Missing `country_col` or `year_col`,
+            no valid target column, or an empty frame returns an unchanged copy
+            (a warning is logged for the first two).
+
         Args:
-            *target_cols: Numeric columns to convert.
+            *target_cols: Numeric columns to convert. Names that do not exist in
+                `df` are ignored.
             country_col (str): Column containing the country name used to infer
                 the local currency.
             year_col (str): Column containing the reference year for historical
@@ -1033,13 +1348,24 @@ class BynatAccessor:
                 round the converted values to. Defaults to None.
             provider (RateSource | None): Exchange-rate provider. Defaults to
                 Yahoo Finance through `yfinance`.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with converted values.
+            With `inplace=False` (default), a new dataframe with converted values; the input
+            is not modified. With `inplace=True`, the receiver is mutated in place and None
+            is returned.
+
+        Raises:
+            ImportError: If the optional `pycountry` or `Babel` dependency is not
+                installed, or if the default provider's optional `yfinance`
+                dependency is not installed and no `provider` is given.
         """
         ...
 
-    def extract_entities_nlp(self, *source_cols: Any, lexicon_source: str | os.PathLike | dict, spacy_model: str='en_core_web_sm', exclude_pos: set | list | tuple | str | None=None, disable: Iterable[str] | str | None=('parser', 'ner'), save_every: int=1000, noisy_terms: set | None=None, **target_cols_and_json_keys: Any) -> pd.DataFrame:
+    def extract_entities_nlp(self, *source_cols: Any, inplace=False, lexicon_source: str | os.PathLike | dict, spacy_model: str='en_core_web_sm', exclude_pos: set | list | tuple | str | None=None, disable: Iterable[str] | str | None=('parser', 'ner'), save_every: int=1000, noisy_terms: set | None=None, **target_cols_and_json_keys: Any) -> pd.DataFrame | None:
         """
         Extract entities from free text by matching against a cached lexicon with
         spaCy tokenization and lemmatization.
@@ -1100,14 +1426,26 @@ class BynatAccessor:
             **target_cols_and_json_keys: Mapping where each key is an output
                 column name and each value is a lexicon key or list of keys to
                 collect terms from.
+            inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
+                standalone function has no such parameter and always returns a new
+                frame. When True, the receiver is mutated in place. Defaults to
+                False.
 
         Returns:
-            A new dataframe with extracted entity-list columns.
+            With `inplace=False` (default), a new dataframe with extracted entity-list
+            columns; the input is not modified. With `inplace=True`, the receiver is mutated
+            in place and None is returned.
 
         Raises:
             ValueError: If `disable` contains a required spaCy component, a
-                component name is empty, or `save_every` is not a positive
-                integer.
+                component name is empty, `save_every` is not a positive integer,
+                no target column/JSON key keyword argument is supplied, or no
+                valid terms are extracted from the requested lexicon keys. A
+                non-string or blank `spacy_model` also raises `ValueError`.
+            TypeError: If `disable` is not None, a string, or an iterable of
+                strings, or if the misspelled `noisey_terms` keyword is used.
+            ImportError: If the optional `spacy` dependency is not installed.
+            OSError: If the spaCy model cannot be loaded.
 
         Example:
         ```
@@ -1134,20 +1472,32 @@ class BynatAccessor:
             Paths without a directory component, such as `output.json`, are
             written to the current working directory.
 
+            The input `df` is never modified; datetime values are reformatted on
+            an internal copy. An existing file that cannot be read for comparison
+            is overwritten, except with `append=True`, where an unreadable file
+            raises instead of being destroyed. Missing parent directories are
+            created.
+
         Args:
             file_path (str | os.PathLike): Destination JSON file path.
             orient (str): JSON orientation passed to `pandas.DataFrame.to_json`.
                 Defaults to `"records"`.
             append (bool): If True and the target file exists, appends current
                 rows to the existing JSON data and removes duplicate rows before
-                writing. Defaults to False.
+                writing. Duplicate detection compares list and dictionary cell
+                values by their JSON content. Defaults to False.
             force_ascii (bool): Whether to escape non-ASCII characters in the
                 output. Defaults to False.
             indent (int): Indentation width used when writing to disk. Defaults
                 to 4.
 
         Returns:
-            None
+            None. Nothing is written when an existing non-append file already
+            holds identical content.
+
+        Raises:
+            ValueError: If `file_path` is empty, or if `append=True` and the
+                existing file cannot be read with the given `orient`.
         """
         ...
 
@@ -1161,6 +1511,11 @@ class BynatAccessor:
             SQL Server, `database_driver` is required and is URL-encoded.
             For SQLite, only `database_name` is required.
 
+            Credentials are URL-encoded before being placed in the connection
+            URL. Timezone-aware datetime columns are converted to naive datetimes
+            on an internal copy, so the input `df` is never modified. The engine
+            is disposed of after the write, whether it succeeds or fails.
+
         Args:
             table_name (str): The name of the SQL table to write to.
             database_type (str): SQLAlchemy dialect/driver, for example
@@ -1170,7 +1525,8 @@ class BynatAccessor:
             database_password (str): Database password.
             database_host (str): Database host address.
             database_port (str): Database port.
-            database_name (str): Database/schema name, or SQLite file path.
+            database_name (str): Database/schema name, or SQLite file path. The
+                special value `":memory:"` targets an in-memory SQLite database.
             database_driver (str | None): ODBC driver name for SQL Server
                 dialects. Defaults to None.
             columns_types (dict | None): Optional SQLAlchemy dtype mapping to
@@ -1186,6 +1542,15 @@ class BynatAccessor:
 
         Returns:
             None
+
+        Raises:
+            ValueError: If `table_name` or `database_type` is empty, if
+                `if_exists` is not one of 'fail', 'replace', or 'append', or if
+                the credentials required by the selected dialect are missing
+                (`database_name` for SQLite, `database_driver` and all
+                connection fields for SQL Server).
+            ImportError: If the optional `SQLAlchemy` dependency is not
+                installed.
 
         Example:
         ```

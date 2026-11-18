@@ -225,13 +225,17 @@ def test_save_to_json_requires_file_path(tmp_path):
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
-        ({"table_name": " "}, "table_name"),
-        ({"if_exists": "merge"}, "if_exists"),
-        ({"database_type": ""}, "database_type"),
-        ({"database_name": ""}, "SQLite"),
-        ({"database_type": "postgresql", "database_host": ""}, "are required"),
-        ({"database_type": "mssql+pyodbc", "database_user": "u", "database_password": "p",
-          "database_host": "h", "database_port": "1"}, "database_driver"),
+        pytest.param({"table_name": " "}, "table_name", id="blank-table-name"),
+        pytest.param({"if_exists": "merge"}, "if_exists", id="unsupported-if-exists"),
+        pytest.param({"database_type": ""}, "database_type", id="blank-database-type"),
+        pytest.param({"database_name": ""}, "SQLite", id="blank-database-name"),
+        pytest.param({"database_type": "postgresql", "database_host": ""}, "are required", id="postgres-missing-host"),
+        pytest.param(
+            {"database_type": "mssql+pyodbc", "database_user": "u", "database_password": "p",
+             "database_host": "h", "database_port": "1"},
+            "database_driver",
+            id="mssql-missing-driver",
+        ),
     ],
 )
 def test_save_to_sql_rejects_invalid_arguments_before_connecting(monkeypatch, tmp_path, kwargs, message):

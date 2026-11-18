@@ -113,7 +113,7 @@ uvx twine check dist/*
 ```
 
 For detailed templates, see:
-- **[../project-setup/PYPROJECT.md](../project-setup/PYPROJECT.md)** - Complete annotated pyproject.toml (canonical)
+- **[../setting-up-python-libraries/PYPROJECT.md](../setting-up-python-libraries/PYPROJECT.md)** - Complete annotated pyproject.toml (canonical)
 - **[CONDA.md](CONDA.md)** - Conda / conda-forge packaging guide
 
 ## Verify the Built Artifact (a green build is not a correct wheel)

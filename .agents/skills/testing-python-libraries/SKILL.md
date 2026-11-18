@@ -109,7 +109,7 @@ def test_invalid_raises():
 For detailed patterns, see:
 - **[FIXTURES.md](FIXTURES.md)** - Advanced fixture patterns
 - **[HYPOTHESIS.md](HYPOTHESIS.md)** - Property-based testing
-- **[../project-setup/CI.md](../project-setup/CI.md)** - CI/CD test configuration
+- **[../setting-up-python-libraries/CI.md](../setting-up-python-libraries/CI.md)** - CI/CD test configuration
 
 ## Test Principles
 

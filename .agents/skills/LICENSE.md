@@ -1,8 +1,8 @@
 # License and Attribution
 
-Agent skills in this directory come from six independent upstream sources plus
+Agent skills in this directory come from eight independent upstream sources plus
 original work written for this repository. **No single copyright notice covers
-all 19 skills.** Each section below names the source, the applicable licence,
+all 22 skills.** Each section below names the source, the applicable licence,
 and every bundled skill it covers.
 
 ## 1. `wdm0006/python-skills`
@@ -25,9 +25,9 @@ and every bundled skill it covers.
 `documenting-python-libraries`, `packaging-python-libraries`,
 `reviewing-python-libraries`, `setting-up-python-libraries`, and
 `testing-python-libraries` are earlier snapshots of the upstream files.
-`reviewing-python-libraries` and `testing-python-libraries` additionally carry audit guidance written for this repository (see §8).
+`reviewing-python-libraries` and `testing-python-libraries` additionally carry audit guidance written for this repository (see §10).
 `api-design`, `improving-python-code-quality`, and `release-management` match
-current upstream apart from the attribution fields noted in §8.
+current upstream apart from the attribution fields noted in §10.
 
 ## 2. `NousResearch/hermes-agent`
 
@@ -74,9 +74,31 @@ Covers `python-project-structure`, copied from
 - Licence: MIT
 - Copyright: (c) 2026 Matt Pocock
 
-Covers `handoff`, copied from `skills/productivity/handoff`.
+Covers `handoff`, copied from `skills/productivity/handoff`, and
+`improve-codebase-architecture`, copied from
+`skills/engineering/improve-codebase-architecture`. The bundled
+`improve-codebase-architecture` copy carries no licence file of its own; the
+upstream repository licence is MIT.
 
-## 7. Original `bynat` project skills
+## 7. `blader/humanizer`
+
+- Source: <https://github.com/blader/humanizer>
+- Licence: MIT
+- Copyright: (c) 2025 Siqi Chen
+
+Covers `humanizer`, copied from its repository root together with the plugin
+and package files.
+
+## 8. `op7418/Humanizer-zh`
+
+- Source: <https://github.com/op7418/Humanizer-zh>
+- Licence: MIT
+- Copyright: (c) 2026 歸藏
+
+Covers `humanizer-zh`. Its metadata records a structural revision based on
+`blader/humanizer` v3.0.0 (see §7) and `hardikpandya/stop-slop`.
+
+## 9. Original `bynat` project skills
 
 - Copyright: (c) 2026 bynat
 - Licence: MIT, as granted by the repository [LICENSE](../../LICENSE)
@@ -90,7 +112,7 @@ material.
 
 ## MIT permission and warranty disclaimer
 
-The material listed in Sections 1–6 is redistributed under the MIT licence,
+The material listed in Sections 1–8 is redistributed under the MIT licence,
 which is the licence of each named upstream source:
 
 ```text
@@ -102,6 +124,8 @@ Copyright (c) 2025 Jesse Vincent
 Copyright (c) 2025 Lex Christopherson
 Copyright (c) 2024 Seth Hobson
 Copyright (c) 2026 Matt Pocock
+Copyright (c) 2025 Siqi Chen
+Copyright (c) 2026 歸藏
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -122,7 +146,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## 8. Modifications
+## 10. Modifications
 
 Bundled copies preserve the technical content of their upstream sources.
 Documented changes are limited to attribution metadata, internal link repair,

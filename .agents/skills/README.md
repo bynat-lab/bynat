@@ -51,6 +51,14 @@ those as patterns and substitute your own harness's equivalent.
 | simplify-code | [SKILL.md](simplify-code/SKILL.md) | Parallel multi-angle cleanup review of recent changes, then apply what is worth applying. |
 | spike | [SKILL.md](spike/SKILL.md) | Throwaway feasibility experiments and head-to-head approach comparisons before committing to a build. |
 | handoff | [SKILL.md](handoff/SKILL.md) | Write a compact, redaction-aware handoff document for a fresh agent. |
+| improve-codebase-architecture | [SKILL.md](improve-codebase-architecture/SKILL.md) | Scan a codebase for deepening opportunities, present a visual HTML report, then grill the chosen one. |
+
+## Writing and language
+
+| Skill | Entry point | Purpose |
+| --- | --- | --- |
+| humanizer | [SKILL.md](humanizer/SKILL.md) | Rewrite AI-sounding prose so it reads like the writer, preserving meaning. |
+| humanizer-zh | [SKILL.md](humanizer-zh/SKILL.md) | Edit Chinese prose to remove filler, repetition, and template phrasing while preserving facts and the author's voice. |
 
 ## Dependencies and loading order
 
@@ -80,16 +88,19 @@ When several apply, load upstream first: `setting-up-python-libraries`, then
 `improving-python-code-quality` / `testing-python-libraries` /
 `packaging-python-libraries`, then `release-management` and `api-design`. The
 workflow skills (`systematic-debugging`, `test-driven-development`,
-`requesting-code-review`, `simplify-code`, `spike`, `handoff`) are independent.
+`requesting-code-review`, `simplify-code`, `spike`, `handoff`,
+`improve-codebase-architecture`) are independent.
 
 A few skills name complementary skills that are deliberately outside this
 bundle: `subagent-driven-development` (Claude Code/superpowers orchestration),
-`github` (Hermes-adapted gh CLI workflow), `plan`, and `gsd-spike`. None is
-invoked by a procedure step; the naming skills remain usable without them.
+`github` (Hermes-adapted gh CLI workflow), `plan`, `gsd-spike`, and
+`codebase-design` (architecture vocabulary used by
+`improve-codebase-architecture`). None is invoked by a procedure step; the
+naming skills remain usable without them.
 
 ## Notes
 
 - Supporting files stay inside their own skill directory; a few skills additionally link into sibling skills' files (see the dependency table above).
-- Licensing and attribution are documented per source in [LICENSE.md](LICENSE.md). Six upstream sources are covered: `wdm0006/python-skills`, `obra/superpowers`, `NousResearch/hermes-agent`, `gsd-build/get-shit-done`, `wshobson/agents`, and `mattpocock/skills`. The remaining three skills are original `bynat` work under the repository licence.
+- Licensing and attribution are documented per source in [LICENSE.md](LICENSE.md). Eight upstream sources are covered: `wdm0006/python-skills`, `obra/superpowers`, `NousResearch/hermes-agent`, `gsd-build/get-shit-done`, `wshobson/agents`, `mattpocock/skills`, `blader/humanizer`, and `op7418/Humanizer-zh`. The remaining three skills are original `bynat` work under the repository licence.
 - Author and licence fields from the original skills are preserved in each
   `SKILL.md`.

@@ -13,6 +13,14 @@
 > - **Interpretation** — an architectural conclusion drawn from the verified facts and external evidence.
 > - **Recommendation** — a proposed future direction; it is not current implementation.
 
+> **Phase 2 status update (uncommitted).** The accessor integration boundary has
+> moved to `bynat/_accessors/dataframe.py` (binding helpers in
+> `bynat/_accessors/_binding.py`), with the generated stub at
+> `bynat/_accessors/dataframe.pyi`; `bynat/cleaning/accessor.py` and
+> `bynat/cleaning/accessor.pyi` are removed. Sections below that describe the
+> accessor under `cleaning/` record the pre-Phase-2 baseline used for the
+> research measurements; current-state sections have been updated.
+
 ## Executive conclusion
 
 `bynat` is already a small **modular monolith** using the **Functional Core + Facades** direction established by ARCH-02. Its strongest architectural property is that the reusable DataFrame operations live below two integration surfaces:
@@ -27,7 +35,7 @@ The current package boundaries are mostly sound, but the clarified public-initia
 - `bynat.analytics` owns application-independent analytics and currently has no internal `bynat` dependency;
 - `bynat.profiling` is approved to own non-mutating data-quality inspection and structured profile reports (see the Phase 0 section).
 
-The main architectural issue is not that the repository lacks more directories. It is that `bynat/cleaning/accessor.py` is a library-wide integration boundary located inside one functional package, while it delegates across cleaning and caching and is the likely future home of analytics-facing methods. The approved direction is a thin `bynat/_accessors/` integration package, introduced in the plan's Phase 2 after import behavior and contract tests are settled. The accessor must remain a facade; algorithms stay in their functional modules.
+The main architectural issue was not that the repository lacks more directories. It was that `bynat/cleaning/accessor.py` was a library-wide integration boundary located inside one functional package, while it delegated across cleaning and caching and was the likely future home of analytics-facing methods. The approved direction was a thin `bynat/_accessors/` integration package, introduced in the plan's Phase 2 after import behavior and contract tests settled. Phase 2 has since executed: the accessor now lives in `bynat/_accessors/dataframe.py` with binding helpers in `bynat/_accessors/_binding.py` and the generated stub `bynat/_accessors/dataframe.pyi`. The accessor remains a facade; algorithms stay in their functional modules.
 
 A previous task version described the root initializer as empty. The current clarification supersedes that wording: the intended root API is the four package entry points (`cleaning`, `caching`, `analytics`, `profiling`) plus the registered `df.bynat` capability, without exposing internal classes or individual functions directly. The current checkout does not yet match that clarified contract because it exports `BynatAccessor`, `ProfileReport`, `profile`, `read_csv`, and `read_json` from the root. This report treats the clarified contract as the target and records the direct cleanup required to reach it; previous-version compatibility is out of scope (see the Phase 0 section).
 
@@ -232,8 +240,10 @@ Relevant internal references:
 - [`bynat/profiling/profile.py`](../bynat/profiling/profile.py)
 - [`bynat/profiling/report.py`](../bynat/profiling/report.py)
 - [`bynat/cleaning/base.py`](../bynat/cleaning/base.py)
-- [`bynat/cleaning/accessor.py`](../bynat/cleaning/accessor.py)
-- [`bynat/cleaning/accessor.pyi`](../bynat/cleaning/accessor.pyi)
+- [`bynat/_accessors/__init__.py`](../bynat/_accessors/__init__.py)
+- [`bynat/_accessors/_binding.py`](../bynat/_accessors/_binding.py)
+- [`bynat/_accessors/dataframe.py`](../bynat/_accessors/dataframe.py)
+- [`bynat/_accessors/dataframe.pyi`](../bynat/_accessors/dataframe.pyi)
 - [`bynat/cleaning/_common.py`](../bynat/cleaning/_common.py)
 - [`bynat/cleaning/_outputs.py`](../bynat/cleaning/_outputs.py)
 - [`bynat/caching/manager.py`](../bynat/caching/manager.py)
@@ -268,6 +278,11 @@ This is a consistent comparative measure, not a claim about executable statement
 ```text
 bynat/
 ├── __init__.py                         # root exports and accessor registration import
+├── _accessors/                         # private pandas accessor integration boundary
+│   ├── __init__.py                     # BynatAccessor re-export
+│   ├── _binding.py                     # signature/docstring/cache binding helpers
+│   ├── dataframe.py                    # registered df.bynat accessor
+│   └── dataframe.pyi                   # generated accessor typing surface
 ├── _internal/                          # private cross-package value normalization (not public API)
 │   ├── __init__.py                     # exports dedupe_key
 │   └── values.py                       # canonical dedupe_key helper
@@ -288,8 +303,6 @@ bynat/
     ├── __init__.py                     # BaseData/CsvFile/JsonFile exports
     ├── _common.py                      # cleaning-scoped shared semantics
     ├── _outputs.py                     # output-type and subclass preservation helpers
-    ├── accessor.py                     # registered DataFrame integration facade
-    ├── accessor.pyi                    # generated accessor typing surface
     ├── base.py                         # BaseData/CsvFile/JsonFile facade
     ├── columns.py                      # column and reshape operations
     ├── io.py                           # loaders and writers
@@ -421,7 +434,7 @@ Complete package totals from the same measurement:
 
 **Potential future separation:** A generated binding table or smaller facade modules could reduce maintenance cost, but only after signature/docstring synchronization and subclass behavior are protected by contract tests. This is optional, not an immediate architecture defect.
 
-### 4.2 `cleaning/accessor.py`: integration facade
+### 4.2 `cleaning/accessor.py` (baseline) / `_accessors/dataframe.py`: integration facade
 
 **Verified responsibilities:**
 
@@ -434,7 +447,7 @@ Complete package totals from the same measurement:
 - perform in-place mutation only when requested;
 - delegate to columns, text, stats, profiling, I/O, and enrichment modules.
 
-**Cohesion judgment:** The wrapper factories and registration code are cohesive as an integration mechanism. The location under `cleaning` is understandable historically, but its consumers and responsibilities are broader than cleaning. It is the strongest candidate for a future library-level `_accessors/` boundary.
+**Cohesion judgment:** The wrapper factories and registration code are cohesive as an integration mechanism. The location under `cleaning` was understandable historically, but its consumers and responsibilities are broader than cleaning. It was the strongest candidate for a library-level `_accessors/` boundary, and Phase 2 moved it there.
 
 ### 4.3 `cleaning/stats.py`: hierarchy-based statistics domain
 
@@ -591,7 +604,7 @@ The following map is derived from imports in the local source tree and reduced t
 
 ```mermaid
 flowchart TD
-    Root["bynat root exports / registration"] --> Accessor["cleaning.accessor"]
+    Root["bynat root exports / registration"] --> Accessor["_accessors.dataframe"]
     Root --> IO["cleaning.io"]
     Root --> Profiling["bynat.profiling"]
 
@@ -654,7 +667,7 @@ flowchart TD
 
 **Verified fact.** No internal cycle was found in the direct package import graph. The current graph is substantially acyclic: facades depend on implementation modules; implementation modules depend on scoped helpers and infrastructure; analytics is isolated.
 
-**Risk.** `cleaning.accessor` currently imports a wide set of cleaning modules and caching. As more functional packages are added, continuing to add methods to this module can turn it into a high-churn integration hub. That is a change-locality and ownership risk, not a current circular dependency.
+**Risk.** `_accessors/dataframe.py` imports a wide set of cleaning modules and caching. As more functional packages are added, continuing to add methods to this module can turn it into a high-churn integration hub. That is a change-locality and ownership risk, not a current circular dependency.
 
 **Risk.** `cleaning._common` contains several unrelated-but-cleaning-scoped semantics: optional imports, validation, merge alignment, logger ownership, and DataFrame subclass preservation. It is not yet evidence for a library-level common package. If its responsibilities diverge, the correct response is to move a responsibility to the owning domain, not to enlarge a generic `_shared` package.
 
@@ -714,13 +727,13 @@ A single new function should normally remain in the closest cohesive module. A p
 |---|---|---|---|
 | `import_optional`, `require_positive_int`, `left_merge_aligned`, `like` | `cleaning/_common.py` | Multiple cleaning modules; optional imports, DataFrame alignment, validation, subclass preservation | Keep cleaning-scoped. These functions share cleaning transformation semantics. Do not promote them to library-level `_shared` merely because several cleaning modules use them. Re-evaluate individual functions if a non-cleaning package gains a real dependency. |
 | `dedupe_key` (canonical) | `bynat/_internal/values.py`, exported by `bynat/_internal/__init__.py` | `cleaning.io` and `profiling.profile`, each importing it as a local `_dedupe_key` alias | Private cross-package value normalization with one canonical implementation. Functional packages depend on `_internal`; `_internal` imports no functional package. Not a public API. See §7.1. |
-| Output-type conversion helpers | `cleaning/_outputs.py` | `stats.py` and the cleaning boundary (`base.py`, `accessor.py`); recognizes `BaseData` without importing the facade | Keep under cleaning. The module deliberately avoids a lower-level-to-facade import and protects the functional core from `BaseData` coupling. |
+| Output-type conversion helpers | `cleaning/_outputs.py` | `stats.py` and the cleaning boundary (`base.py`, `_accessors/dataframe.py`); recognizes `BaseData` without importing the facade | Keep under cleaning. The module deliberately avoids a lower-level-to-facade import and protects the functional core from `BaseData` coupling. |
 | `_cached_map` and related lookup helpers | `cleaning/enrich/engine.py` | translation, geocoding, currency, NLP | Keep in `enrich`. This is genuinely shared enrichment behavior with shared cache semantics, not generic caching infrastructure. |
 | Provider protocols and adapters | `cleaning/enrich/providers.py` | translation, geocoding, currency; facade type signatures | Keep in `enrich`. Provider contracts are feature-boundary types, not library-wide service abstractions. |
 | Cache key normalization | `caching/_keys.py` | cache manager and enrichment engine | Keep in `caching`; the key contract belongs to persistent cache identity. Enrichment should use the public cache contract where possible and should not own storage identity rules. |
 | SQLite storage and legacy migration | `caching/_storage.py`, `caching/_migration.py` | `CacheManager` | Keep private to caching. Their consumers should not import them directly. |
 | `Analyzer` filter/rule helpers | `analytics/analyzer.py` | Analyzer methods only | Keep class-local until a second independent analytics component demonstrates stable shared ownership. |
-| Accessor wrapper factories | `cleaning/accessor.py` today | all `df.bynat` methods | Move conceptually to a future `_accessors/` integration owner; do not move during this report. The factories are integration mechanics rather than cleaning algorithms. |
+| Accessor wrapper factories | `_accessors/_binding.py` (moved from `cleaning/accessor.py` in Phase 2) | all `df.bynat` methods | Owned by the private `_accessors/` integration boundary. The factories are integration mechanics rather than cleaning algorithms. |
 
 **Ownership rule.** Consumer count is evidence of reuse, not proof of ownership. A shared component belongs where its invariants, dependencies, and change reasons are owned. The current repository already demonstrates this distinction: `_cached_map` is shared within enrichment, while SQLite storage is shared within caching, and analytics remains independent.
 
@@ -749,9 +762,9 @@ The Python import documentation provides the complementary package rule: importi
 
 The pandas API reference states that a DataFrame accessor is a class decorator that adds a namespace reachable as `df.<name>`, and that the accessor initializer accepts one DataFrame and may reject ineligible objects with `AttributeError`. This supports keeping registration and receiver/signature adaptation in a private integration boundary rather than exporting the accessor class as part of the root API. See the [registration API reference](https://pandas.pydata.org/docs/reference/api/pandas.api.extensions.register_dataframe_accessor.html), especially the “Returns” and “Notes” sections.
 
-### 8.2 Current accessor behavior
+### 8.2 Accessor behavior
 
-**Verified facts from `cleaning/accessor.py`:**
+**Verified facts from `bynat/_accessors/dataframe.py` (the pre-Phase-2 baseline was `cleaning/accessor.py`):**
 
 - `@pd.api.extensions.register_dataframe_accessor("bynat")` performs registration;
 - the accessor wraps a DataFrame by reference;
@@ -760,12 +773,12 @@ The pandas API reference states that a DataFrame accessor is a class decorator t
 - `cache_manager` is injected internally and omitted from the accessor-facing signature;
 - `inplace=True` calls `_update_inplace` on the wrapped object;
 - methods delegate to functional implementations in cleaning and enrichment;
-- `accessor.pyi` is generated by `tools/sync_docs.py`;
+- `dataframe.pyi` is generated by `tools/sync_docs.py`;
 - `test_doc_drift.py` verifies runtime signatures, docstrings, and the generated stub.
 
 The accessor therefore already has a clear integration responsibility. It must not absorb the algorithms it delegates to.
 
-### 8.3 Proposed organizational direction: `bynat/_accessors/`
+### 8.3 Organizational direction: `bynat/_accessors/`
 
 **Recommendation.** Organize future library-level pandas integrations under a private package such as:
 
@@ -778,7 +791,7 @@ bynat/
     └── _compat.py               # only if a verified adaptation seam exists
 ```
 
-This is a target direction, not a change made by ARCH-03. The current `cleaning/accessor.py` remains the implementation until the plan's Phase 2 executes.
+This direction was implemented in the plan's Phase 2: `bynat/_accessors/` owns registration and binding, `dataframe.py` holds the registered accessor, and `_binding.py` holds the wrapper mechanics. `cleaning/accessor.py` is removed.
 
 The package exists because the accessor integrates multiple functional domains and pandas registration. It does **not** own:
 
@@ -823,9 +836,9 @@ Examples:
 
 ### 8.5 Registration and imports
 
-Pandas registration is an import-time side effect. The current repository registers the accessor as a consequence of importing `bynat` because `bynat/__init__.py` imports `cleaning.accessor`. Under the clarified public contract, the registration import remains necessary, but the `BynatAccessor` class itself should not be exposed as a root-level name.
+Pandas registration is an import-time side effect. The current repository registers the accessor as a consequence of importing `bynat` because `bynat/__init__.py` imports `bynat._accessors`. Under the clarified public contract, the registration import remains necessary, but the `BynatAccessor` class itself should not be exposed as a root-level name.
 
-A future `_accessors/` package must make one explicit choice:
+The `_accessors/` package makes one explicit choice:
 
 - **Automatic registration mode:** importing `bynat` continues to import the registration module and `df.bynat` is available immediately.
 - **Explicit optional mode:** the root package remains inert and callers import a documented registration module before using `df.bynat`.
@@ -1012,7 +1025,7 @@ These are recommendations for future work. None is implemented by ARCH-03, excep
 ### P1 — Establish `bynat.profiling` as the independent profiling owner
 
 - **Status:** implemented in Phase 1; `bynat.profiling` owns the core, `cleaning.profile` is removed, and `BaseData`/accessor adaptation stays at the cleaning boundary.
-- **Current location:** `bynat/profiling/`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, and transitional root aliases in `bynat/__init__.py`.
+- **Current location:** `bynat/profiling/`, `bynat/cleaning/base.py`, `bynat/_accessors/dataframe.py`, and transitional root aliases in `bynat/__init__.py`.
 - **Current responsibility:** profile-wide quality inspection, report models, serialization, and `BaseData`-specific output handling.
 - **Issue:** the implementation is diagnostic and non-mutating but is owned by `cleaning`; current `BaseData` recognition also creates a cycle risk if moved naively.
 - **Dependencies and consumers:** `BaseData.profile`, `df.bynat.profile`, root `profile`/`ProfileReport` imports, profile tests, and documentation.
@@ -1023,17 +1036,18 @@ These are recommendations for future work. None is implemented by ARCH-03, excep
 - **Priority:** P1 for architectural direction; implemented in Phase 1.
 - **Dependencies on other work:** root API migration (Phase 3).
 
-### P1 — Establish `bynat/_accessors/` as the future integration owner
+### P1 — Establish `bynat/_accessors/` as the integration owner
 
-- **Current location:** `bynat/cleaning/accessor.py`.
+- **Status:** implemented in Phase 2; `_accessors/` owns registration and binding, and `cleaning/accessor.py` is removed.
+- **Current location:** `bynat/_accessors/dataframe.py`, `bynat/_accessors/_binding.py`, and the generated `bynat/_accessors/dataframe.pyi`.
 - **Current responsibility:** registration, binding, signatures, cache injection, and every accessor method.
-- **Issue:** a library-wide integration boundary is housed under one functional domain and will become a high-churn hub if analytics or future packages add methods.
-- **Dependencies and consumers:** `bynat/__init__.py`, `BaseData` parity tests, generated `accessor.pyi`, `tools/sync_docs.py`, all accessor methods.
-- **Proposed organization:** move registration and binding mechanics to a private `_accessors/` package in the plan's Phase 2; keep delegated algorithms in their owning packages.
-- **Supporting evidence:** `accessor.py` imports cleaning modules and caching; pandas recommends accessor namespaces; current wrapper factories already form a coherent integration mechanism.
+- **Issue:** a library-wide integration boundary was housed under one functional domain and would become a high-churn hub if analytics or future packages add methods.
+- **Dependencies and consumers:** `bynat/__init__.py`, `BaseData` parity tests, generated `dataframe.pyi`, `tools/sync_docs.py`, all accessor methods.
+- **Organization:** registration and binding mechanics live in a private `_accessors/` package; delegated algorithms stay in their owning packages.
+- **Supporting evidence:** `_accessors/dataframe.py` imports cleaning modules and caching; pandas recommends accessor namespaces; the wrapper factories form a coherent integration mechanism.
 - **Benefits:** clearer ownership, future analytics integration without placing code under cleaning, lower conceptual coupling.
 - **Risks:** import-time registration, stub generation, old-path updates, and root API migration.
-- **Priority:** P1, after the root contract decision.
+- **Priority:** P1, after the root contract decision; implemented in Phase 2.
 - **Dependencies on other work:** P1 root contract; migration tests; generated-stub update.
 
 ### P2 — Preserve and document the peer relationship of analytics and cleaning
@@ -1146,11 +1160,11 @@ These are recommendations for future work. None is implemented by ARCH-03, excep
 
 ### ADR-04 — Place future accessor integration under `bynat/_accessors/`
 
-- **Problem:** the current accessor is library-wide integration code located under cleaning.
+- **Problem:** the accessor was library-wide integration code located under cleaning; Phase 2 moved it to `_accessors/`.
 - **Alternatives:** keep expanding `cleaning/accessor.py`; place accessors in each functional package; create `_accessors/`; use plugin entry points.
 - **Evidence:** current accessor imports cleaning and caching, performs registration and signature binding, and is not an algorithm owner; pandas provides a direct accessor mechanism.
 - **Evaluation:** a private integration package reflects responsibility without creating a new public namespace.
-- **Selected approach:** target `_accessors/` as a thin integration boundary; migrate separately in Phase 2 with contract tests.
+- **Selected approach:** `_accessors/` as a thin integration boundary; migrated in Phase 2 with contract tests.
 - **Rejected alternatives:** continued growth under cleaning increases cross-domain coupling; per-domain registration fragments one DataFrame namespace; plugin entry points are unnecessary for the built-in accessor.
 - **Trade-offs:** migration and import-time registration complexity.
 
@@ -1278,8 +1292,10 @@ The initial Git status was clean on branch `arch-module`. The only intended repo
 - [`bynat/profiling/profile.py`](../bynat/profiling/profile.py)
 - [`bynat/profiling/report.py`](../bynat/profiling/report.py)
 - [`bynat/cleaning/base.py`](../bynat/cleaning/base.py)
-- [`bynat/cleaning/accessor.py`](../bynat/cleaning/accessor.py)
-- [`bynat/cleaning/accessor.pyi`](../bynat/cleaning/accessor.pyi)
+- [`bynat/_accessors/__init__.py`](../bynat/_accessors/__init__.py)
+- [`bynat/_accessors/_binding.py`](../bynat/_accessors/_binding.py)
+- [`bynat/_accessors/dataframe.py`](../bynat/_accessors/dataframe.py)
+- [`bynat/_accessors/dataframe.pyi`](../bynat/_accessors/dataframe.pyi)
 - [`bynat/caching/manager.py`](../bynat/caching/manager.py)
 - [`bynat/caching/__init__.py`](../bynat/caching/__init__.py)
 - [`bynat/analytics/analyzer.py`](../bynat/analytics/analyzer.py)

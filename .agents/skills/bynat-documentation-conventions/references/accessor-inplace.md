@@ -1,7 +1,7 @@
 # Accessor `inplace` Contract
 
 Use when changing `df.bynat` mutation behavior, adding an in-place capable accessor
-method, or regenerating `bynat/cleaning/accessor.pyi`.
+method, or regenerating `bynat/_accessors/dataframe.pyi`.
 
 ## Contract
 
@@ -31,7 +31,7 @@ method, or regenerating `bynat/cleaning/accessor.pyi`.
 
 ## Implementation seam
 
-- Factories in `accessor.py`: `_frame_method(func, *, inplace=False, stats=False,
+- Factories in `bynat/_accessors/_binding.py`: `_frame_method(func, *, inplace=False, stats=False,
   inplace_before=None)` and `_cached_frame_method(func, *, inplace=False, inplace_before=None)`.
   Methods that must not accept `inplace` keep the defaults, so the flag still raises
   `TypeError`. `inplace_before` names the parameter `inplace` precedes when `BaseData`
@@ -85,7 +85,7 @@ before comparing indices, or every row will look off by one.
 
 ## Stub regeneration
 
-`bynat/cleaning/accessor.pyi` is generated — never hand-edit it. `tools/sync_docs.py`
+`bynat/_accessors/dataframe.pyi` is generated — never hand-edit it. `tools/sync_docs.py`
 matches class-body assignments whose value calls a name in `METHOD_FACTORIES`, resolves
 the wrapped shared function through `__wrapped__`, and rebuilds the signature from the
 shared module's source. A runtime-only wrapper parameter therefore requires extending

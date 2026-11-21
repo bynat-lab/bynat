@@ -5,8 +5,8 @@ import inspect
 import pandas as pd
 import pytest
 
+from bynat._accessors import BynatAccessor
 from bynat.cleaning import BaseData
-from bynat.cleaning.accessor import BynatAccessor
 from tests.modules.enrichment.helpers import DictTranslator, install_langdetect
 
 pytestmark = pytest.mark.integration

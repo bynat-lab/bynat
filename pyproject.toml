@@ -61,7 +61,7 @@ include = ["bynat*"]
 
 [tool.setuptools.package-data]
 bynat = ["py.typed"]
-"bynat.cleaning" = ["*.pyi"]
+"bynat._accessors" = ["*.pyi"]
 
 [tool.ruff]
 target-version = "py311"
@@ -76,6 +76,9 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.11"
 files = [
+    "bynat/_accessors/__init__.py",
+    "bynat/_accessors/_binding.py",
+    "bynat/_accessors/dataframe.py",
     "bynat/_internal/__init__.py",
     "bynat/_internal/values.py",
     "bynat/caching/_keys.py",
@@ -84,7 +87,6 @@ files = [
     "bynat/caching/manager.py",
     "bynat/cleaning/_common.py",
     "bynat/cleaning/_outputs.py",
-    "bynat/cleaning/accessor.py",
     "bynat/cleaning/columns.py",
     "bynat/cleaning/enrich",
     "bynat/cleaning/io.py",

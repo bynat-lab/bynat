@@ -8,9 +8,9 @@ import pandas as pd
 import pytest
 
 import bynat
+from bynat._accessors import BynatAccessor
 from bynat.caching import CacheManager
 from bynat.cleaning import BaseData, CsvFile, JsonFile
-from bynat.cleaning.accessor import BynatAccessor
 
 pytestmark = pytest.mark.integration
 

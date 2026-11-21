@@ -21,10 +21,10 @@ script makes that check reproducible and offline:
    installed wheel.
 
 The doc-drift test reads source files (``bynat/py.typed``,
-``bynat/cleaning/base.py``, ``bynat/cleaning/accessor.py``, and
-``bynat/cleaning/accessor.pyi``). Those files are copied into the scratch test
-root without ``__init__.py``, so they form a PEP 420 namespace portion that
-never shadows the regular ``bynat`` package installed in the venv
+``bynat/cleaning/base.py``, ``bynat/_accessors/dataframe.py``, and
+``bynat/_accessors/dataframe.pyi``). Those files are copied into the scratch
+test root without ``__init__.py``, so they form a PEP 420 namespace portion
+that never shadows the regular ``bynat`` package installed in the venv
 site-packages; the test still compares the source artifacts with the installed
 modules.
 
@@ -66,15 +66,21 @@ PHASE3_TESTS = (
 )
 TOP_LEVEL_EXPORTS = {"BynatAccessor", "ProfileReport", "profile", "read_csv", "read_json"}
 CLEANING_EXPORTS = {"BaseData", "CsvFile", "JsonFile"}
-PACKAGE_DATA = ("bynat/py.typed", "bynat/cleaning/accessor.pyi")
+PACKAGE_DATA = ("bynat/py.typed", "bynat/_accessors/dataframe.pyi")
+ACCESSOR_PACKAGE_FILES = (
+    "bynat/_accessors/__init__.py",
+    "bynat/_accessors/_binding.py",
+    "bynat/_accessors/dataframe.py",
+    "bynat/_accessors/dataframe.pyi",
+)
 
 TEST_TOOLING = ("tools/sync_docs.py", "benchmarks/reference_impls.py")
 
 DOC_DRIFT_SOURCE_FILES = (
     "bynat/py.typed",
     "bynat/cleaning/base.py",
-    "bynat/cleaning/accessor.py",
-    "bynat/cleaning/accessor.pyi",
+    "bynat/_accessors/dataframe.py",
+    "bynat/_accessors/dataframe.pyi",
 )
 
 SOURCE_COPY_IGNORE = shutil.ignore_patterns(
@@ -447,6 +453,16 @@ def _verify_installed(
         failures.append(f"source package files missing from the wheel: {sorted(source_files - wheel_files)}")
     if not set(PACKAGE_DATA) <= wheel_files:
         failures.append(f"package data missing from the wheel: {sorted(set(PACKAGE_DATA) - wheel_files)}")
+    if not set(ACCESSOR_PACKAGE_FILES) <= wheel_files:
+        failures.append(
+            "accessor package files missing from the wheel: "
+            f"{sorted(set(ACCESSOR_PACKAGE_FILES) - wheel_files)}"
+        )
+    if not set(ACCESSOR_PACKAGE_FILES) <= installed_files:
+        failures.append(
+            "accessor package files missing from the installed distribution: "
+            f"{sorted(set(ACCESSOR_PACKAGE_FILES) - installed_files)}"
+        )
     if source_files != installed_files:
         failures.append(
             "installed package files differ from the source package files: "

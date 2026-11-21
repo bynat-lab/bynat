@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from bynat._accessors import BynatAccessor
 from bynat.cleaning import BaseData
-from bynat.cleaning.accessor import BynatAccessor
 from tools.sync_docs import check
 
 pytestmark = pytest.mark.integration
@@ -19,10 +19,10 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_docstrings_and_stubs_are_in_sync():
-    """Fail with actionable instructions if BaseData docstrings or accessor.pyi drift."""
+    """Fail with actionable instructions if BaseData docstrings or dataframe.pyi drift."""
     problems = check()
     assert not problems, (
-        "Docstrings or accessor.pyi are out of sync with shared implementation functions:\n"
+        "Docstrings or dataframe.pyi are out of sync with shared implementation functions:\n"
         + "\n".join(f"  - {p}" for p in problems)
         + "\n\nFix by running:\n  python tools/sync_docs.py"
     )
@@ -31,7 +31,9 @@ def test_docstrings_and_stubs_are_in_sync():
 def test_package_typing_artifacts_exist():
     """Ensure py.typed marker and accessor stub exist for PEP 561 compliance."""
     assert (ROOT / "bynat" / "py.typed").is_file(), "bynat/py.typed marker missing"
-    assert (ROOT / "bynat" / "cleaning" / "accessor.pyi").is_file(), "bynat/cleaning/accessor.pyi missing"
+    assert (ROOT / "bynat" / "_accessors" / "dataframe.pyi").is_file(), (
+        "bynat/_accessors/dataframe.pyi missing"
+    )
 
 
 def test_runtime_inspect_signature_and_help_preserved():
@@ -156,7 +158,7 @@ def _stub_parameter_names(path):
 
 
 def test_accessor_stub_matches_runtime_signatures():
-    stubs = _stub_parameter_names(ROOT / "bynat" / "cleaning" / "accessor.pyi")
+    stubs = _stub_parameter_names(ROOT / "bynat" / "_accessors" / "dataframe.pyi")
     assert stubs
 
     for name, stub_names in stubs.items():

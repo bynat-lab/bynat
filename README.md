@@ -931,7 +931,7 @@ Use this table to find where things live if you want to read the source or impor
 | Module | Purpose | Contents |
 | --- | --- | --- |
 | `bynat.cleaning.base` | The class-based API | `BaseData`, `JsonFile`, `CsvFile` |
-| `bynat.cleaning.accessor` | The `df.bynat` entry point | The `df.bynat` accessor |
+| `bynat._accessors.dataframe` | The `df.bynat` entry point (private integration boundary) | The `df.bynat` accessor |
 | `bynat.cleaning.stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
 | `bynat.cleaning.enrich` | Adding information from outside the table | `translate`, `geocode`, `currency`, `nlp`, the shared cached-lookup `engine`, and `providers` |
 | `bynat.profiling` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
@@ -1012,7 +1012,7 @@ CI runs the suite on Ubuntu and Windows with Python 3.11 and 3.13, plus Ruff, my
 
 ### Type checking
 
-Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager, the cleaning helper modules (`_common`, `accessor`, `columns`, `text`, `stats`, `io`, `enrich`), and the profiling package (`profiling/__init__.py`, `profiling/profile.py`, `profiling/report.py`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
+Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager, the cleaning helper modules (`_common`, `columns`, `text`, `stats`, `io`, `enrich`), the accessor boundary (`_accessors`), and the profiling package (`profiling/__init__.py`, `profiling/profile.py`, `profiling/report.py`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
 
 To bring a module into scope:
 

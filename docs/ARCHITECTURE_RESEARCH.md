@@ -1,7 +1,7 @@
 # bynat Architecture Research
 
 **Task:** ARCH-03 / Issue #62
-**Repository snapshot:** local checkout at commit `bc7fe36` (`PC-01 — Public Contract Corrections`), branch `arch-module`, package version `0.6.6`
+**Repository snapshot:** local checkout at commit `b5ac64a` (`docs: research package architecture`), branch `arch-module`, package version `0.6.6`; this update is intentionally uncommitted
 **Research date:** 2026-11-21
 **Scope:** architecture research and documentation only. No production implementation is proposed as part of this document.
 
@@ -19,15 +19,16 @@
 1. the supported `BaseData` / `JsonFile` / `CsvFile` class facade; and
 2. the optional `df.bynat` pandas accessor facade.
 
-The current package boundaries are mostly sound:
+The current package boundaries are mostly sound, but the clarified public-initialization decision adds a fourth intended public package entry point, `bynat.profiling`:
 
-- `bynat.cleaning` owns DataFrame cleaning, enrichment, profiling, and I/O functions plus the supported class facade;
+- `bynat.cleaning` owns DataFrame cleaning, enrichment, and I/O functions plus the supported class facade;
 - `bynat.caching` owns persistent cache storage and migration independently of cleaning;
-- `bynat.analytics` owns application-independent analytics and currently has no internal `bynat` dependency.
+- `bynat.analytics` owns application-independent analytics and currently has no internal `bynat` dependency;
+- `bynat.profiling` should own non-mutating data-quality inspection and structured profile reports if the recommended boundary in §4 is accepted.
 
 The main architectural issue is not that the repository lacks more directories. It is that `bynat/cleaning/accessor.py` is a library-wide integration boundary located inside one functional package, while it delegates across cleaning and caching and is the likely future home of analytics-facing methods. The recommended direction is a thin `bynat/_accessors/` integration package, introduced only after compatibility tests and import behavior are explicitly settled. The accessor must remain a facade; algorithms stay in their functional modules.
 
-A second issue is an explicit requirement conflict: the ARCH-03 task text says `bynat.__init__` must remain empty, while the current checkout deliberately imports five public names and registers `df.bynat` from `bynat/__init__.py`. Existing tests and current documentation pin the non-empty behavior. This report does **not** silently resolve that conflict. Until the project approves a breaking import decision, the current tested public contract should be preserved.
+A previous task version described the root initializer as empty. The current clarification supersedes that wording: the intended root API is the four package entry points (`cleaning`, `caching`, `analytics`, `profiling`) plus the registered `df.bynat` capability, without exposing internal classes or individual functions directly. The current checkout does not yet match that clarified contract because it exports `BynatAccessor`, `ProfileReport`, `profile`, `read_csv`, and `read_json` from the root. This report treats the clarified contract as the target and records the compatibility migration required to reach it.
 
 The evidence does **not** justify:
 
@@ -62,15 +63,19 @@ Relevant internal references:
 - [`docs/TESTING_STANDARDS.md`](TESTING_STANDARDS.md)
 - [`docs/ROADMAP.md`](ROADMAP.md)
 - [`bynat/__init__.py`](../bynat/__init__.py)
+- [`bynat/cleaning/__init__.py`](../bynat/cleaning/__init__.py)
+- [`bynat/cleaning/profile.py`](../bynat/cleaning/profile.py)
 - [`bynat/cleaning/base.py`](../bynat/cleaning/base.py)
 - [`bynat/cleaning/accessor.py`](../bynat/cleaning/accessor.py)
 - [`bynat/cleaning/accessor.pyi`](../bynat/cleaning/accessor.pyi)
 - [`bynat/cleaning/_common.py`](../bynat/cleaning/_common.py)
 - [`bynat/cleaning/_outputs.py`](../bynat/cleaning/_outputs.py)
 - [`bynat/caching/manager.py`](../bynat/caching/manager.py)
+- [`bynat/caching/__init__.py`](../bynat/caching/__init__.py)
 - [`bynat/caching/_storage.py`](../bynat/caching/_storage.py)
 - [`bynat/caching/_migration.py`](../bynat/caching/_migration.py)
 - [`bynat/analytics/analyzer.py`](../bynat/analytics/analyzer.py)
+- [`bynat/analytics/__init__.py`](../bynat/analytics/__init__.py)
 - [`tools/sync_docs.py`](../tools/sync_docs.py)
 - [`tests/cross_cutting/accessor/test_accessor.py`](../tests/cross_cutting/accessor/test_accessor.py)
 - [`tests/cross_cutting/contracts/test_doc_drift.py`](../tests/cross_cutting/contracts/test_doc_drift.py)
@@ -100,6 +105,8 @@ bynat/
 ├── analytics/
 │   ├── __init__.py                     # Analyzer export
 │   └── analyzer.py                     # application-independent analytics class
+├── profiling/                          # recommended target package; not present yet
+│   └── __init__.py                     # profile/report public exports
 ├── caching/
 │   ├── __init__.py                     # cache public exports
 │   ├── _keys.py                        # key normalization and lookup helpers
@@ -115,7 +122,7 @@ bynat/
     ├── base.py                         # BaseData/CsvFile/JsonFile facade
     ├── columns.py                      # column and reshape operations
     ├── io.py                           # loaders and writers
-    ├── profile.py                      # profiling reports and computations
+    ├── profile.py                      # current profiling implementation and compatibility path
     ├── stats.py                        # imputation/outlier/statistics operations
     ├── text.py                         # text and categorization operations
     └── enrich/
@@ -145,11 +152,11 @@ The pattern is not purely functional: the cache and I/O operations necessarily p
 
 ### 2.3 Public package boundaries
 
-Current initializer behavior is intentionally narrow:
+Current initializer behavior is intentionally narrow, but it is not yet the clarified target:
 
 | Package | Current public exports | Evidence |
 |---|---|---|
-| `bynat` | `BynatAccessor`, `ProfileReport`, `profile`, `read_csv`, `read_json` | `bynat/__init__.py`, accessor/API tests |
+| `bynat` | Current: `BynatAccessor`, `ProfileReport`, `profile`, `read_csv`, `read_json`; target: `cleaning`, `caching`, `analytics`, `profiling` plus registration of `df.bynat` | `bynat/__init__.py`, task clarification, accessor/API tests |
 | `bynat.cleaning` | `BaseData`, `CsvFile`, `JsonFile` | `cleaning/__init__.py`, `test_doc_drift.py` |
 | `bynat.caching` | `CacheManager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR`, `shared_cache_manager` | `caching/__init__.py`, API contract tests |
 | `bynat.analytics` | `Analyzer` | `analytics/__init__.py`, analytics contract tests |
@@ -157,26 +164,32 @@ Current initializer behavior is intentionally narrow:
 
 The package does not broadly re-export every transformation function. That is a deliberate boundary: callers can use the documented class/accessor APIs while implementation modules remain importable through explicit paths when needed.
 
-### 2.4 Protected requirement conflict: root initializer
+### 2.4 Clarified public initialization contract
 
-The ARCH-03 task text lists `bynat.__init__` as a protected requirement that “must remain empty.” The current local checkout does not satisfy that statement:
+The current task clarification supersedes the earlier “empty root initializer” wording. The target root API is deliberately small but non-empty:
 
 ```python
-from bynat.cleaning.accessor import BynatAccessor
-from bynat.cleaning.io import read_csv, read_json
-from bynat.cleaning.profile import ProfileReport, profile
+# Target shape; illustrative only, not implemented by ARCH-03.
+from . import analytics, caching, cleaning, profiling
+from . import _accessors as _accessor_registration  # registration-only import
+
+__all__ = ["cleaning", "caching", "analytics", "profiling"]
 ```
 
-It also declares the five-name `__all__` listed above. The current tests explicitly assert root-level imports and that importing `bynat` registers `df.bynat` (`tests/cross_cutting/accessor/test_accessor.py`). The current roadmap and repository skill likewise describe these exports as established public behavior.
+The accessor is a capability registered by the private integration import; it is not an additional root-level class export. `df.bynat` is therefore part of the root entry-point contract operationally, while `BynatAccessor` remains an internal implementation symbol.
 
-**Recommendation.** Treat this as a decision-blocking compatibility conflict, not as a documentation detail. Do not make `__init__.py` empty during an architecture implementation unless the project first approves:
+**Verified current state.** A fresh interpreter currently reports:
 
-1. whether `import bynat` should still register the accessor;
-2. whether root-level `read_csv`, `read_json`, `profile`, `ProfileReport`, and `BynatAccessor` remain supported;
-3. how callers explicitly opt into accessor registration if the root import becomes inert; and
-4. how the public API tests and documentation change.
+- `bynat.__all__ == ['BynatAccessor', 'ProfileReport', 'profile', 'read_csv', 'read_json']`;
+- `BynatAccessor`, `ProfileReport`, `profile`, `read_csv`, and `read_json` are root attributes;
+- `cleaning` and `caching` become root attributes as import side effects of the current accessor imports, although they are not in `__all__`;
+- `analytics` is not a root attribute until `bynat.analytics` is imported;
+- `profiling` does not currently exist;
+- importing `bynat` registers `df.bynat`.
 
-Until that decision is made, preserve the current tested contract.
+Thus, the current root namespace violates the clarified target in two ways: it exposes individual implementation/API objects directly, and its package attributes are accidental/import-order-dependent rather than an explicit four-package contract.
+
+**Recommendation.** The future root initializer should explicitly bind only the four package objects and import the accessor registration boundary for its side effect. It should not bind `BynatAccessor`, `ProfileReport`, `profile`, `read_csv`, or `read_json` as root names. Existing root imports must be treated as compatibility aliases during a deliberate migration, not removed silently.
 
 ## 3. Quantified module assessment
 
@@ -265,13 +278,105 @@ The module contains the shared `_hierarchical_outlier_masks` algorithm and opera
 
 These operations are related by actual implementation concepts: hierarchy normalization, group thresholds, progressively coarser levels, global fallback, and statistics output. Splitting them merely into “outliers,” “imputation,” and “stats” modules would duplicate the hierarchy contract or create an artificial internal layer. A future split would be justified only if one responsibility develops independent dependencies or a separate public lifecycle.
 
-### 4.4 `cleaning/profile.py`: profiling domain
+### 4.4 `cleaning/profile.py`: current profiling domain
 
-`profile.py` contains the column-kind dispatch and report models (`DatasetProfile`, `ColumnProfile`, `ProfileReport`) used by the public `profile` function. It is conceptually adjacent to cleaning because it examines DataFrames, but it is not an automatic transformation. The current placement under `cleaning` is compatible with the existing public API and does not create an observed dependency from analytics to cleaning.
+`profile.py` contains the column-kind dispatch and report models (`DatasetProfile`, `ColumnProfile`, `ProfileReport`) used by the public `profile` function. It computes missingness, duplicates, memory use, dtype counts, inferred column kinds, cardinality, uniqueness, and type-specific descriptive statistics. It is non-mutating and returns structured mapping/report objects or explicitly requested serializable/tabular forms.
 
-A future quality/inspection package could be considered if validation and profiling grow into a distinct domain. That is not justified by the current code alone.
+**Verified boundary.** Profiling does not call cleaning transformations, cache operations, external providers, or `Analyzer`. Its current internal imports are `pandas`, `numpy`, dataclasses/stdlib, `cleaning._common._dedupe_key`, and `cleaning._outputs.is_basedata_type`. The only current coupling to cleaning is the compatibility behavior that recognizes a `BaseData` output type and the reuse of a cleaning-scoped value-normalization helper.
 
-### 4.5 `cleaning/columns.py`, `text.py`, and `io.py`
+**Interpretation.** Profiling is conceptually an independent data-inspection and diagnostic capability, not a cleaning transformation. Its current location is historically understandable, but the implementation already has a distinct contract and a distinct user workflow: inspect a dataset before or after cleaning without changing it.
+
+### 4.5 Profiling versus analytics
+
+The two capabilities overlap at the level of general descriptive statistics, but they do not duplicate the same responsibility.
+
+| Dimension | Profiling (`profile.py`) | Analytics (`Analyzer`) |
+|---|---|---|
+| Primary workflow | Data-quality inspection and diagnosis | Application/dashboard/API-oriented analysis |
+| Main output | `ProfileReport` containing dataset and per-column quality models | JSON-serializable response dictionaries |
+| Scope | Whole dataset and selected columns; missingness, duplicates, dtypes, cardinality, uniqueness, type-specific stats | User-selected categorical distributions, numerical aggregations, time-series buckets, KPIs, bins |
+| Mutation | Non-mutating | Defensive copy; methods return derived response payloads |
+| Configuration | Column selection and output representation | Filters, computed rules, aggregations, orientation, titles/units |
+| Public models | `DatasetProfile`, `ColumnProfile`, `ProfileReport` | `Analyzer` |
+| Internal dependency | `cleaning._common` and `_outputs` today | No internal `bynat` imports |
+| Intended consumer | Data validation, exploration, pre-cleaning inspection, programmatic quality checks | Dashboards, APIs, chart payloads, application analytics |
+
+The overlap is real but shallow: both may calculate numeric summaries or inspect column types. Profiling asks “what is the quality and shape of this dataset?” Analytics asks “what answer or chart-ready aggregation should an application present?” Sharing a future statistic helper would require a concrete invariant and stable second consumer; it is not a reason to make either package depend on the other.
+
+### 4.6 Recommended profiling boundary
+
+**Recommendation:** make Profiling an independent top-level package, `bynat.profiling`, while preserving compatibility paths during migration.
+
+This recommendation is based on responsibility and the clarified root API, not on file movement alone:
+
+1. Profiling has a complete public contract with three report models and one orchestration function.
+2. It is non-mutating and diagnostic, unlike the transformation functions that define cleaning.
+3. It has no actual dependency on `Analyzer` and should not acquire one merely because both consume DataFrames.
+4. The clarified root contract names `profiling` as a main user-facing package entry point.
+5. The independent boundary lets profiling evolve toward quality/inspection features without making `cleaning` the owner of every DataFrame-oriented capability.
+
+The recommended package should include:
+
+- `profile()` and its report-construction algorithm;
+- `ProfileReport`, `DatasetProfile`, and `ColumnProfile`;
+- serialization methods (`to_dict`, `to_dataframe`) and profiling-specific private helpers;
+- documented output contracts and quality metrics.
+
+It should exclude:
+
+- cleaning transformations and `BaseData` method ownership;
+- dashboard-specific aggregation and chart response formatting owned by `Analyzer`;
+- cache storage and provider integrations;
+- automatic mutation or repair of the profiled frame.
+
+### 4.7 Profiling dependency direction
+
+The target dependency graph should be:
+
+```mermaid
+flowchart TD
+    Root["bynat root"] --> Cleaning["bynat.cleaning"]
+    Root --> Caching["bynat.caching"]
+    Root --> Analytics["bynat.analytics"]
+    Root --> Profiling["bynat.profiling"]
+    Root --> Accessors["private accessor registration"]
+
+    Accessors --> Cleaning
+    Accessors --> Caching
+    Accessors --> Analytics
+    Accessors --> Profiling
+
+    Cleaning --> Caching
+    Profiling --> Pandas["pandas / NumPy / stdlib"]
+    Analytics --> Pandas
+    Caching --> SQLite["sqlite3 / stdlib"]
+
+    Cleaning -. compatibility facade only .-> Profiling
+```
+
+The dotted compatibility relationship is transitional, not a desired core dependency. The long-term core should avoid `profiling → cleaning` and `analytics → profiling` in both directions.
+
+The current `output_type=BaseData` support creates a cycle risk if moved naively: `BaseData` imports the profile module, while the profile module identifies `BaseData` through cleaning internals. The migration should therefore separate the core report computation from compatibility adaptation:
+
+- core `bynat.profiling` depends on pandas/NumPy/stdlib and profiling-owned helpers;
+- `bynat.cleaning.profile` remains a compatibility module during migration;
+- the compatibility layer may adapt a report DataFrame into `BaseData` without making the profiling core import `cleaning.base`;
+- `BaseData.profile` and `df.bynat.profile` continue to delegate to the same profiling core.
+
+This avoids introducing a generic shared package. If `_dedupe_key` remains needed by both cleaning and profiling, its ownership should be decided by the actual invariant: either keep profiling's equivalent normalization private during the migration, or extract one narrowly named value-normalization component only after tests prove it is genuinely domain-independent. Do not create `_shared` merely to move one helper.
+
+### 4.8 Alternatives for Profiling ownership
+
+| Alternative | Cohesion | Dependency direction | API clarity | Compatibility | Decision |
+|---|---|---|---|---|---|
+| **A. Keep under `cleaning`** | Acceptable today; profiling remains adjacent to DataFrame transformations even though it does not transform | Simple current imports; no migration | Less clear because `cleaning` becomes the owner of both transformation and diagnosis | Best short-term compatibility | Retain only as a compatibility path, not the target |
+| **B. Independent `bynat.profiling`** | Strong; owns quality inspection and report models | Can remain independent of cleaning and analytics | Aligns with clarified root entry points and user workflow | Requires compatibility re-exports/adapters | **Recommended target** |
+| **C. Integrate into `bynat.analytics`** | Weak; report diagnostics and application response analytics have different contracts | Would make profiling depend on analytics or vice versa without need | Blurs quality inspection with chart/API analysis | Requires larger public API change | Reject |
+| **D. New quality/inspection umbrella** | Potentially strong only if validation, profiling, and diagnostics expand into multiple stable modules | Could become a useful domain later | Premature today; would add another package boundary now | More migration cost than B | Defer; revisit only with a second substantial capability |
+
+Separating Profiling improves cohesion and public ownership enough to justify the boundary because the new root contract explicitly treats profiling as a first-class entry point and the implementation already has a self-contained report model. The migration cost is real and must be handled through compatibility paths; it is not a reason to keep the conceptual owner permanently under cleaning.
+
+### 4.9 `cleaning/columns.py`, `text.py`, and `io.py`
 
 - `columns.py` groups structural column and reshape transformations. The operations share DataFrame transformation semantics and cleaning-scoped helpers.
 - `text.py` groups keyword extraction, substring truncation, and reference categorization. They share text-oriented input/output behavior and optional Aho-Corasick integration.
@@ -279,7 +384,7 @@ A future quality/inspection package could be considered if validation and profil
 
 The current modules should remain standalone unless independent growth creates a real subpackage boundary. A directory for every function would be fragmentation, not modularity.
 
-### 4.6 `cleaning/enrich/`
+### 4.10 `cleaning/enrich/`
 
 The enrichment package has a genuine functional grouping:
 
@@ -289,7 +394,7 @@ The enrichment package has a genuine functional grouping:
 
 `engine.py` is shared because it implements one actual cached-lookup algorithm used by several enrichment methods. `providers.py` is shared because the protocol and adapter types are part of the integration boundary for those features. This is evidence-based sharing, not a generic utility bucket.
 
-### 4.7 `caching/`
+### 4.11 `caching/`
 
 `CacheManager` is the public cache facade. `_storage.py` owns SQLite details, `_migration.py` owns legacy JSON migration/quarantine, and `_keys.py` owns key normalization. The dependency direction is downward:
 
@@ -302,7 +407,7 @@ CacheManager (public facade)
 
 Caching is consumed by enrichment and facades, but caching does not import cleaning. Moving it inside `cleaning` would invert the current dependency direction and make a reusable persistence component depend on one consumer domain.
 
-### 4.8 `analytics/analyzer.py`
+### 4.12 `analytics/analyzer.py`
 
 `Analyzer` accepts a DataFrame, defensively copies it, and returns JSON-serializable response dictionaries for distributions, aggregations, time series, KPI values, and bins. It implements its own filters and computed rules and has no internal `bynat` imports.
 
@@ -346,6 +451,8 @@ flowchart TD
     Migration --> Storage
 
     Analytics["analytics.analyzer"]
+    Profiling["profiling target"] --> Pandas["pandas / NumPy / stdlib"]
+    Accessor --> Profiling
 
     classDef facade fill:#e7f0ff,stroke:#356ae6;
     classDef domain fill:#eef8ee,stroke:#3a8f3a;
@@ -363,7 +470,10 @@ flowchart TD
 | `caching` → `cleaning` | No direct internal import found | Caching remains reusable infrastructure and does not know its consumers. |
 | `analytics` → `cleaning` | No direct internal import found | Analytics can receive cleaned data without package coupling. |
 | `analytics` → `caching` | No direct internal import found | Analytics has no cache ownership requirement in the current implementation. |
+| `profiling` → `cleaning` | Current implementation uses `cleaning._common` and `_outputs`; target core should remove this dependency | Profiling should remain independent; current dependencies are compatibility seams to isolate during migration. |
+| `profiling` → `analytics` | No direct import found | Profiling and analytics remain independent domains with different output contracts. |
 | `accessor` → cleaning and caching | Actual imports | Accessor is an integration surface, not a functional owner. |
+| `accessor` → profiling | Current accessor delegates to `cleaning.profile`; target accessor delegates to `bynat.profiling` | Profiling is one of the four functional domains reachable through the integration boundary. |
 | `BaseData` → cleaning and caching | Actual imports | Class API is a compatibility facade over functional operations and cache metadata. |
 | `enrich.engine` → caching | Actual imports | The shared lookup engine persists results through the cache contract. |
 
@@ -451,6 +561,10 @@ The pandas extension guide describes custom accessors as namespaces attached to 
 
 This directly supports `df.bynat` as an optional integration surface while preserving `BaseData` independently.
 
+The Python import documentation provides the complementary package rule: importing a regular package executes its `__init__.py`, and importing a subpackage executes the parent initializer before the subpackage initializer. Top-level imports also bind imported module names into the importing module namespace. Therefore, explicit package imports in `bynat/__init__.py` are the appropriate mechanism for a deliberate root package API; relying on incidental submodule imports creates import-order-dependent attributes. See the Python [modules tutorial](https://docs.python.org/3/tutorial/modules.html), especially §§6.1 and 6.2, and the [import system reference](https://docs.python.org/3/reference/import.html), especially §§5 and 5.2.1.
+
+The pandas API reference states that a DataFrame accessor is a class decorator that adds a namespace reachable as `df.<name>`, and that the accessor initializer accepts one DataFrame and may reject ineligible objects with `AttributeError`. This supports keeping registration and receiver/signature adaptation in a private integration boundary rather than exporting the accessor class as part of the root API. See the [registration API reference](https://pandas.pydata.org/docs/reference/api/pandas.api.extensions.register_dataframe_accessor.html), especially the “Returns” and “Notes” sections.
+
 ### 8.2 Current accessor behavior
 
 **Verified facts from `cleaning/accessor.py`:**
@@ -497,6 +611,7 @@ flowchart LR
     DF["pandas.DataFrame"] --> A["bynat._accessors.dataframe<br/>registered df.bynat shell"]
     A --> C["cleaning functions"]
     A --> N["analytics functions/classes<br/>only when accessor eligibility is met"]
+    A --> P["profiling functions"]
     A --> K["caching public contract"]
     B["BaseData facade"] --> C
     B --> K
@@ -524,16 +639,60 @@ Examples:
 
 ### 8.5 Registration and imports
 
-Pandas registration is an import-time side effect. The current repository registers the accessor as a consequence of importing `bynat` because `bynat/__init__.py` imports `cleaning.accessor`.
+Pandas registration is an import-time side effect. The current repository registers the accessor as a consequence of importing `bynat` because `bynat/__init__.py` imports `cleaning.accessor`. Under the clarified public contract, the registration import remains necessary, but the `BynatAccessor` class itself should not be exposed as a root-level name.
 
 A future `_accessors/` package must make one explicit choice:
 
 - **Current compatibility mode:** importing `bynat` continues to import the registration module and `df.bynat` is available immediately.
 - **Explicit optional mode:** the root package remains inert and callers import a documented registration module before using `df.bynat`.
 
-These modes are not interchangeable. The second mode conflicts with the current tests and user-facing behavior. The root-initializer conflict in §2.4 must be resolved before changing registration.
+These modes are not interchangeable. The clarified decision selects the first mode for compatibility: importing `bynat` should make the four package entry points available and register `df.bynat`, while the registration module remains private. The current implementation has the correct side effect but exposes the wrong root names and does not explicitly bind all four packages.
 
 PyPA's plugin-discovery guidance is relevant by analogy: package import paths and registration mechanisms should be deliberate, and a package should not be made a namespace merely to solve a plugin-like discovery problem. See [Creating and discovering plugins](https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/).
+
+### 8.6 Proposed package initializer structure
+
+The following is a target export/import contract, not code implemented by this research task.
+
+| Initializer | Required public exports | Registration-only or internal imports | Must not expose |
+|---|---|---|---|
+| `bynat/__init__.py` | `cleaning`, `caching`, `analytics`, `profiling`; `__all__` contains these four package names | Private accessor registration import that causes `df.bynat` registration | `BynatAccessor`, `ProfileReport`, `profile`, `read_csv`, `read_json`, cache internals, provider classes |
+| `bynat/cleaning/__init__.py` | Existing intentional class API: `BaseData`, `CsvFile`, `JsonFile` | Only the imports required to bind those classes | Every transformation function, accessor implementation, cache internals, profiling report classes unless an explicit compatibility policy requires them |
+| `bynat/caching/__init__.py` | `CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR` | `manager.py` and its private storage/migration imports | `_storage`, `_migration`, `_keys` implementation objects |
+| `bynat/analytics/__init__.py` | `Analyzer` | `analyzer.py` | private helpers and unrelated cleaning/profiling objects |
+| `bynat/profiling/__init__.py` (target) | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` | profiling implementation modules only | `BaseData`, accessor classes, analytics response helpers, cleaning internals |
+| private accessor boundary | no required public root class export | import-time registration, wrapper binding, and delegates to the four packages | algorithms, report models, cache storage, provider implementations |
+
+Illustrative target shape:
+
+```python
+# bynat/__init__.py — target, not implemented here
+from . import analytics, caching, cleaning, profiling
+from . import _accessors as _accessor_registration
+
+__all__ = ["cleaning", "caching", "analytics", "profiling"]
+```
+
+```python
+# bynat/profiling/__init__.py — target, not implemented here
+from .report import ColumnProfile, DatasetProfile, ProfileReport
+from .profile import profile
+
+__all__ = ["ColumnProfile", "DatasetProfile", "ProfileReport", "profile"]
+```
+
+The root-level `df.bynat` entry point is intentionally represented by registration behavior rather than a root identifier. Users access it on a DataFrame; they do not need to import the accessor class.
+
+### 8.7 Import order and circular-import risks
+
+The target import order should be:
+
+1. import the four package objects;
+2. import the private registration boundary;
+3. allow the registration boundary to import functional implementations and the public caching contract;
+4. do not make any functional package import the root package during initialization.
+
+The primary cycle risk is profiling compatibility: current `BaseData` imports `profile`, while current `profile` recognizes `BaseData` through cleaning internals. The target avoids this by keeping the profiling core independent and placing `BaseData` output adaptation in a compatibility layer. A second risk is accessor registration importing the root package recursively; the registration boundary should import functional submodules directly, not `import bynat` as part of its initialization.
 
 ## 9. Comparison of architectural approaches
 
@@ -577,7 +736,7 @@ bynat/
 ```
 
 **Strengths:** no migration risk; matches current imports and tests.
-**Weakness:** the library-wide accessor remains located under cleaning.
+**Weaknesses:** the library-wide accessor remains located under cleaning, and profiling remains physically under cleaning even though the recommended public owner is independent.
 
 ### 10.2 Candidate B: move the accessor integration boundary
 
@@ -589,6 +748,7 @@ bynat/
 │   └── dataframe.py
 ├── analytics/
 ├── caching/
+├── profiling/
 └── cleaning/
     ├── base.py
     ├── columns.py
@@ -616,10 +776,10 @@ bynat/
 
 ### 10.4 Recommendation
 
-Adopt **Candidate A immediately as the compatibility baseline**, with **Candidate B as the target direction for a separately planned migration**. The architecture is therefore a hybrid:
+Adopt **Candidate A immediately as the compatibility baseline**, with **Candidate B as the target direction for a separately planned migration**. The profiling boundary is a parallel recommendation: preserve `cleaning.profile` as a compatibility path while establishing `bynat.profiling` as the future public owner. The architecture is therefore a hybrid:
 
 - modular monolith at package level;
-- domain-oriented packages (`cleaning`, `caching`, `analytics`);
+- domain-oriented packages (`cleaning`, `caching`, `analytics`, `profiling`);
 - functional core plus class/accessor facades;
 - selective feature-oriented grouping inside `cleaning/enrich`;
 - composition for provider adapters, cache lookup, and facade binding;
@@ -629,9 +789,10 @@ Adopt **Candidate A immediately as the compatibility baseline**, with **Candidat
 
 | Package | Owns | Must not own |
 |---|---|---|
-| `bynat.cleaning` | DataFrame cleaning, enrichment, profiling, and I/O functional implementations; supported class facade | Library-wide accessor registration mechanics; cache storage internals |
+| `bynat.cleaning` | DataFrame cleaning, enrichment, and I/O functional implementations; supported class facade; compatibility path for old profiling imports | Library-wide accessor registration mechanics; profiling core ownership; cache storage internals |
 | `bynat.caching` | Cache directory resolution, public manager, SQLite persistence, migration, key identity | Cleaning or analytics algorithms |
 | `bynat.analytics` | Application-independent analytics and response contracts | Cleaning imports merely because inputs are DataFrames; cache storage without a concrete requirement |
+| `bynat.profiling` (target) | Non-mutating data-quality inspection, profile models, serialization, profiling metrics | Cleaning transformations, application analytics, cache storage, accessor registration |
 | `bynat._accessors` (target) | pandas registration, wrapper binding, accessor signatures, accessor-specific mutation adaptation | Underlying algorithms, provider implementations, SQLite details |
 | `cleaning._common` / scoped internals | Helpers whose invariants are owned by cleaning | Generic catch-all utilities used to avoid deciding ownership |
 
@@ -651,18 +812,31 @@ Create a subpackage when multiple modules share a named domain, have distinct re
 
 These are recommendations for future work. None is implemented by ARCH-03.
 
-### P1 — Resolve the root initializer and accessor-registration contract
+### P1 — Align root initialization with the clarified public contract
 
 - **Current location:** `bynat/__init__.py`, `tests/cross_cutting/accessor/test_accessor.py`, `docs/ROADMAP.md`.
 - **Current responsibility:** root-level public exports and import-time accessor registration.
-- **Issue:** task requirements say the initializer must be empty, while the current public API and tests require five root exports and automatic registration.
+- **Issue:** the current root exports five individual objects and relies on incidental package attributes, while the clarified contract requires four package entry points plus the `df.bynat` capability and no internal root exports.
 - **Dependencies and consumers:** all documented root imports, accessor registration, API contract tests, packaging/import behavior.
-- **Proposed organization:** approve one explicit compatibility decision before moving code. If inert-root behavior is selected, put registration behind an explicit import and revise tests/docs. If current behavior is retained, update the conflicting requirement and preserve the narrow root exports.
+- **Proposed organization:** explicitly bind `cleaning`, `caching`, `analytics`, and `profiling`; keep a private registration-only import for `df.bynat`; migrate current root-level aliases through a documented compatibility period and update API tests/docs.
 - **Supporting evidence:** current initializer content; accessor registration decorator; public API tests; Python import semantics.
-- **Benefits:** removes ambiguity before any accessor migration.
+- **Benefits:** makes the public namespace deliberate and separates package entry points from implementation symbols.
 - **Risks:** possible breaking import behavior and user migration.
 - **Priority:** P1.
-- **Dependencies on other work:** project-level API decision and updated acceptance criteria.
+- **Dependencies on other work:** profiling boundary decision, compatibility tests, and accessor registration migration.
+
+### P1 — Establish `bynat.profiling` as the independent profiling owner
+
+- **Current location:** `bynat/cleaning/profile.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, and root aliases in `bynat/__init__.py`.
+- **Current responsibility:** profile-wide quality inspection, report models, serialization, and compatibility output handling.
+- **Issue:** the implementation is diagnostic and non-mutating but is owned by `cleaning`; current `BaseData` recognition also creates a cycle risk if moved naively.
+- **Dependencies and consumers:** `BaseData.profile`, `df.bynat.profile`, root `profile`/`ProfileReport` imports, profile tests, and documentation.
+- **Proposed organization:** make `bynat.profiling` the core owner; retain `cleaning.profile` as a compatibility facade; keep `BaseData` adaptation at the cleaning boundary; do not make profiling depend on analytics.
+- **Supporting evidence:** `profile.py` has independent report models and no cleaning transformation or analytics imports; the clarified root API names profiling as a first-class package.
+- **Benefits:** clearer user workflow, independent quality/inspection evolution, and explicit separation from application analytics.
+- **Risks:** new package boundary, compatibility aliases, helper ownership, generated docs/stubs, and migration test scope.
+- **Priority:** P1 for architectural direction; implementation can be scheduled separately.
+- **Dependencies on other work:** root API migration and explicit decision on compatibility duration.
 
 ### P1 — Establish `bynat/_accessors/` as the future integration owner
 
@@ -765,15 +939,15 @@ These are recommendations for future work. None is implemented by ARCH-03.
 - **Rejected alternatives:** global layers obscure domain ownership; separate deployable components are unjustified; an unstructured monolith would lose current boundaries.
 - **Trade-offs:** more explicit package/import discipline and synchronized facade contracts.
 
-### ADR-02 — Keep `cleaning`, `caching`, and `analytics` as peer packages
+### ADR-02 — Keep `cleaning`, `caching`, `analytics`, and `profiling` as peer package boundaries
 
 - **Problem:** DataFrame usage creates a temptation to make all packages depend on cleaning.
 - **Alternatives:** analytics inside cleaning; caching inside cleaning; linear cleaning → analytics → caching pipeline.
-- **Evidence:** analytics has no internal imports; caching has no cleaning dependency; cleaning consumes caching for enrichment.
-- **Evaluation:** peer packages reflect actual ownership and permit caller-level composition.
-- **Selected approach:** `cleaning → caching` where needed; `analytics` remains independent; no reverse dependency.
-- **Rejected alternatives:** they encode workflow order as package coupling and reduce reuse.
-- **Trade-offs:** applications must compose cleaning and analytics explicitly.
+- **Evidence:** analytics has no internal imports; caching has no cleaning dependency; cleaning consumes caching for enrichment; profiling currently has report models and no analytics or transformation dependency.
+- **Evaluation:** peer packages reflect actual ownership and permit caller-level composition. Profiling's current helper/output coupling is a migration seam, not a conceptual dependency.
+- **Selected approach:** `cleaning → caching` where needed; `analytics` and profiling remain independent; no analytics ↔ profiling dependency.
+- **Rejected alternatives:** putting profiling under analytics or making every DataFrame capability depend on cleaning would encode workflow order as package coupling and reduce reuse.
+- **Trade-offs:** applications must compose cleaning, profiling, and analytics explicitly; compatibility adapters are required during profiling extraction.
 
 ### ADR-03 — Keep shared components in their owning domain
 
@@ -797,15 +971,25 @@ These are recommendations for future work. None is implemented by ARCH-03.
 
 ### ADR-05 — Treat registration/import behavior as a public contract
 
-- **Problem:** importing `bynat` currently registers `df.bynat`, while the task text requires an empty root initializer.
-- **Alternatives:** preserve automatic registration; make registration explicit; register from a hidden side effect elsewhere; break root imports.
-- **Evidence:** current `bynat/__init__.py`, pandas registration decorator, accessor tests, and Python import semantics.
-- **Evaluation:** hidden side effects are less clear; explicit registration would be a breaking change; current behavior is tested.
-- **Selected approach:** preserve current behavior until a formal API decision approves a change; record the conflict explicitly.
-- **Rejected alternatives:** silent change would violate established tests and imports.
-- **Trade-offs:** current root initializer remains non-empty despite the conflicting task statement.
+- **Problem:** `df.bynat` requires import-time pandas registration, but the root namespace must expose only the four package entry points and must not leak the accessor implementation class.
+- **Alternatives:** expose `BynatAccessor` at root; make registration explicit; keep registration in a private import boundary while binding the four package objects; register one accessor per functional package.
+- **Evidence:** current `bynat/__init__.py`, pandas registration decorator, accessor tests, Python import semantics, and the clarified initialization contract.
+- **Evaluation:** explicit registration would change current behavior; exposing the class violates the target namespace; per-package registration fragments one `df.bynat` interface; a private registration boundary preserves behavior while keeping the root API narrow.
+- **Selected approach:** importing `bynat` binds `cleaning`, `caching`, `analytics`, and `profiling`, then imports a private registration boundary for `df.bynat`; `BynatAccessor` is not a root export.
+- **Rejected alternatives:** broad root exports create accidental API; inert-root registration would require a separate opt-in contract not requested by the clarification.
+- **Trade-offs:** import-time registration remains a side effect and must be tested; old direct root imports require a compatibility migration decision.
 
-### ADR-06 — Make accessor eligibility contract-based
+### ADR-06 — Make Profiling an independent top-level package
+
+- **Problem:** current profiling is implemented in `cleaning/profile.py`, but its responsibility is non-mutating dataset inspection and its root API is now a named first-class entry point.
+- **Alternatives:** keep profiling under cleaning; integrate it into analytics; create independent `bynat.profiling`; create a broader quality umbrella immediately.
+- **Evidence:** current report models and metrics in `cleaning/profile.py`; no direct analytics or transformation dependency; distinct report versus response contracts; clarified root initialization requirement.
+- **Evaluation:** an independent package has the strongest cohesion and API clarity. Keeping a compatibility facade handles existing imports. Analytics integration would blur two workflows, while a broader umbrella is premature without another substantial capability.
+- **Selected approach:** target `bynat.profiling` as the core owner; keep `bynat.cleaning.profile` and existing class/accessor methods as compatibility facades during migration; keep profiling independent of analytics and cleaning core algorithms.
+- **Rejected alternatives:** physical movement without responsibility analysis; generic shared package for one helper; dependency on analytics because both consume DataFrames.
+- **Trade-offs:** migration complexity, helper ownership decisions, and compatibility aliases; the target boundary is recommended but not implemented by ARCH-03.
+
+### ADR-07 — Make accessor eligibility contract-based
 
 - **Problem:** exposing every DataFrame-related function would inflate the public API.
 - **Alternatives:** mirror all cleaning/analytics functions; expose only transformations; expose only high-frequency fluent operations; add methods ad hoc.
@@ -815,15 +999,15 @@ These are recommendations for future work. None is implemented by ARCH-03.
 - **Rejected alternatives:** automatic mirroring creates long-term compatibility burden and weakens ownership.
 - **Trade-offs:** some convenient operations remain explicit module/class APIs.
 
-### ADR-07 — Preserve narrow public exports
+### ADR-08 — Preserve narrow and intentional public exports
 
 - **Problem:** internal implementations are easier to import when re-exported broadly, but that creates compatibility commitments.
-- **Alternatives:** export every function at root; export all module names; retain current narrow exports.
-- **Evidence:** current `__all__` boundaries and `test_doc_drift.py`; Python package export guidance; mature packages such as pandas and scikit-learn use deliberate aggregation.
-- **Evaluation:** narrow exports make public/private ownership explicit and prevent internal details from becoming accidental API.
-- **Selected approach:** preserve current package-level exports and add exports only through an explicit compatibility decision.
-- **Rejected alternatives:** broad exports simplify some imports at the cost of long-term API stability.
-- **Trade-offs:** callers use explicit submodule paths for lower-level APIs.
+- **Alternatives:** export every function at root; export all module names; expose only the four intended root package objects and keep intentional package-level APIs.
+- **Evidence:** current `__all__` boundaries and `test_doc_drift.py`; Python package export guidance; mature packages such as pandas and scikit-learn use deliberate aggregation; clarified root initialization contract.
+- **Evaluation:** narrow exports make public/private ownership explicit and prevent internal details from becoming accidental API, while package-level interfaces preserve discoverability.
+- **Selected approach:** root `__all__` contains only `cleaning`, `caching`, `analytics`, and `profiling`; each package exports only its minimum intentional API; old direct root imports require an explicit compatibility policy.
+- **Rejected alternatives:** broad exports simplify some imports at the cost of long-term API stability and violate the clarified root boundary.
+- **Trade-offs:** callers use package or submodule paths for lower-level APIs, and migration aliases may temporarily preserve obsolete root names.
 
 ## 13. Verification baseline and acceptance review
 
@@ -858,24 +1042,25 @@ The initial Git status was clean on branch `arch-module`. The only intended repo
 | LOC methodology and ranked assessment | §1.2 and §3 |
 | Responsibilities and cohesion | §4 |
 | Dependency analysis and map | §5 |
-| Joint cleaning/caching/analytics evaluation | §6 |
+| Joint cleaning/caching/analytics/profiling evaluation | §§4.4–4.8 and §6 |
 | Shared component ownership | §7 |
 | Accessor ownership, delegation, registration, eligibility | §8 |
-| Protected public API constraints | §§2.3–2.4, 8.5, ADR-05, ADR-07 |
+| Protected public API constraints | §§2.3–2.4, 8.5–8.7, ADR-05, ADR-08 |
 | Architecture comparison | §9 |
 | Candidate and recommended hierarchies | §10 |
 | Prioritized refactoring opportunities | §11 |
 | ADR-style decisions | §12 |
-| Risks, trade-offs, limitations, unresolved conflict | throughout, especially §§2.4, 8.5, 11, 12 |
+| Risks, trade-offs, limitations, unresolved questions | throughout, especially §§2.4, 4.6–4.8, 8.5–8.7, 11, 12 |
 | Verification and final scope review | §13 |
 
 ### 13.3 Limitations and unresolved questions
 
-1. The root-initializer requirement conflict cannot be resolved by architectural analysis alone; it needs an explicit project/API decision.
-2. This report measures static source structure. It does not claim runtime coupling beyond imports and the executed contract suite.
-3. The future `_accessors/` package is a recommended target, not an implemented migration.
+1. The clarified root-initialization contract is a target decision, but the compatibility policy for currently exposed root names (`profile`, `ProfileReport`, `read_csv`, `read_json`, and `BynatAccessor`) still requires explicit project approval.
+2. The independent `bynat.profiling` package and private `_accessors/` package are recommended targets, not implemented migrations.
+3. This report measures static source structure. It does not claim runtime coupling beyond imports and the executed contract suite.
 4. No new analytics accessor operation is recommended without a concrete use case and contract.
-5. External libraries evolve; the linked external sources should be rechecked when implementation work begins.
+5. The ownership of `_dedupe_key` during profiling extraction remains open; it should be decided by invariant ownership, not consumer count.
+6. External libraries evolve; the linked external sources should be rechecked when implementation work begins.
 
 ## 14. Source register
 
@@ -904,11 +1089,15 @@ The initial Git status was clean on branch `arch-module`. The only intended repo
 - [`docs/TESTING_STANDARDS.md`](TESTING_STANDARDS.md)
 - [`docs/ROADMAP.md`](ROADMAP.md)
 - [`bynat/__init__.py`](../bynat/__init__.py)
+- [`bynat/cleaning/__init__.py`](../bynat/cleaning/__init__.py)
+- [`bynat/cleaning/profile.py`](../bynat/cleaning/profile.py)
 - [`bynat/cleaning/base.py`](../bynat/cleaning/base.py)
 - [`bynat/cleaning/accessor.py`](../bynat/cleaning/accessor.py)
 - [`bynat/cleaning/accessor.pyi`](../bynat/cleaning/accessor.pyi)
 - [`bynat/caching/manager.py`](../bynat/caching/manager.py)
+- [`bynat/caching/__init__.py`](../bynat/caching/__init__.py)
 - [`bynat/analytics/analyzer.py`](../bynat/analytics/analyzer.py)
+- [`bynat/analytics/__init__.py`](../bynat/analytics/__init__.py)
 - [`tests/cross_cutting/accessor/test_accessor.py`](../tests/cross_cutting/accessor/test_accessor.py)
 - [`tests/cross_cutting/contracts/test_doc_drift.py`](../tests/cross_cutting/contracts/test_doc_drift.py)
 - [`tests/modules/analytics/test_analytics_contract.py`](../tests/modules/analytics/test_analytics_contract.py)

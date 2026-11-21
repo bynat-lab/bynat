@@ -76,6 +76,8 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.11"
 files = [
+    "bynat/_internal/__init__.py",
+    "bynat/_internal/values.py",
     "bynat/caching/_keys.py",
     "bynat/caching/_migration.py",
     "bynat/caching/_storage.py",
@@ -86,9 +88,11 @@ files = [
     "bynat/cleaning/columns.py",
     "bynat/cleaning/enrich",
     "bynat/cleaning/io.py",
-    "bynat/cleaning/profile.py",
     "bynat/cleaning/stats.py",
     "bynat/cleaning/text.py",
+    "bynat/profiling/__init__.py",
+    "bynat/profiling/profile.py",
+    "bynat/profiling/report.py",
     "tests",
 ]
 check_untyped_defs = true

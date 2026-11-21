@@ -15,8 +15,10 @@ import numpy as np
 import pandas as pd
 
 from bynat.caching import CacheManager
+from bynat.profiling import profile as _profile_core
 
-from . import columns, io, profile, stats, text
+from . import columns, io, stats, text
+from ._outputs import is_basedata_type
 from .enrich import currency, geocode, nlp, translate
 from .enrich.providers import Geocoder, RateSource, Translator
 
@@ -1639,7 +1641,6 @@ class BaseData(pd.DataFrame):
         )
 
 
-    @_shares_doc(profile.profile)
     def profile(
         self,
         *columns: Any,
@@ -1714,10 +1715,18 @@ class BaseData(pd.DataFrame):
             summary_dict = df.bynat.profile("age", output_type=dict)
         ```
         """
-        return profile.profile(
+        if is_basedata_type(output_type):
+            summary_frame = _profile_core(
+                self,
+                *columns,
+                output_type=pd.DataFrame,
+            )
+            return output_type(data=summary_frame)
+
+        return _profile_core(
             self,
             *columns,
-            output_type = output_type,
+            output_type=output_type,
         )
 
 

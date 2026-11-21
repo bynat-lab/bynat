@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bynat.cleaning.profile import profile
+from bynat.profiling import profile
 from tests.modules.profile.helpers import EXPECTED_STATS_KEYS_BY_KIND
 
 pytestmark = pytest.mark.unit

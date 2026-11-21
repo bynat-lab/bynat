@@ -1,18 +1,15 @@
 """Private helpers shared by the cleaning modules, `BaseData`, and the accessor."""
 
 import importlib
-import json
 import logging
 from types import ModuleType
 from typing import Any, TypeVar, cast
 
-import numpy as np
 import pandas as pd
 
 __all__ = [
     "FrameT",
     "HIERARCHICAL_STATS_COLUMNS",
-    "dedupe_key",
     "import_optional",
     "left_merge_aligned",
     "like",
@@ -98,31 +95,6 @@ def left_merge_aligned(frame: pd.DataFrame, right: pd.DataFrame, on: list) -> pd
     return merged
 
 
-def dedupe_key(value: Any) -> Any:
-    """
-    Return a hashable stand-in for unhashable values such as lists and dicts.
-
-    Sets are sorted by their string form, NumPy arrays become lists, and
-    lists/dicts/tuples are serialized with `json.dumps(sort_keys=True,
-    default=str)`. Other values are returned unchanged.
-
-    Args:
-        value (Any): Value to normalize.
-
-    Returns:
-        Any: A hashable value usable in a `set` or `groupby` key.
-    """
-    if isinstance(value, set):
-        value = sorted(value, key = str)
-    elif isinstance(value, np.ndarray):
-        value = value.tolist()
-
-    if isinstance(value, (list, dict, tuple)):
-        return json.dumps(value, sort_keys = True, default = str)
-
-    return value
-
-
 def like(df: FrameT, data: pd.DataFrame) -> FrameT:
     """
     Return `data` as `df`'s frame type, carrying `df`'s metadata.
@@ -151,5 +123,4 @@ _HIERARCHICAL_STATS_COLUMNS = HIERARCHICAL_STATS_COLUMNS
 _import_optional = import_optional
 _require_positive_int = require_positive_int
 _left_merge_aligned = left_merge_aligned
-_dedupe_key = dedupe_key
 _like = like

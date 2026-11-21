@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bynat.cleaning.profile import ColumnProfile, profile
+from bynat.profiling import ColumnProfile, profile
 from tests.modules.profile.helpers import EXPECTED_STATS_KEYS_BY_KIND
 
 pytestmark = pytest.mark.unit
@@ -144,7 +144,7 @@ def test_clean_scalar_bool_before_int():
     assert type(col.stats["top"]) is bool
     assert col.stats["top_frequency"] == 2
 
-    from bynat.cleaning.profile import _clean_scalar
+    from bynat.profiling.profile import _clean_scalar
 
     assert _clean_scalar(True) is True
     assert type(_clean_scalar(True)) is bool
@@ -171,7 +171,7 @@ def test_timedelta_columns_and_clean_scalar():
 
     import datetime
 
-    from bynat.cleaning.profile import _clean_scalar
+    from bynat.profiling.profile import _clean_scalar
 
     assert _clean_scalar(pd.Timedelta(days=1)) == "P1DT0H0M0S"
     assert _clean_scalar(np.timedelta64(10, "s")) == "P0DT0H0M10S"

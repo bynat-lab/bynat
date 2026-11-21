@@ -7,7 +7,9 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from ._common import _dedupe_key, _import_optional, logger
+from bynat._internal import dedupe_key as _dedupe_key
+
+from ._common import _import_optional, logger
 
 __all__ = [
     "IfExists",

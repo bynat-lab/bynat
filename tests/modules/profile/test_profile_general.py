@@ -9,7 +9,7 @@ import pytest
 
 import bynat
 from bynat.cleaning import BaseData
-from bynat.cleaning.profile import (
+from bynat.profiling import (
     ColumnProfile,
     DatasetProfile,
     ProfileReport,
@@ -137,9 +137,16 @@ def test_output_type_parameter():
     assert len(rep_frame) == 1
     assert rep_frame.iloc[0]["column"] == "x"
 
-    rep_basedata = profile(df, output_type=BaseData)
+    rep_basedata = BaseData(df).profile(output_type=BaseData)
     assert isinstance(rep_basedata, BaseData)
     assert len(rep_basedata) == 1
+
+    class _BaseDataSubclass(BaseData):
+        pass
+
+    rep_subclass = _BaseDataSubclass(df).profile(output_type=_BaseDataSubclass)
+    assert isinstance(rep_subclass, _BaseDataSubclass)
+    assert len(rep_subclass) == 1
 
     with pytest.raises(TypeError, match="Unsupported output_type"):
         profile(df, output_type=int)

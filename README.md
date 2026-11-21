@@ -181,6 +181,7 @@ What each module provides:
 | `bynat` | `read_json`, `read_csv`, `BynatAccessor`, `profile`, `ProfileReport` |
 | `bynat.caching` | `CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR` |
 | `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile` |
+| `bynat.profiling` | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
 | `bynat.cleaning.enrich` | Provider protocols `Translator`, `Geocoder`, `RateSource`, and their defaults `GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource` |
 
 > **Import submodules explicitly.** The top-level `bynat` namespace exposes only `read_json`, `read_csv`, `BynatAccessor`, `profile`, and `ProfileReport`. Import the class API from `bynat.cleaning` and the cache API from `bynat.caching`.
@@ -322,7 +323,7 @@ All four forms return the same report:
 | pandas accessor | `df.bynat.profile(*columns, output_type=None)` |
 | Class-based API | `BaseData(df).profile(*columns, output_type=None)` |
 | Top-level function | `bynat.profile(df, *columns, output_type=None)` |
-| Cleaning function | `from bynat.cleaning.profile import profile`<br>`profile(df, *columns, output_type=None)` |
+| Profiling function | `from bynat.profiling import profile`<br>`profile(df, *columns, output_type=None)` |
 
 Passing something other than a `pandas.DataFrame` to the function forms raises a `TypeError`.
 
@@ -355,7 +356,7 @@ Any other value raises a `TypeError`.
 import json
 import pandas as pd
 from bynat.cleaning import BaseData
-from bynat.cleaning.profile import profile
+from bynat.profiling import profile
 
 report = profile(df)                              # ProfileReport
 as_dict = profile(df, output_type=dict)           # plain dictionary
@@ -933,7 +934,7 @@ Use this table to find where things live if you want to read the source or impor
 | `bynat.cleaning.accessor` | The `df.bynat` entry point | The `df.bynat` accessor |
 | `bynat.cleaning.stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
 | `bynat.cleaning.enrich` | Adding information from outside the table | `translate`, `geocode`, `currency`, `nlp`, the shared cached-lookup `engine`, and `providers` |
-| `bynat.cleaning.profile` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
+| `bynat.profiling` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
 | `bynat.cleaning.columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
 | `bynat.cleaning.text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |
 | `bynat.cleaning.io` | Reading and writing | `save_to_json`, `save_to_sql`, `read_json`, `read_csv` |
@@ -1011,7 +1012,7 @@ CI runs the suite on Ubuntu and Windows with Python 3.11 and 3.13, plus Ruff, my
 
 ### Type checking
 
-Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager and the cleaning helper modules (`_common`, `accessor`, `columns`, `text`, `stats`, `io`, `profile`, `enrich`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
+Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager, the cleaning helper modules (`_common`, `accessor`, `columns`, `text`, `stats`, `io`, `enrich`), and the profiling package (`profiling/__init__.py`, `profiling/profile.py`, `profiling/report.py`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
 
 To bring a module into scope:
 

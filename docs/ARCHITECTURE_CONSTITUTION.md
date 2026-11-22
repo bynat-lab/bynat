@@ -15,13 +15,15 @@
 >
 > **Implementation authorization.** This constitution is documentation. It authorizes no source, test, configuration,
 > or CI change by itself. The internal normalization in [§1.8](#18-private-helpers-aliases-and-naming) is an adopted
-> rule whose implementation is still pending at the current HEAD.
+> rule whose implementation is still pending at the current HEAD. The helper placement and organization rules in
+> [§1.15](#115-helper-placement-and-organization) are adopted normative rules whose current-state status is recorded
+> in [§2.10](#210-module-responsibility-inventory-current); they do not force code moves.
 
 ---
 
 ## 1. Normative rules
 
-Rules are grouped by topic and numbered `ARCH-001` … `ARCH-091`. Each ID is unique and stable: amendments add,
+Rules are grouped by topic and numbered `ARCH-001` … `ARCH-097`. Each ID is unique and stable: amendments add,
 repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure).
 
 ### 1.1 Authority, scope, and evidence
@@ -57,8 +59,8 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-017 | `bynat.profiling` owns non-mutating data-quality profiling and report models. It must not import `cleaning`, `analytics`, `caching`, or `_accessors`. |
 | ARCH-018 | `bynat._accessors` (private) owns pandas registration, binding, accessor signatures, delegation, and accessor-specific output adaptation only. It contains no domain algorithms. Functional packages must not import it. |
 | ARCH-019 | `bynat._internal` (private) owns domain-independent value normalization. It imports only the standard library and NumPy, and imports no functional package. |
-| ARCH-020 | Canonical shared-component owners are: `dedupe_key` → `_internal/values.py`; cleaning helpers → `cleaning/_common.py`; output conversion → `cleaning/_outputs.py`; cached lookup → `cleaning/enrich/engine.py`; provider contracts → `cleaning/enrich/providers.py`; cache-key identity → `caching/_keys.py`; SQLite persistence → `caching/_storage.py`; legacy migration → `caching/_migration.py`; report models → `profiling/report.py`; profiling core → `profiling/profile.py`; analytics engine → `analytics/analyzer.py`. Consumer count is evidence of reuse, **not** proof of ownership; a shared component belongs where its invariants and change reasons are owned. |
-| ARCH-021 | Do not create a generic `_shared`, `common`, `utils`, or `helpers` package at library level without a demonstrated cross-package responsibility. |
+| ARCH-020 | Canonical shared-component owners are: `dedupe_key` → `_internal/values.py`; cleaning helpers → `cleaning/_common.py`; output conversion → `cleaning/_outputs.py`; cached lookup → `cleaning/enrich/engine.py`; provider contracts → `cleaning/enrich/providers.py`; cache-key identity → `caching/_keys.py`; SQLite persistence → `caching/_storage.py`; legacy migration → `caching/_migration.py`; report models → `profiling/report.py`; profiling core → `profiling/profile.py`; analytics engine → `analytics/analyzer.py`. Consumer count is evidence of reuse, **not** proof of ownership; a shared component belongs where its invariants and change reasons are owned. These are existing responsibility-owned modules (ARCH-095), not generic helper collections; `_internal/` is the prescribed generic collection (ARCH-094), and new helper placement follows ARCH-092. |
+| ARCH-021 | Do not use `shared`, `_shared`, `common`, `utils`, or `helpers` as generic internal-helper module or package names at any scope. `_internal` is the only prescribed generic internal-helper name; create it only under ARCH-092–ARCH-094. |
 
 ### 1.4 Dependency direction and private imports
 
@@ -73,7 +75,7 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | 1 | `cleaning.enrich.engine` | `caching._keys` | `cache_value_key` | Cache-key identity is caching-owned. |
 | 2 | `cleaning.enrich.translate` | `caching._keys` | `cache_has_value`, `cache_lookup_value` | Same. |
 | 3 | `_accessors.dataframe` | `cleaning._outputs` | `is_basedata_type` | BaseData-type detection is cleaning-owned; the accessor is the adaptation seam. |
-| 4 | `cleaning.io` | `_internal` | `dedupe_key` | `_internal` is the intended shared private package. |
+| 4 | `cleaning.io` | `_internal` | `dedupe_key` | `_internal` is the prescribed private value-helper collection (ARCH-094). |
 | 5 | `profiling.profile` | `_internal` | `dedupe_key` | Same. |
 
 | ID | Rule |
@@ -124,6 +126,8 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-048 | True delegating methods (`CacheManager._quarantine_corrupt_cache_file`, `CacheManager._migrate_legacy_json_cache`) are not aliases and remain. |
 | ARCH-049 | The stale logger names `"bynat.cleaning.Cleaning"` and `"bynat.caching.Caching"` are a documented compatibility decision and are retained. |
 
+Helper placement and organization rules are in [§1.15](#115-helper-placement-and-organization).
+
 ### 1.9 Structural evolution model
 
 | ID | Rule |
@@ -133,9 +137,9 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-052 | **Stage C — domain-internal layers (conditional, rare).** Entered when a Stage-B capability subpackage has ≥2 internal layers with distinct consumers and change reasons, and layering reduces coupling. The procedure is: confirm the host is a subpackage; identify layers; verify reduced coupling; define a one-way dependency flow; add layer modules with `__all__`; verify no cycle, no public-path change, no new cross-package private import; record trigger and rollback. |
 | ARCH-053 | **Stage D — new domain package (conditional).** Entered when a coherent capability has its own public contract, its own lifecycle, and no dependency on existing package internals. |
 | ARCH-054 | **Stage E — extraction into separate distributions/services (rejected, far future).** Entered only on a concrete deployment, versioning, or team-boundary requirement. |
-| ARCH-055 | Module states: **M0** single module; **M1** split one module into ≥2 modules in the same package; **M2** convert a module into a same-named package with a curated `__init__`; **M3** merge modules that always change together; **M4** add a new module to an existing package. The decision table requires one responsibility and one reason to change for “keep”, demonstrated divergence for “split”, distinct consumers for “convert”, and ≥2 real consumers for “extract shared helper”. |
+| ARCH-055 | Module states: **M0** single module; **M1** split one module into ≥2 modules in the same package; **M2** convert a module into a same-named package with a curated `__init__`; **M3** merge modules that always change together; **M4** add a new module to an existing package. The decision table requires one responsibility and one reason to change for “keep”, demonstrated divergence for “split”, distinct consumers for “convert”, and ≥2 real consumers for a cross-domain “extract shared helper” abstraction (ARCH-097); same-branch/multi-file extraction follows ARCH-092. |
 | ARCH-056 | **M2 naming rule.** A module-to-package conversion keeps the same name so `from bynat.cleaning import columns, io, stats, text` and `from bynat.cleaning.enrich.providers import ...` continue to work. |
-| ARCH-057 | Evolution principles: **P-1** change reasons before size; **P-2** one responsibility per module (statable without “and”); **P-3** public surface frozen; **P-4** extract shared code only after multiple real consumers; **P-5** dependency direction is a rule, not a directory tree; **P-6** subpackages need a responsibility, not a theme; **P-7** boundaries are enforced, not aspirational; **P-8** every conditional phase is reversible without public API change; **P-9** depth is the last resort; **P-10** the container stays a modular monolith. |
+| ARCH-057 | Evolution principles: **P-1** change reasons before size; **P-2** one responsibility per module (statable without “and”); **P-3** public surface frozen; **P-4** extract shared code into a broader reuse abstraction only after multiple real consumers (Rule of Three, scoped by ARCH-097; same-branch extraction follows ARCH-092); **P-5** dependency direction is a rule, not a directory tree; **P-6** subpackages need a responsibility, not a theme; **P-7** boundaries are enforced, not aspirational; **P-8** every conditional phase is reversible without public API change; **P-9** depth is the last resort; **P-10** the container stays a modular monolith. |
 | ARCH-058 | Near-term work is Phase 0 (baseline/decision record), Phase 1 (internal normalization plus dependency-graph enforcement), and Phase 2 (optional enforcement hardening on a demonstrated repository need). No subpackage is pre-built and no module is converted before its trigger fires. |
 
 ### 1.10 Growth decision procedure and triggers
@@ -143,15 +147,15 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ID | Rule |
 |---|---|
 | ARCH-059 | Split or group only when responsibilities change for different reasons, cohesion drops, or dependency direction is violated. Line count is a weak, secondary signal and is never sufficient. |
-| ARCH-060 | Extract shared code only with ≥2 real consumers, the same contract, and a stable domain-independent responsibility (Rule of Three). Similar code with different contracts is not merged. |
+| ARCH-060 | Extract code into a broader reuse abstraction only with ≥2 real consumers, the same contract, and a stable domain-independent responsibility (Rule of Three, scoped by ARCH-097). Same-branch and multi-file extraction follows the narrowest-common-scope hierarchy in ARCH-092 and is not blocked by the consumer count. Similar code with different contracts is not merged; verify behavior and contracts before extracting. |
 | ARCH-061 | Layering may be used as a dependency rule; a global `api/`/`domain/`/`infrastructure/` directory tree is rejected. |
-| ARCH-062 | A subpackage must have a demonstrable responsibility and owner; thematic `utils/`/`helpers/`/`common/`/`_shared/` groupings are rejected. |
+| ARCH-062 | A subpackage must have a demonstrable responsibility and owner; thematic `utils/`/`helpers/`/`common/`/`_shared/` groupings are rejected. `_internal` is the single prescribed generic internal-helper name and is governed by ARCH-094; it is not a thematic grouping. |
 | ARCH-063 | Every boundary must have a reviewable verification mechanism or an explicit documented exception. |
 | ARCH-064 | Every conditional phase must have a rollback that restores the previous structure without a public API change. |
 | ARCH-065 | Prefer flat modules; add a subpackage only when it improves navigation and ownership. |
 | ARCH-066 | **Operational review procedure** for opening a conditional phase: (1) inspect repository history and build a change-coupling matrix for the candidate modules and their invariant owners; (2) identify independent change clusters; (3) distinguish genuine responsibility divergence from coincidental similarity using a one-sentence responsibility, invariant, and owner per cluster; (4) replay a recent real change, count the modules and owners touched, and check dependency direction and cycles; (5) record the trigger, one-sentence responsibilities, change-coupling result, replay result, and rollback. |
 | ARCH-067 | Trigger evidence weights: change-coupling **high**; one-sentence responsibility **high**; dependency-direction violation **high**; cohesion/coupling signals **high**; consumer count **medium**; module size (LOC) **low**; new optional dependency **medium**; new public contract **high**. |
-| ARCH-068 | Hard rules: **R-1** never split on LOC alone; **R-2** never create `utils/`/`helpers/`/`common/`/`_shared/` without a demonstrated cross-package responsibility; **R-3** never introduce a protocol, base class, manager, registry, or engine without a concrete consumer; **R-4** never change a public import path or `__all__` value during internal reorganization; **R-5** never add a cross-package private import without a documented exception and enforcement entry; **R-6** never introduce a cycle; **R-7** never pre-build a structure for a scenario that has not occurred; **R-11** counts (files, modules, lines, clusters) are supporting signals only; **R-12** a split that only moves files without improving ownership or change behavior is rejected. |
+| ARCH-068 | Hard rules: **R-1** never split on LOC alone; **R-2** never use `shared`, `_shared`, `utils`, `helpers`, or `common` as generic internal-helper module or package names; use `_internal` only under ARCH-092–ARCH-094; **R-3** never introduce a protocol, base class, manager, registry, or engine without a concrete consumer; **R-4** never change a public import path or `__all__` value during internal reorganization; **R-5** never add a cross-package private import without a documented exception and enforcement entry; **R-6** never introduce a cycle; **R-7** never pre-build a structure for a scenario that has not occurred; **R-11** counts (files, modules, lines, clusters) are supporting signals only; consumer counts gate broader reuse abstraction, not same-branch/multi-file extraction (ARCH-097); **R-12** a split that only moves files without improving ownership or change behavior is rejected; extracting a helper to the narrowest common scope under ARCH-092 improves ownership and is not a mere file move. |
 
 ### 1.11 Conditional evolution phases E1–E6
 
@@ -164,15 +168,15 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 | ARCH-071 | E3 | Caching gains a second backend | Stage B + relocation | A concrete second-backend requirement with its own lifecycle; `CacheManager` contract unchanged | `caching/backends/`; relocate `_storage.py` → `backends/sqlite.py` | Protocol consumer is `CacheManager`; exactly two implementations satisfy one contract; no speculative framework; no new cross-package private import | Re-inline backend |
 | ARCH-072 | E4 | Integrations grow | Stage B via M2 | ≥3 provider families or a provider with its own configuration/lifecycle | `cleaning/enrich/providers/` | Provider surface unchanged; protocols keep consumers; no new cross-package private import | Re-inline providers |
 | ARCH-073 | E5 | A new domain emerges | Stage D | A coherent capability with its own public contract, ≥2–3 operations, no dependency on existing package internals, distinct workflow | New top-level package with its own `__all__` | Boundary compliance is verified; dependency matrix extended; imports no functional internals | Remove package |
-| ARCH-074 | E6 | Cross-domain shared logic grows | M4 (module addition) | ≥2 genuinely domain-independent helpers with stable contracts and ≥2 package consumers | `_internal/<coherent_module>.py` | `_internal` stays stdlib + NumPy; imports no functional package; each helper has ≥2 real consumers | Move helper back |
+| ARCH-074 | E6 | Cross-domain shared logic grows | M4 (module addition) | ≥2 genuinely domain-independent helpers with stable contracts and ≥2 package consumers | library-level `_internal/<coherent_module>.py` (ARCH-094) | `_internal` stays stdlib + NumPy; imports no functional package; each helper has ≥2 real consumers | Move helper back |
 
 ### 1.12 Enforcement and fitness functions
 
 | ID | Rule |
 |---|---|
-| ARCH-075 | Architecture enforcement must cover: exact public exports; permitted and prohibited dependency directions; the five private-import exceptions; `_internal` independence; accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment; and the prohibition on row-wise data-path iteration. |
+| ARCH-075 | Architecture enforcement must cover: exact public exports; permitted and prohibited dependency directions; the five private-import exceptions; `_internal` independence; helper placement at the narrowest common scope, helper-file cohesion, and the `_internal` naming and directory convention (ARCH-092–ARCH-094); accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment; and the prohibition on row-wise data-path iteration. |
 | ARCH-076 | The enforcement mechanism MAY be a repository-native static or structural check, a dedicated dependency-analysis tool, or another reviewable mechanism selected for the repository. The mechanism MUST represent all five private-import exceptions precisely and MUST NOT require a runtime dependency merely to describe the architecture. |
-| ARCH-077 | A new **module** has one responsibility, a correct owner, no unapproved cross-package private import, and an explicit export boundary. A new **subpackage** satisfies its trigger, curates `__init__`, adds no cycle, inherits the parent's dependency budget, and changes no public API. A new **domain package** has its own public contract, ≥2–3 operations, no dependency on functional internals, and an explicit extension to the dependency matrix. |
+| ARCH-077 | A new **module** has one responsibility, a correct owner, no unapproved cross-package private import, an explicit export boundary, and placement at the narrowest common architectural scope (ARCH-092). A new **subpackage** satisfies its trigger, curates `__init__`, adds no cycle, inherits the parent's dependency budget, and changes no public API. A new **domain package** has its own public contract, ≥2–3 operations, no dependency on functional internals, and an explicit extension to the dependency matrix. |
 | ARCH-078 | Every structural change review states the trigger it satisfies and its rollback. |
 
 ### 1.13 Prohibited patterns
@@ -181,7 +185,7 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 |---|---|
 | ARCH-079 | No microservices, separate deployables, or separate distributions without a concrete deployment requirement. |
 | ARCH-080 | No generic repository pattern, universal managers, or base classes for unrelated operations. |
-| ARCH-081 | No generic `_shared`, `utils`, `helpers`, or `common` package without a demonstrated cross-package responsibility. |
+| ARCH-081 | Do not use `shared`, `_shared`, `utils`, `helpers`, or `common` as generic internal-helper module or package names. `_internal` is the only prescribed generic internal-helper collection, created only under ARCH-092–ARCH-094. |
 | ARCH-082 | No protocol proliferation, plugin registry, entry-point discovery, or dependency-injection container. |
 | ARCH-083 | No generic transformation engine and no duplicate implementations of shared behavior. |
 | ARCH-084 | No Polars-style lazy execution/query-engine layer and no `fit`/`transform` estimator layer. |
@@ -197,6 +201,38 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 | ARCH-089 | Amendments follow [§6](#6-governance-and-amendment-procedure): add, repeal, or renumber `ARCH-###` IDs explicitly; state the trigger and rollback; preserve the public API; update the traceability matrix; never make a silent architectural change. |
 | ARCH-090 | Conflicts between sources are resolved by chronology and explicit status. A later implemented status update supersedes an earlier historical section; a current checkout observation supersedes a source-reported baseline; a conditional proposal never overrides a current fact. |
 | ARCH-091 | Governance is exercised through the checklists in ARCH-077, the change-review requirement in ARCH-078, and the reversibility requirement in ARCH-064. |
+
+### 1.15 Helper placement and organization
+
+These rules govern where a helper lives and how helper modules are grouped. They apply to new helpers and to future
+reorganization; they do not force moves of existing private owner modules (ARCH-095).
+
+| ID | Rule |
+|---|---|
+| ARCH-092 | A helper belongs at the **narrowest common architectural scope** that contains all of its current consumers. Its placement follows actual usage boundaries, not a preference for keeping it in its original file or extracting every helper into a separate module. Apply the first matching level: **(a)** one file only — keep the helper private to that file; create no separate module unless a distinct architectural requirement applies (ARCH-096); **(b)** multiple files in the same submodule — place the helper at that submodule scope in a dedicated `_internal.py` module, or in a dedicated `_internal/` package when multiple dedicated helper modules are justified (ARCH-094); **(c)** sibling submodules of one parent — place the helper once at their nearest common parent in `_internal.py`, or in `_internal/` when multiple helper modules are justified, not in one sibling; **(d)** different branches of one package — walk upward recursively to their nearest common architectural scope and use `_internal.py` or `_internal/` there according to ARCH-094; **(e)** multiple top-level submodules (flat modules) of one package — place the helper in that package's `_internal.py` module or `_internal/` package, according to ARCH-094; **(f)** multiple packages — place the helper in library-level `bynat/_internal` only with a domain-independent responsibility and ≥2 real package consumers (ARCH-060, ARCH-074). A helper MAY instead live in an existing module when its responsibility naturally belongs there (ARCH-095). Never place a helper above the scope that owns all of its consumers. |
+| ARCH-093 | **Helper-file cohesion.** Helpers SHOULD share a file when their responsibilities are closely related, serve the same conceptual purpose, implement closely related behavior, or are complementary parts of one operation or workflow. Helpers with unrelated purposes, different responsibilities, or independent reasons to change MUST NOT be grouped merely because they are helpers, for convenience, or under one feature label. When distinct groups of helpers exist, organize them into responsibility-named modules rather than a generic `helpers.py`. A standalone dedicated internal-helper module uses the `_internal.py` name; modules within an `_internal/` collection are named for their responsibilities. Do not split closely related helpers without a meaningful cohesion or maintainability benefit. The objective is high cohesion and clear ownership, not minimizing or maximizing file count. |
+| ARCH-094 | **`_internal` is the only prescribed generic internal-helper naming convention.** A single dedicated internal-helper module MAY be a direct `_internal.py` file. When a parent directory needs multiple dedicated helper modules at the same depth, prefer an `_internal/` directory inside that same parent, especially in leaf directories where no narrower scope exists; put independently named, cohesive modules inside it. Create neither `_internal.py` nor `_internal/` for a single-file-local helper; do not create an `_internal/` directory for only one helper module. An `_internal/` directory may contain distinct responsibility-named helper modules and does not imply they belong in one file or share one responsibility; file cohesion is governed by ARCH-093. `shared`, `_shared`, `utils`, `helpers`, and `common` are not prescribed alternatives for generic helper locations. A per-package `_internal` inherits its parent's dependency budget and is distinct from library-level `bynat/_internal` (ARCH-019). |
+| ARCH-095 | **Existing private owner modules are retained.** A helper MAY live in an existing private module when its responsibility naturally belongs there. The following modules own established responsibilities and are not generic cross-scope helper collections: `cleaning/_common.py` (cleaning-scoped helpers), `cleaning/_outputs.py` (output conversion), `caching/_keys.py` (cache-key identity), `caching/_storage.py` (SQLite persistence), `caching/_migration.py` (legacy migration/quarantine), `cleaning/enrich/engine.py` (cached-lookup engine), and `cleaning/enrich/providers.py` (provider contracts). Responsibility-specific names identify most of these owners; the existing `_common.py` is a current-state exception, not a naming pattern for new helper collections. `_internal` is the prescribed generic naming convention for future dedicated helper modules (ARCH-094). This status is **Current**: the named modules remain at the current HEAD, and this constitution does not require or authorize moving them. Future helper placement follows ARCH-092–ARCH-094 without renaming or relocating these owners. |
+| ARCH-096 | **Helper extraction guards.** Do not create a separate module for a helper used by only one file unless a distinct architectural requirement exists. Before extracting similar code, verify that the behavior and contracts are identical; similar code with different contracts is not merged. Never duplicate a genuinely common implementation; one canonical definition per responsibility. Never place a helper above the scope that owns all of its consumers. Never create `_internal/` speculatively or before its trigger fires. Helper modules remain internal (underscore modules/packages, never added to a public `__all__`). Helper placement must preserve the permitted dependency directions (ARCH-022/ARCH-023) and must not introduce a cycle. |
+| ARCH-097 | **Rule of Three scope.** The Rule of Three applies only to broader reuse abstraction decisions — extracting a helper into a shared-scope or cross-domain scope for general reuse. It does not block same-branch or multi-file extraction within one package or submodule: a helper consumed by multiple files in the same branch may be extracted to the narrowest common scope under ARCH-092 without a third consumer. Consumer count remains a medium-weight signal (ARCH-067) for broader reuse only. |
+
+For example, if an `analyzer/` leaf directory has several helper modules with distinct responsibilities, keep the
+modules separate under one `_internal/` collection rather than scattering them beside the primary modules or
+combining unrelated functions into one file:
+
+```text
+analytics/
+└── analyzer/
+    ├── distributions.py
+    ├── numerical.py
+    └── _internal/
+        ├── filters.py
+        ├── rules.py
+        └── response_helpers.py
+```
+
+This is illustrative, not a proposed current-tree change. A single helper module at that level may instead be
+`_internal.py`; a helper used by only one file stays in that file unless ARCH-096's exception applies.
 
 ---
 
@@ -345,6 +381,8 @@ ARCH-045 changes them to the canonical names.
 The repository has existing boundary-verification evidence for the root API, package exports, accessor ownership,
 profiling independence, and the canonical `_internal` helper. The dependency-graph enforcement required by ARCH-075 is not yet present. Import-Linter and the optional private-import lint rule are not adopted. Private
 alias normalization (ARCH-045/046) is adopted but not implemented; the aliases remain in the current checkout.
+Helper placement and organization rules ARCH-092–ARCH-097 are adopted and normative; the current responsibility-named
+owner modules remain in place (ARCH-095).
 
 ### 2.9 Behavioral contracts (Current)
 
@@ -455,6 +493,13 @@ public API.
 | `bynat/profiling/profile.py` | Non-mutating profiling core | `profile` + kind/stat helpers | `profiling.report`, `_internal` | Package-internal |
 | `bynat/profiling/report.py` | Report data models | `ProfileReport`, `DatasetProfile`, `ColumnProfile` | none | Package-internal |
 
+**Existing private owners vs generic collections (Current).** `cleaning/_common.py`, `cleaning/_outputs.py`,
+`caching/_keys.py`, `caching/_storage.py`, `caching/_migration.py`, `cleaning/enrich/engine.py`, and
+`cleaning/enrich/providers.py` are existing private owner modules (ARCH-095), not generic helper containers.
+`bynat/_internal/` is the only generic internal-helper collection and currently holds `values.py` (ARCH-094). The
+helper-placement rules in [§1.15](#115-helper-placement-and-organization) govern future placement; they do not
+require moving these modules.
+
 ### 2.11 Documented hazards and dispositions (Current)
 
 These are verified findings about the current implementation. They are not structural proposals; each has an
@@ -549,7 +594,7 @@ Renaming the package would break those imports and is not a compatibility-safe i
 | Split | ≥2 responsibilities with different change reasons; each part non-trivial; no cycle; no public path change | LOC alone; a part would be a one-function module | Each part has a one-sentence responsibility; change-coupling shows independence |
 | Convert to package | ≥2 sub-modules with distinct consumers; a coherent package surface; no cycle | The module is cohesive; sub-modules would be one-function | Package `__init__` curates a small surface; dependency direction preserved |
 | Merge | Modules always change together and form one responsibility; or a split produced anaemic modules | Modules change for different reasons | One-sentence responsibility; no lost coverage |
-| Extract shared helper | ≥2 real consumers with the same contract; a stable domain-independent responsibility | Similar code with different contracts; a single consumer | Canonical owner has one definition; consumers import it |
+| Extract shared helper | Broader reuse: ≥2 real consumers with the same contract and a stable domain-independent responsibility (ARCH-097). Same-branch/multi-file: narrowest common scope under ARCH-092, no third-consumer gate | Similar code with different contracts; a single consumer for a new shared abstraction; a one-file helper | Canonical owner has one definition; consumers import it; placement is the narrowest common scope |
 | Introduce a layer | ≥2 internal layers with distinct consumers and change reasons | Thematic layering; added depth without coupling benefit | One-way dependency flow; no cycle |
 
 **Component-level evolution.** A class/protocol is introduced only with a concrete consumer and a lifecycle or
@@ -626,8 +671,11 @@ the clusters change independently; §3.8 inventory applied. Rollback: re-collaps
 **E2 — Analytics grows from one class to a family (M1, module split).**
 Premise: `analytics` gains distributions, time series, KPI cards, histogram bins, filters/rules, possibly
 forecasting. Trigger evidence: ≥2 public method clusters with different dependencies and change reasons; the
-`Analyzer` facade remains the public entry point. This is **not** Stage B: no subpackage is created; the
-modules stay flat inside `analytics/`.
+`Analyzer` facade remains the public entry point. This is **not** Stage B: no new public subpackage is
+created; the capability modules stay under `analytics/`. The five modules below are illustrative
+decomposition targets, not separate consumers of one helper. If this leaf directory needs several dedicated
+helper modules, they are grouped in `analytics/_internal/` (ARCH-094) rather than scattered beside these
+capability modules.
 
 ```text
 bynat/analytics/
@@ -638,6 +686,9 @@ bynat/analytics/
 ├── _kpi.py
 ├── _filters.py
 └── _bins.py
+# A single helper module, if justified later, may instead be a direct
+# analytics/_internal.py (ARCH-094). An analytics/_internal/ directory is
+# added only when multiple dedicated helper modules are justified.
 ```
 
 Acceptance: `bynat.analytics.__all__` unchanged; `Analyzer` public methods unchanged; `analytics` still
@@ -714,14 +765,15 @@ genuinely domain-independent helpers with stable contracts and ≥2 package cons
 coherent responsibility (for example value normalization).
 
 ```text
-bynat/_internal/
-├── __init__.py                 # curates the shared surface
+bynat/_internal/                # library-level generic collection (ARCH-094)
+├── __init__.py                 # curates the private internal surface
 ├── values.py                   # existing
 └── <coherent_module>.py        # e.g. validation.py
 ```
 
 Acceptance: `_internal` still imports only stdlib and NumPy; it imports no functional package; each new
-helper has ≥2 real consumers. Rollback: move the helper back to its owning domain.
+helper has ≥2 real consumers; the generic collection is named `_internal` and not `shared`/`_shared` (ARCH-094).
+Rollback: move the helper back to its owning domain.
 
 **Stress-test conclusion.** The model handles all six scenarios without changing the top-level boundaries,
 the public API, or the dependency direction. In every case the transition is internal and reversible, and
@@ -751,8 +803,12 @@ symbols that repository code, tests, and the generated stub access; see §3.8.
 - **A module-to-package conversion keeps the module's name.** Renaming the package would break
   `from bynat.cleaning import columns, io, stats, text` and `from bynat.cleaning.enrich.providers import ...`.
 - **New domain packages must be independent or depend inward.** A new domain may not import another domain's
-  private internals. If it needs a shared helper, the helper moves to `_internal` only with ≥2 real consumers.
+  private internals. If it needs a shared helper, the helper moves to library-level `_internal` only with ≥2 real
+  consumers.
 - **`_internal` may grow only with coherent, domain-independent modules.** It remains stdlib + NumPy only.
+- **A per-package `_internal/` inherits its parent's dependency budget.** It is not a new top-level package and may
+  import only what its parent may import; library-level `bynat/_internal` remains domain-independent (ARCH-019,
+  ARCH-094).
 - **`_accessors` remains delegation-only.** It never gains algorithms.
 - **`analytics` and `profiling` remain independent** unless a concrete requirement changes that, with an
   explicit decision.
@@ -799,9 +855,10 @@ pinned contract.
 
 ### 3.9 Deliberately not proposed
 
-No `src/` layout migration; no global `api/`/`domain/`/`infrastructure/` tree; no
-`utils/`/`helpers/`/`common/`/`_shared/` package; no plugin/registry/DI structure; no lazy execution or
-query-engine layer; no `fit`/`transform` estimator layer; no pre-built capability subpackages.
+No `src/` layout migration; no global `api/`/`domain/`/`infrastructure/` tree; no `shared`, `_shared`,
+`utils`, `helpers`, or `common` generic internal-helper name (`_internal` only, ARCH-094); no
+plugin/registry/DI structure; no lazy execution or query-engine layer; no `fit`/`transform` estimator layer;
+no pre-built capability subpackages and no speculative `_internal/`.
 
 ---
 
@@ -839,7 +896,7 @@ The prohibitions in [§1.13](#113-prohibited-patterns) are normative. The evalua
 | Generic repository pattern | Reject | No domain-model persistence; cache storage is a key-value contract |
 | Universal managers | Reject | Only `CacheManager` has a demonstrated lifecycle |
 | Base classes for unrelated operations | Reject | No shared algorithm hierarchy; composition is used instead |
-| Generic `_shared` package | Reject | Only one domain-independent helper exists; it lives in `_internal` |
+| `shared`/`_shared` generic helper collection | Reject | `_internal` is the only prescribed generic internal-helper collection (ARCH-094) |
 | Protocol proliferation | Reject | Only the three provider protocols have consumers |
 | Plugin registry / entry points | Reject | No third-party plugin requirement |
 | Excessive wrapper modules | Reject | Facades are limited to `BaseData` and the accessor |
@@ -851,7 +908,10 @@ The prohibitions in [§1.13](#113-prohibited-patterns) are normative. The evalua
 | Splitting `base.py`/`stats.py`/`analyzer.py` by LOC | Reject | Cohesive; size is documentation or one domain |
 | Pre-building capability subpackages | Reject | No trigger; speculative structure |
 | Global layer tree | Reject | Obscures domain ownership |
-| `utils/`/`helpers/` catch-all modules | Reject | No responsibility statement |
+| `utils`/`helpers`/`common` catch-all modules | Reject | No responsibility statement; `_internal` is the only prescribed generic internal-helper name (ARCH-094) |
+| `_internal/` for a single helper module | Reject | ARCH-094 requires ≥2 dedicated helper modules; a one-file helper stays in its file (ARCH-092, ARCH-096) |
+| Grouping unrelated helpers in one file or collection | Reject | Violates helper-file cohesion (ARCH-093) |
+| Overly high helper placement | Reject | A helper belongs at the narrowest common scope (ARCH-092) |
 | DI container | Reject | No consumer |
 | `src/` layout migration | Reject | Flat layout is correct; no packaging reason |
 | Renaming public modules | Reject | Public API change without requirement |
@@ -915,6 +975,7 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 | 5 | The task referenced `BYNAT_SCALABLE_ARCHITECTURE_EVOLUTION_STRATEGY.md`. | That file does not exist; the actual document is `architecture/BYNAT_ARCHITECTURE_EVOLUTION_STRATEGY.md`, corrected in place and not renamed. |
 | 6 | The design and strategy decide private-alias normalization and dependency-graph enforcement. | Both are **adopted but not implemented** at HEAD; the constitution states them as rules with a pending-implementation note rather than as current facts. |
 | 7 | `ARCHITECTURE_RESEARCH.md` is dated 2026-11-21; the design and strategy are dated 2026-11-22. | Later documents supersede earlier historical sections; the current checkout supersedes all source baselines. |
+| 8 | The strategy's Rule of Three guidance (EV-11/EV-12) recommends multiple consumers before sharing, which could be read as blocking same-branch helper extraction. | The Rule of Three is scoped to broader reuse abstraction (ARCH-097); same-branch and multi-file extraction follows the narrowest-common-scope hierarchy (ARCH-092) and is not blocked by the consumer count. |
 
 ### 8.2 Rule-to-source mapping
 
@@ -928,6 +989,7 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 | Optional integrations and providers | ARCH-034–ARCH-037 | Design §6.E, §19; research §6.4 |
 | CacheManager boundaries | ARCH-038–ARCH-043 | Design §6.G, §7.2, §20.2; research §4.11, §6.3 |
 | Private helpers and aliases | ARCH-044–ARCH-049 | Design §3.3 F-1/F-2, §6.I, §12 |
+| Helper placement and organization | ARCH-092–ARCH-097 | This constitution [§1.15](#115-helper-placement-and-organization); user helper placement and organization rules |
 | Structural evolution model | ARCH-050–ARCH-058 | Strategy §4–§6, §14 |
 | Growth decision procedure | ARCH-059–ARCH-068 | Strategy §8, §15.4; design §3.2, §3.3 F-5 |
 | Conditional phases E1–E6 | ARCH-069–ARCH-074 | Strategy §7, §10, §14.4 |
@@ -940,6 +1002,7 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 | Source register | Destination |
 |---|---|
 | Design D-A1–D-A12 (Adopt/Adapt) | ARCH-001–ARCH-058 (current and near-term rules) |
+| User helper placement and organization rules (this amendment) | ARCH-092–ARCH-097 |
 | Design D-D1–D-D6 (Defer) | [§4](#4-deferred-decisions) AE-Q1–AE-Q10 |
 | Design D-R1–D-R14 (Reject) | [§5](#5-rejected-patterns), ARCH-079–ARCH-088 |
 | Strategy P-1–P-10 | ARCH-057 |
@@ -978,23 +1041,23 @@ sources were removed without architectural loss. Source references are supplemen
 
 | Source | Source sections | Captured here |
 |---|---|---|
-| Internal design | §1 Executive decisions 1–4; follow-up audit | §1.1–§1.9, §2.8, §2.13 |
-| Internal design | §2 Baseline identity, tree, measured size, public API, import map, verification | §2.1–§2.9, §2.12 |
-| Internal design | §3 Package/module assessment; F-1–F-8; negative findings | §1.3, §1.8, §2.13 |
+| Internal design | §1 Executive decisions 1–4; follow-up audit | §1.1–§1.9, §2.8, §2.11 |
+| Internal design | §2 Baseline identity, tree, measured size, public API, import map, verification | §2.1–§2.9, §2.11 |
+| Internal design | §3 Package/module assessment; F-1–F-8; negative findings | §1.3, §1.8, §2.11 |
 | Internal design | §4 External research E-1–E-14 | §8.6 |
 | Internal design | §5 Architecture pattern evaluation | §5, §1.13 |
 | Internal design | §6 Final architectural decisions A–I | §1.1–§1.9, §1.12, §5 |
 | Internal design | §7 Package responsibilities and subsystems | §1.3 |
 | Internal design | §8 Complete final target tree | §2.2, §3.3 |
 | Internal design | §9 File-by-file responsibility specification | §2.11 |
-| Internal design | §10 Component inventory, flags, `Adjust` decisions | §2.13 |
+| Internal design | §10 Component inventory, flags, `Adjust` decisions | §2.11 |
 | Internal design | §11 Module contracts and dependency review | §2.10, §2.11 |
 | Internal design | §12 Existing-to-target migration map | §1.8, §3.3 |
 | Internal design | §13 Dependency matrix and private-import exceptions | §1.4, §2.4, §2.5 |
 | Internal design | §14 Module dependency maps | §2.4 |
 | Internal design | §15 Data and execution flows | §2.10 |
-| Internal design | §16 Behavioral contracts F1–F20 | §2.10 |
-| Internal design | §17 Discrepancies, test gaps, AE-Q6 | §2.13, §2.14, §4 |
+| Internal design | §16 Behavioral contracts F1–F20 | §2.9 |
+| Internal design | §17 Discrepancies, test gaps, AE-Q6 | §2.11, §4 |
 | Internal design | §18 Shared component ownership | §1.3, ARCH-020 |
 | Internal design | §19 Integration and optional dependency design | §1.6 |
 | Internal design | §20 Internal interfaces and lifecycle | §1.5, §2.7 |
@@ -1026,9 +1089,9 @@ sources were removed without architectural loss. Source references are supplemen
 | Evolution strategy | §19 Evidence and source references | §8.6, §8.8 |
 | Evolution strategy | §20 Final traceability matrix | §8.2, §8.3 |
 | Architecture research | Executive conclusion; Phase 0 decisions and baseline | §1.1, §8.1 |
-| Architecture research | §1 Investigation scope and LOC method | §2.12 |
+| Architecture research | §1 Investigation scope and LOC method | §2.1, §8.1 |
 | Architecture research | §2 Current architecture | §2 |
-| Architecture research | §3 Quantified module assessment | §2.12 |
+| Architecture research | §3 Quantified module assessment | §2.11 |
 | Architecture research | §4 Responsibility and cohesion assessment | §1.3, §5 |
 | Architecture research | §5 Dependency analysis | §1.4, §2.4 |
 | Architecture research | §6 Joint evaluation of cleaning/caching/analytics | §1.3, §5 |
@@ -1079,12 +1142,17 @@ reference material; the constitutional rules stand independently.
 | EV-8 | arc42 “Increase Cohesion”: split a module when it carries responsibilities that change for different reasons; warnings against splitting by layer, over-splitting into anaemic modules, and helper accretion; verify with change-coupling and one-sentence responsibilities. | Primary trigger for module splits; warns against premature subpackaging. |
 | EV-9 | Modularity guide: do not move files before understanding why they change; useful evidence is business capability with an owner, files that change together, rules protecting one invariant, data with one authoritative writer; a module-count KPI alone is dangerous. | Supports trigger-based evolution and the “replay the original change” verification. |
 | EV-10 | Change-coupling matrix: high change + low physical proximity → consolidate; low change + high proximity → split; high/high and low/low are healthy. | Empirical method for merge/split decisions and a concrete verification technique. |
-| EV-11 | Package-by-feature keeps related classes in one package, raising cohesion and lowering coupling; the Rule of Three is recommended for shared code. | Supports capability subpackages and extraction only after multiple real consumers. |
-| EV-12 | Google Testing Blog “Don't DRY Your Code Prematurely” and the Rule of Three: abstracting on the first or second occurrence risks the wrong abstraction. | Guardrail against pre-building shared packages or generic engines. |
+| EV-11 | Package-by-feature keeps related classes in one package, raising cohesion and lowering coupling; the Rule of Three is recommended for shared code. | Supports capability subpackages and extraction into a broader reuse abstraction only after multiple real consumers (ARCH-097). |
+| EV-12 | Google Testing Blog “Don't DRY Your Code Prematurely” and the Rule of Three: abstracting on the first or second occurrence risks the wrong abstraction. | Guardrail against pre-building generic shared collections or engines; it does not block same-branch extraction (ARCH-097). |
 | EV-13 | Real Python: domain-named subpackages scale better than catch-all `utils.py`/`helpers.py`; subpackages appear once an undifferentiated pile sprawls; `__init__.py` should curate the surface. “Flat is better than nested”; leading underscores mark non-public objects. | A subpackage must have a clear responsibility (never `utils/`); depth only when it improves navigation. |
 | EV-14 | A module is enough for a small focused function set; a package is warranted when related responsibilities have grown into several modules; one guide suggests ~500 lines as a split hint. | The ~500-line figure is a **secondary** indicator only; “multiple purposes / unrelated change reasons” is primary. |
 | EV-15 | Neal Ford: an architectural fitness function is an objective integrity assessment of an architectural characteristic; structural fitness functions (dependency rules, cycles) are the easiest place to start. | The enforcement strategy is a set of structural fitness functions. |
 | EV-16 | ArchUnit, GitLab Packwerk, and Import Linter demonstrate automated boundary enforcement. | The mechanism is proven; the choice is phased to avoid a new dependency before it is needed. |
+
+**Helper-placement synthesis.** EV-11/EV-12 recommend the Rule of Three for shared code; this constitution scopes it
+to broader reuse abstraction (ARCH-097) so it does not block same-branch or multi-file extraction at the narrowest
+common scope (ARCH-092). EV-13 rejects catch-all `utils.py`/`helpers.py`; `_internal` is the single prescribed
+generic internal-helper naming (ARCH-094), and existing private owner modules remain in place (ARCH-095).
 
 **Research limitations (recorded, not resolved).** The external sources are practitioner guides, library
 documentation, and one NEP — not empirical studies of Python library evolution. The triggers are therefore

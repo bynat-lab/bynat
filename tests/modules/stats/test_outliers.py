@@ -12,8 +12,7 @@ pytestmark = pytest.mark.unit
 
 MIN_SAMPLES_XFAIL = pytest.mark.xfail(
     strict=True,
-    reason="PD-02: handle_outliers/drop_outliers do not validate min_samples; "
-    "see docs/temb/TEST-02-phase1-audit.md (MS-3a)",
+    reason="PD-02: handle_outliers/drop_outliers do not validate min_samples (MS-3a)",
 )
 
 INVALID_MIN_SAMPLES = [

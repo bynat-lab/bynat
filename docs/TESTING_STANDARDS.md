@@ -404,7 +404,7 @@ The following requirements apply to all public frame-to-frame transformations ac
 - **MS-1:** Default thresholds: `fill_missing` and `fill_missing_from` default to `min_samples=1`; `handle_outliers` and `drop_outliers` default to `min_samples=5`. [BP]
 - **MS-2:** Boundary contract: a group with exactly `min_samples` non-null observations supplies a statistic; a group with `min_samples - 1` non-null observations falls through. [BP]
 - **MS-3:** Invalid thresholds (`True`, `False`, `0`, negative numbers, floats, strings) MUST raise `ValueError` in `fill_missing` and `fill_missing_from`. [BP]
-- **MS-3a:** *(Blocked on Production Scope: PD-02)* `handle_outliers` and `drop_outliers` currently fail to validate `min_samples`. This contract is pinned by 12 strict `xfail` tests in `tests/modules/stats/test_outliers.py` linking `docs/temb/TEST-02-phase1-audit.md`. [BP]
+- **MS-3a:** *(Blocked on Production Scope: PD-02)* `handle_outliers` and `drop_outliers` currently fail to validate `min_samples`. This contract is pinned by 12 strict `xfail` tests in `tests/modules/stats/test_outliers.py`. [BP]
 - **MS-4:** Only non-null observations count toward the `min_samples` threshold. [BP]
 
 #### 3.3.8 Unseen Groups Standards (UG-1 through UG-4)
@@ -830,7 +830,7 @@ from bynat.cleaning import stats
 @pytest.mark.parametrize("invalid_val", [True, False, 0, -1, 1.5, "five"])
 @pytest.mark.xfail(
     strict=True,
-    reason="PD-02: handle_outliers/drop_outliers do not validate min_samples; see docs/temb/TEST-02-phase1-audit.md (MS-3a)",
+    reason="PD-02: handle_outliers/drop_outliers do not validate min_samples (MS-3a)",
 )
 def test_handle_outliers_rejects_invalid_min_samples(invalid_val):
     df = pd.DataFrame({"val": [10.0, 12.0, 100.0], "grp": ["a", "a", "a"]})

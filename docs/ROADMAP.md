@@ -26,7 +26,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Python:** `>=3.11`. CI runs Ubuntu and Windows on 3.11 and 3.13, a Ruff lint job, an extras job, and scheduled quality/mutation runs.
 - **Tests:** Test suite is structured hierarchically (`tests/modules/` for unit/integration tests and `tests/cross_cutting/` for contracts, equivalence, property, and workflow tests) adhering to `docs/TESTING_STANDARDS.md`. Equivalence tests for the optimized methods live in `tests/cross_cutting/equivalence/` (`test_equivalence_keywords.py`, `test_equivalence_outliers.py`, `test_equivalence_enrichment.py`).
 - **Lint:** `ruff check bynat tests benchmarks` is clean with `E`, `F`, `W`, `I`, `UP` (`E501` ignored; see `pyproject.toml`).
-- **Types:** `python -m mypy` is clean across the configured scope (`files` in `pyproject.toml`): the cache manager, the cleaning helpers (`_common`, `columns`, `text`, `stats`, `io`, `enrich`), `analytics`, `_accessors`, `profiling`, and `tests`, checked against `pandas-stubs`; `bynat/cleaning/base.py` remains a separate gradual-typing boundary (`ignore_errors`).
+- **Types:** `python -m mypy` is clean across the configured scope (`files` in `pyproject.toml`): the cache manager, the cleaning helpers (`_common`, `_outputs`, `columns`, `text`, `stats`, `io`, `enrich`), `analytics`, `_accessors`, `profiling`, and `tests`, checked against `pandas-stubs`; `bynat/cleaning/base.py` remains a separate gradual-typing boundary (`ignore_errors`).
 - **Row-wise iteration audit:** no `apply(axis=1)`, `iterrows`, or `itertuples` in `bynat/`. Unique-value loops exist in the enrichment methods by design (Principle 1).
 
 ### Done
@@ -65,7 +65,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 | 0.6.6 | `STATS-01` safer hierarchical imputation fallbacks: `min_samples` group threshold and `fallback_global` column-wide fallback in `fill_missing` | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `tests/modules/stats/test_fill_missing.py` |
 | 0.6.6 | `STATS-02` reference-based missing value imputation: `fill_missing_from` computing statistics exclusively from a separate reference DataFrame with `match_cols` schema mapping | `bynat/cleaning/stats.py`, `bynat/cleaning/base.py`, `bynat/cleaning/accessor.py`, `tests/cross_cutting/workflows/test_fill_missing_from_imputation.py` |
 | Unreleased | TEST-01 comprehensive test suite audit and quality improvement: test inventory, quality remediation, public-contract and coverage gap testing, and final verification | docs/TESTING_STANDARDS.md, tests/ |
-| Unreleased | QA-02 mutation testing tooling and first advisory run: Cosmic Ray integration, core-scope configuration, scheduled advisory CI job, report upload, and initial survivor triage | pyproject.toml, cosmic-ray.toml, .github/workflows/test.yml, assets/plan/evidence/test-05/mutation_triage.md |
+| Unreleased | QA-02 mutation testing tooling and first advisory run: Cosmic Ray integration, core-scope configuration, scheduled advisory CI job, report upload, and initial survivor triage | pyproject.toml, cosmic-ray.toml, .github/workflows/test.yml |
 | Unreleased | ANALYTICS-01 analytics library integration: public `bynat.analytics` (`Analyzer`) package, input/output contracts, unit and contract tests, and documentation | bynat/analytics/__init__.py, bynat/analytics/analyzer.py, tests/modules/analytics/, README.md, docs/ROADMAP.md, docs/TESTING_STANDARDS.md |
 
 ### Public API policy

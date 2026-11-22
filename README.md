@@ -144,11 +144,12 @@ Both versions return a new object and leave `records` unchanged. Accessor method
 
 ## Using bynat
 
-bynat has three parts that work together:
+bynat has four parts that work together:
 
 - **Cleaning** (`bynat.cleaning`): column, text, statistics, enrichment, and file methods.
 - **Analytics** (`bynat.analytics`): reusable DataFrame aggregations, distributions, time series, KPIs, and histogram bins.
 - **Caching** (`bynat.caching`): SQLite-backed storage for lookup results.
+- **Profiling** (`bynat.profiling`): non-mutating data-quality inspection and profiling reports.
 
 Cleaning methods that call outside services (translation, geocoding, NLP extraction, and exchange-rate lookup) use a shared `CacheManager`. See [Caching](#caching).
 
@@ -1015,7 +1016,7 @@ CI runs the suite on Ubuntu and Windows with Python 3.11 and 3.13, plus Ruff, my
 
 ### Type checking
 
-Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager, the cleaning helper modules (`_common`, `columns`, `text`, `stats`, `io`, `enrich`), the analytics package (`analytics/__init__.py`, `analytics/analyzer.py`), the accessor boundary (`_accessors`), and the profiling package (`profiling/__init__.py`, `profiling/profile.py`, `profiling/report.py`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
+Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager, the cleaning helper modules (`_common`, `_outputs`, `columns`, `text`, `stats`, `io`, `enrich`), the analytics package (`analytics/__init__.py`, `analytics/analyzer.py`), the accessor boundary (`_accessors`), and the profiling package (`profiling/__init__.py`, `profiling/profile.py`, `profiling/report.py`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
 
 To bring a module into scope:
 

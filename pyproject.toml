@@ -81,6 +81,8 @@ files = [
     "bynat/_accessors/dataframe.py",
     "bynat/_internal/__init__.py",
     "bynat/_internal/values.py",
+    "bynat/analytics/__init__.py",
+    "bynat/analytics/analyzer.py",
     "bynat/caching/_keys.py",
     "bynat/caching/_migration.py",
     "bynat/caching/_storage.py",

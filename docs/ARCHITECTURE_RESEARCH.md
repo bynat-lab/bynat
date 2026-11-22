@@ -1,7 +1,7 @@
 # bynat Architecture Research
 
 **Task:** ARCH-03 / Issue #62
-**Repository snapshot:** local checkout at commit `b5ac64a` (`docs: research package architecture`), branch `arch-module`, package version `0.6.6`; this update is intentionally uncommitted
+**Repository snapshot:** historical research snapshot at commit `b5ac64a` (`docs: research package architecture`), branch `arch-module`, package version `0.6.6`
 **Phase 0 baseline:** commit `b2a5f43` (`Add architecture refactoring plan for bynat`), branch `arch-module`; see the Phase 0 section below
 **Research date:** 2026-11-21
 **Scope:** architecture research and documentation only. No production implementation is proposed as part of this document.
@@ -13,7 +13,7 @@
 > - **Interpretation** — an architectural conclusion drawn from the verified facts and external evidence.
 > - **Recommendation** — a proposed future direction; it is not current implementation.
 
-> **Phase 2 status update (uncommitted).** The accessor integration boundary has
+> **Phase 2 status update (implemented).** The accessor integration boundary has
 > moved to `bynat/_accessors/dataframe.py` (binding helpers in
 > `bynat/_accessors/_binding.py`), with the generated stub at
 > `bynat/_accessors/dataframe.pyi`; `bynat/cleaning/accessor.py` and
@@ -21,16 +21,18 @@
 > accessor under `cleaning/` record the pre-Phase-2 baseline used for the
 > research measurements; current-state sections have been updated.
 
-> **Phase 3 status update (uncommitted).** The root initializer now explicitly
+> **Phase 3 status update (implemented).** The root initializer now explicitly
 > imports `analytics`, `caching`, `cleaning`, and `profiling`, imports
 > `_accessors` for registration only, and imports the canonical `read_csv` and
 > `read_json` loader functions from `bynat.cleaning.io`. It declares `__all__`
-> as exactly `cleaning`, `caching`, `analytics`, `profiling`, `read_csv`,
-> `read_json`, in that order. The obsolete root exports `BynatAccessor`,
-> `ProfileReport`, and `profile` are removed. Sections below that describe the
-> earlier four-name contract or the five removed names as current record the
-> pre-adjustment baseline; current-state sections have been updated. Phase 0
-> baseline sections remain historical.
+> as exactly the six names `cleaning`, `caching`, `analytics`, `profiling`,
+> `read_csv`, `read_json`, in that order. The obsolete root exports
+> `BynatAccessor`, `ProfileReport`, and `profile` are removed. Sections below
+> that describe the earlier four-name contract or the five removed names as
+> current record the pre-adjustment baseline; current-state sections describe
+> the implemented six-name root API. The Phase 0.2/0.3 four-name root target is
+> the historical Phase 0 baseline and is superseded by that implemented
+> six-name API; those sections are retained unchanged as historical record.
 
 ## Executive conclusion
 

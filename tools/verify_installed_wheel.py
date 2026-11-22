@@ -64,7 +64,14 @@ PHASE3_TESTS = (
     "tests/modules/columns/test_columns_structural.py",
     "tests/cross_cutting/accessor/test_parity.py",
 )
-TOP_LEVEL_EXPORTS = {"BynatAccessor", "ProfileReport", "profile", "read_csv", "read_json"}
+TOP_LEVEL_EXPORTS = {
+    "cleaning",
+    "caching",
+    "analytics",
+    "profiling",
+    "read_csv",
+    "read_json",
+}
 CLEANING_EXPORTS = {"BaseData", "CsvFile", "JsonFile"}
 PACKAGE_DATA = ("bynat/py.typed", "bynat/_accessors/dataframe.pyi")
 ACCESSOR_PACKAGE_FILES = (

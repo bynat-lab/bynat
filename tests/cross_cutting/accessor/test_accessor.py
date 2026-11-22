@@ -7,10 +7,10 @@ import warnings
 import pandas as pd
 import pytest
 
-import bynat
 from bynat._accessors import BynatAccessor
 from bynat.caching import CacheManager
 from bynat.cleaning import BaseData, CsvFile, JsonFile
+from bynat.cleaning.io import read_csv, read_json
 
 pytestmark = pytest.mark.integration
 
@@ -29,7 +29,6 @@ def test_importing_bynat_registers_the_accessor():
     frame = pd.DataFrame({"a": [1]})
 
     assert isinstance(frame.bynat, BynatAccessor)
-    assert bynat.BynatAccessor is BynatAccessor
 
 
 def test_accessor_methods_return_new_plain_frames_and_leave_the_source_alone():
@@ -129,8 +128,8 @@ def test_read_json_and_read_csv_return_plain_frames(tmp_path):
     csv_path = tmp_path / "records.csv"
     csv_path.write_text("name;age\nGrace;28\n", encoding="utf-8")
 
-    json_frame = bynat.read_json(json_path, key="items")
-    csv_frame = bynat.read_csv(csv_path, sep=";")
+    json_frame = read_json(json_path, key="items")
+    csv_frame = read_csv(csv_path, sep=";")
 
     assert type(json_frame) is pd.DataFrame
     assert list(json_frame.columns) == ["name", "info.age"]
@@ -144,11 +143,11 @@ def test_read_helpers_raise_like_the_legacy_loaders(tmp_path):
     json_path.write_text("[1, 2]", encoding="utf-8")
 
     with pytest.raises(FileNotFoundError, match="JSON file not found"):
-        bynat.read_json(tmp_path / "missing.json")
+        read_json(tmp_path / "missing.json")
     with pytest.raises(FileNotFoundError, match="CSV file not found"):
-        bynat.read_csv(tmp_path / "missing.csv")
+        read_csv(tmp_path / "missing.csv")
     with pytest.raises(TypeError, match="dictionary payload"):
-        bynat.read_json(json_path, key="items")
+        read_json(json_path, key="items")
 
 
 @pytest.mark.parametrize(

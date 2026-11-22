@@ -168,23 +168,26 @@ The accessor is always called `bynat` (`df.bynat...`), whatever alias you give t
 
 ```python
 import bynat                          # registers the df.bynat accessor
-from bynat import ProfileReport, profile, read_csv, read_json
+from bynat import read_csv, read_json
 from bynat.caching import CacheManager, shared_cache_manager
 from bynat.cleaning import BaseData, CsvFile, JsonFile
 from bynat.cleaning.enrich import Geocoder, RateSource, Translator
+from bynat.cleaning.io import save_to_json, save_to_sql
+from bynat.profiling import ProfileReport, profile
 ```
 
 What each module provides:
 
 | Module | Public objects |
 | --- | --- |
-| `bynat` | `read_json`, `read_csv`, `BynatAccessor`, `profile`, `ProfileReport` |
+| `bynat` | `cleaning`, `caching`, `analytics`, `profiling`, `read_csv`, `read_json` (importing `bynat` also registers `df.bynat`) |
 | `bynat.caching` | `CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR` |
 | `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile` |
 | `bynat.profiling` | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
+| `bynat.cleaning.io` | `read_csv`, `read_json`, `save_to_json`, `save_to_sql` |
 | `bynat.cleaning.enrich` | Provider protocols `Translator`, `Geocoder`, `RateSource`, and their defaults `GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource` |
 
-> **Import submodules explicitly.** The top-level `bynat` namespace exposes only `read_json`, `read_csv`, `BynatAccessor`, `profile`, and `ProfileReport`. Import the class API from `bynat.cleaning` and the cache API from `bynat.caching`.
+> **Import submodules explicitly.** The top-level `bynat` namespace exposes the four package entry points (`cleaning`, `caching`, `analytics`, `profiling`) plus the canonical `read_csv` and `read_json` loader functions. `bynat.read_csv` and `bynat.read_json` are the same objects as `bynat.cleaning.io.read_csv` and `bynat.cleaning.io.read_json`; use the module path for the other I/O helpers. Import the class API from `bynat.cleaning`, the cache API from `bynat.caching`, and the profiling API from `bynat.profiling`.
 
 ---
 
@@ -212,8 +215,8 @@ Here is how the two ways in compare:
 | Class | Constructor parameters | Equivalent accessor or function form |
 | --- | --- | --- |
 | `BaseData` | `data=None`, `cache_dir=None`, `*args`, `**kwargs` | `pandas.DataFrame(...)` with `df.bynat`; use `df.bynat.with_cache(cache_dir)` to set a cache directory |
-| `JsonFile` | `data=None`, `json_file_path=None`, `key=None`, `cache_dir=None`, `*args`, `**kwargs` | `bynat.read_json(json_file_path, key=None)`, then `df.bynat` methods |
-| `CsvFile` | `data=None`, `csv_file_path=None`, `cache_dir=None`, `read_kwargs=None`, `*args`, `**kwargs` | `bynat.read_csv(csv_file_path, **read_kwargs)`, then `df.bynat` methods |
+| `JsonFile` | `data=None`, `json_file_path=None`, `key=None`, `cache_dir=None`, `*args`, `**kwargs` | `bynat.read_json(json_file_path, key=None)` (also `bynat.cleaning.io.read_json`), then `df.bynat` methods |
+| `CsvFile` | `data=None`, `csv_file_path=None`, `cache_dir=None`, `read_kwargs=None`, `*args`, `**kwargs` | `bynat.read_csv(csv_file_path, **read_kwargs)` (also `bynat.cleaning.io.read_csv`), then `df.bynat` methods |
 
 How `inplace` works, in both the class-based API and the accessor:
 
@@ -231,7 +234,7 @@ The accessor is an optional extra way to use bynat on ordinary DataFrames. It do
 
 - Accessor transformations return a new DataFrame by default, and also accept `inplace=True`, which mutates the DataFrame the accessor wraps and returns `None` (or the documented statistics result).
 - `df.bynat.with_cache(...)` returns an accessor that caches in another directory or in an explicit `CacheManager`.
-- `bynat.read_csv` and `bynat.read_json` return plain DataFrames that you can use the accessor on right away.
+- `bynat.read_csv` and `bynat.read_json` (also available from `bynat.cleaning.io`) return plain DataFrames that you can use the accessor on right away.
 - `get_hierarchical_stats`, `profile`, `save_to_json`, `save_to_sql`, `clear_cache_for_column`, and `with_cache` do not transform the wrapped DataFrame, so they do not accept `inplace`.
 
 ### The same job in both styles
@@ -322,7 +325,7 @@ All four forms return the same report:
 | --- | --- |
 | pandas accessor | `df.bynat.profile(*columns, output_type=None)` |
 | Class-based API | `BaseData(df).profile(*columns, output_type=None)` |
-| Top-level function | `bynat.profile(df, *columns, output_type=None)` |
+| Package function | `bynat.profiling.profile(df, *columns, output_type=None)` |
 | Profiling function | `from bynat.profiling import profile`<br>`profile(df, *columns, output_type=None)` |
 
 Passing something other than a `pandas.DataFrame` to the function forms raises a `TypeError`.

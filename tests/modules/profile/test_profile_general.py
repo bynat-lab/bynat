@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import bynat
 from bynat.cleaning import BaseData
 from bynat.profiling import (
     ColumnProfile,
@@ -48,7 +47,7 @@ def test_public_entry_points():
     rep1 = profile(df)
     assert isinstance(rep1, ProfileReport)
 
-    rep2 = bynat.profile(df)
+    rep2 = profile(df)
     assert isinstance(rep2, ProfileReport)
 
     rep3 = df.bynat.profile()

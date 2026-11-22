@@ -54,7 +54,6 @@ def test_accessors_package_exports_the_accessor_class_from_its_owner():
     assert accessors.__all__ == ["BynatAccessor"]
     assert accessors.BynatAccessor is dataframe_module.BynatAccessor
     assert BynatAccessor.__module__ == "bynat._accessors.dataframe"
-    assert bynat.BynatAccessor is BynatAccessor
     assert binding_module.__all__ == []
     for factory in ("_method_signature", "_with_inplace", "_frame_method", "_cached_frame_method"):
         assert callable(getattr(binding_module, factory))
@@ -178,7 +177,6 @@ def test_import_order_registers_the_accessor_without_circular_imports():
         "from bynat._accessors import BynatAccessor\n"
         "frame = pd.DataFrame({'user.name': ['Ada']})\n"
         "assert isinstance(frame.bynat, BynatAccessor)\n"
-        "assert bynat.BynatAccessor is BynatAccessor\n"
     )
     completed = subprocess.run(
         [sys.executable, "-c", script],

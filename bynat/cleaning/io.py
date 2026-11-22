@@ -49,9 +49,9 @@ def read_json(
 
     Example:
     ```
-        import bynat
+        from bynat.cleaning.io import read_json
 
-        jobs = bynat.read_json("jobs.json", key="items")
+        jobs = read_json("jobs.json", key="items")
         jobs = jobs.bynat.rename_all_DOTS()
     ```
     """
@@ -92,9 +92,9 @@ def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFra
 
     Example:
     ```
-        import bynat
+        from bynat.cleaning.io import read_csv
 
-        people = bynat.read_csv("people.csv", sep=";")
+        people = read_csv("people.csv", sep=";")
     ```
     """
     path = os.fspath(csv_file_path)

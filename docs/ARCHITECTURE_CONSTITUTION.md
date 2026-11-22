@@ -1,28 +1,10 @@
 # bynat Architecture Constitution
 
-**Status:** Normative and authoritative architecture constitution for `bynat`. This document is self-contained: it records the architectural knowledge, rationale, verified current facts, and behavioral contracts of the three architecture source documents. Removing the source documents must not lose important architectural knowledge.
+**Status:** Normative and authoritative architecture constitution for `bynat`.
 **Package version:** `0.6.6` (`pyproject.toml`).
-**Current checkout:** branch `arch-module`, HEAD `ff0d35fadfe941c29fcc0bde121d6b95aa6dba98` (`docs(architecture): add internal design and evolution strategy documents`).
-**Design/strategy baseline:** `6bf68bd4c99b871e61543194eb9fd82a1e8a90a0d` (`refactor(architecture): finalize Phase 5 verification`).
-**Research snapshot:** `b5ac64a` (`docs: research package architecture`); its Phase 0 baseline is `b2a5f43`.
 **Python:** `>=3.11`. **Core dependencies:** `numpy`, `pandas`.
-**Scope:** architecture rules, current structure, behavioral contracts, conditional evolution, deferred decisions, rejected alternatives, external research findings, and traceability. Testing architecture/procedures, CI, linting, typing, benchmarking, and workflow content are out of scope except for the separation statement in [§7](#7-testing-scope-separation).
+**Scope:** architecture rules, current structure, behavioral contracts, conditional evolution, deferred decisions, and rejected alternatives. Testing architecture/procedures, CI, linting, typing, benchmarking, and workflow content are out of scope except for the separation statement in [§7](#7-testing-scope-separation).
 
-> **Authority.** This document is the single authoritative architecture rulebook. It consolidates
-> the historical source documents `architecture/BYNAT_INTERNAL_ARCHITECTURE_DESIGN.md`,
-> `architecture/BYNAT_ARCHITECTURE_EVOLUTION_STRATEGY.md`,
-> and `ARCHITECTURE_RESEARCH.md`, which were removed after their content was captured here.
-> Those documents served as historical evidence and supplementary citations; they were **not**
-> required reading for any rule or contract stated here. Where any source conflicted with this
-> constitution, this constitution governs. Conflicts are
-> resolved by **chronology and explicit status** (see [§8.1](#81-source-chronology-and-conflict-resolutions)).
->
-> **Self-containment rule.** Every normative rule below is stated in full. Source links appear only as
-> supplementary evidence (which document first recorded a decision) or as repository artifact pointers;
-> no important behavioral contract, decision rationale, research finding, or constraint is represented only
-> by a link to a source document. [§8.5](#85-source-by-source-coverage) records per-source coverage; the
-> three sources were deleted without architectural loss.
->
 > **Status labels used below.**
 >
 > - **Normative** — binding rule; unique `ARCH-###` identifier.
@@ -40,14 +22,13 @@
 ## 1. Normative rules
 
 Rules are grouped by topic and numbered `ARCH-001` … `ARCH-091`. Each ID is unique and stable: amendments add,
-repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure). The self-containment
-expansion added no new rule IDs; `ARCH-001`–`ARCH-091` is unchanged.
+repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure).
 
 ### 1.1 Authority, scope, and evidence
 
 | ID | Rule |
 |---|---|
-| ARCH-001 | This constitution is the authoritative architecture rulebook for `bynat`. It supersedes conflicting architecture prose in the three source documents, which are retained as evidence. |
+| ARCH-001 | This constitution is the authoritative architecture rulebook for `bynat`. |
 | ARCH-002 | Every architectural statement must be labeled **Current**, **Conditional**, **Deferred**, or **Rejected**. A future proposal must never be stated as a current fact, and a current fact must never be stated as a proposal. |
 | ARCH-003 | Compatibility with previous published versions is **out of scope**. Obsolete public paths and aliases are removed directly, not retained as compatibility facades. Behavior and contracts that remain part of the current intentional API are preserved because they are current correctness, not legacy compatibility. |
 | ARCH-004 | `bynat` is **one installable modular monolith** with a flat package layout at the repository root (not `src/`). Extraction into separate distributions or services (Stage E) is rejected unless a concrete deployment, versioning, or team-boundary requirement appears. |
@@ -178,7 +159,7 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 
 | ID | Phase | Scenario | Structural transition | Trigger | Scope | Acceptance | Rollback |
 |---|---|---|---|---|---|---|---|
-| ARCH-069 | E1 | Cleaning grows 5–10× | Stage A→B via M2 | ≥2 capability clusters, each ≥2 modules with distinct change reasons; responsibility divergence demonstrated | `cleaning/{columns,text,stats,io}/` | Public `__all__` unchanged; dependency matrix unchanged; change-coupling shows independence; §1.2/§13 preservation rules applied | Re-collapse subpackages |
+| ARCH-069 | E1 | Cleaning grows 5–10× | Stage A→B via M2 | ≥2 capability clusters, each ≥2 modules with distinct change reasons; responsibility divergence demonstrated | `cleaning/{columns,text,stats,io}/` | Public `__all__` unchanged; dependency matrix unchanged; change-coupling shows independence; §1.2 preservation rules applied | Re-collapse subpackages |
 | ARCH-070 | E2 | Analytics grows from one class to a family | M1 (module split) | ≥2 public method clusters with different dependencies and change reasons | `analytics/_*` private capability modules | `Analyzer` public contract unchanged; `analytics` still imports no `bynat` package | Re-inline modules |
 | ARCH-071 | E3 | Caching gains a second backend | Stage B + relocation | A concrete second-backend requirement with its own lifecycle; `CacheManager` contract unchanged | `caching/backends/`; relocate `_storage.py` → `backends/sqlite.py` | Protocol consumer is `CacheManager`; exactly two implementations satisfy one contract; no speculative framework; no new cross-package private import | Re-inline backend |
 | ARCH-072 | E4 | Integrations grow | Stage B via M2 | ≥3 provider families or a provider with its own configuration/lifecycle | `cleaning/enrich/providers/` | Provider surface unchanged; protocols keep consumers; no new cross-package private import | Re-inline providers |
@@ -227,10 +208,6 @@ This section records the architecture as observed at the current HEAD. It is ref
 
 | Item | Value |
 |---|---|
-| Repository root | `D:\My Own Environment Libraries\bynat\bynat` |
-| Branch | `arch-module` |
-| HEAD | `ff0d35fadfe941c29fcc0bde121d6b95aa6dba98` (docs-only commit) |
-| Working tree | clean (`git status --porcelain` empty at inspection) |
 | Package version | `0.6.6` |
 | Python | `>=3.11` |
 | Core dependencies | `numpy`, `pandas` |
@@ -347,7 +324,7 @@ ARCH-045 changes them to the canonical names.
 | Function identity | `bynat.read_csv is bynat.cleaning.io.read_csv`; likewise `read_json` | ARCH-010 |
 | `cleaning.io._dedupe_key` | `is bynat._internal.dedupe_key` | ARCH-010 |
 | Accessor wrapped identity | `BynatAccessor.<method>.__wrapped__ is <functional module>.<func>` for `columns`, `text`, `stats` | ARCH-010, ARCH-011 |
-| Generated stub | `bynat/_accessors/dataframe.pyi` synchronized with `dataframe.py` by `tools/sync_docs.py` | ARCH-010, ARCH-075 (AF-13) |
+| Generated stub | `bynat/_accessors/dataframe.pyi` synchronized with `dataframe.py` by `tools/sync_docs.py` | ARCH-010, ARCH-075 |
 | Documented path | `bynat.cleaning.io` is documented and pinned | ARCH-009 |
 | Package attributes | `from bynat.cleaning import columns, io, stats, text`; `from bynat.cleaning.enrich import providers` | ARCH-011 |
 
@@ -366,25 +343,10 @@ ARCH-045 changes them to the canonical names.
 ### 2.8 Current architecture-governance state
 
 The repository has existing boundary-verification evidence for the root API, package exports, accessor ownership,
-profiling independence, and the canonical `_internal` helper. The proposed dependency-graph enforcement described in
-the source design is not yet present. Import-Linter and the optional private-import lint rule are not adopted. Private
+profiling independence, and the canonical `_internal` helper. The dependency-graph enforcement required by ARCH-075 is not yet present. Import-Linter and the optional private-import lint rule are not adopted. Private
 alias normalization (ARCH-045/046) is adopted but not implemented; the aliases remain in the current checkout.
 
-### 2.9 Verification of current facts
-
-The current facts above were verified by direct inspection at HEAD: `git ls-files` over `bynat/**/*.py` (31 files),
-AST parsing of every module's `__all__`, AST extraction of internal imports (absolute and relative), `git status`,
-`git rev-parse HEAD`, `pyproject.toml`, the six package initializers, and `tools/sync_docs.py` constants. A fresh
-interpreter probe at this HEAD additionally confirmed `bynat.__all__`, `read_csv.__module__ == "bynat.cleaning.io"`,
-`read_json.__module__ == "bynat.cleaning.io"`, `bynat.read_csv is bynat.cleaning.io.read_csv`, accessor
-registration, the absence of `BaseData`/`CsvFile`/`JsonFile`/`BynatAccessor`/`ProfileReport`/`profile` from the
-root namespace, and package version `0.6.6`. Direct source inspection confirmed the five alias blocks and the
-consumer import sites described in [§1.8](#18-private-helpers-aliases-and-naming) and [§2.5](#25-the-five-current-private-import-exceptions).
-The source design reports a baseline of `693 passed, 29 deselected, 16 xfailed`; ruff clean; mypy clean (134 files) at
-`6bf68bd`. The current HEAD adds only the two architecture documents, so that source-reported baseline is retained as
-evidence and was not re-executed for this constitution.
-
-### 2.10 Behavioral contracts (Current)
+### 2.9 Behavioral contracts (Current)
 
 These are the twenty behaviorally significant flows. They are **Current** facts about how the architecture
 behaves and are the contracts any internal reorganization must preserve. Testing procedures and coverage
@@ -451,7 +413,7 @@ Core: `df` must be a `pd.DataFrame` (else TypeError); a single collection argume
 **F20 — Optional-dependency failure behavior (cross-cutting).**
 `import_optional(module_name, distribution, feature)` wraps `ImportError` as `ImportError('<feature> requires the optional '<distribution>' dependency.')`, chaining the original; it currently catches any ImportError raised during module import, masking real defects inside an installed optional package (recorded follow-up). Hard-required at call: `categorize_by_reference` → pyahocorasick; `extract_entities_nlp` → spacy/spacy.matcher; `impute_by_language`/`translate_conditional_column` → langdetect; `fill_missing_coordinates` → geopy when no provider; `convert_to_usd` → pycountry/Babel and yfinance when no provider; `save_to_sql` → SQLAlchemy after argument validation. Soft/optional: `extract_keywords` → pyahocorasick with silent regex fallback. Providers import `deep_translator`/`geopy.geocoders`/`geopy.extra.rate_limiter`/`yfinance` in their constructors. `_cached_map` calls `on_fetch_start(total)` only when uncached work exists, and exceptions from it propagate. Cached methods call `get_column_cache` (which may initialize SQLite) before constructing the provider/model. `provider=` injection bypasses default imports. Failures occur before any result is produced; no partial frame is returned.
 
-### 2.11 Module responsibility inventory (Current)
+### 2.10 Module responsibility inventory (Current)
 
 Public status legend: **Public** = reachable through an intentional package `__all__`; **Package-internal** =
 importable module not re-exported in a package `__all__`; **Private** = underscore module/package outside any
@@ -493,54 +455,7 @@ public API.
 | `bynat/profiling/profile.py` | Non-mutating profiling core | `profile` + kind/stat helpers | `profiling.report`, `_internal` | Package-internal |
 | `bynat/profiling/report.py` | Report data models | `ProfileReport`, `DatasetProfile`, `ColumnProfile` | none | Package-internal |
 
-### 2.12 Current measured baseline (Current)
-
-AST-based measurement over every tracked `bynat/**/*.py` file at the design/strategy baseline `6bf68bd`
-(excluding `__pycache__`; the generated `dataframe.pyi` is excluded from `.py` counts). Total = physical lines;
-blank = empty/whitespace; comment = non-empty lines whose first non-whitespace char is `#`; docstring =
-physical span of module/class/function docstring nodes; code = the remainder. This is a comparative measure,
-not a quality claim.
-
-| File | Total | Code | Blank | Comment | Docstring |
-|---|---:|---:|---:|---:|---:|
-| `cleaning/base.py` | 2,234 | 283 | 303 | 10 | 1,638 |
-| `cleaning/stats.py` | 1,054 | 563 | 131 | 4 | 356 |
-| `analytics/analyzer.py` | 737 | 297 | 148 | 0 | 292 |
-| `profiling/profile.py` | 712 | 335 | 107 | 5 | 265 |
-| `cleaning/columns.py` | 706 | 189 | 160 | 5 | 352 |
-| `cleaning/text.py` | 523 | 207 | 128 | 1 | 187 |
-| `caching/manager.py` | 460 | 137 | 102 | 1 | 220 |
-| `cleaning/enrich/translate.py` | 459 | 192 | 93 | 0 | 174 |
-| `cleaning/enrich/nlp.py` | 406 | 216 | 95 | 0 | 95 |
-| `cleaning/io.py` | 397 | 147 | 94 | 3 | 153 |
-| `profiling/report.py` | 351 | 68 | 57 | 0 | 226 |
-| `cleaning/enrich/providers.py` | 259 | 45 | 59 | 0 | 155 |
-| `caching/_storage.py` | 256 | 110 | 39 | 0 | 107 |
-| `cleaning/enrich/currency.py` | 236 | 121 | 59 | 3 | 53 |
-| `caching/_migration.py` | 232 | 151 | 28 | 2 | 51 |
-| `cleaning/enrich/engine.py` | 231 | 121 | 52 | 1 | 57 |
-| `_accessors/_binding.py` | 223 | 103 | 34 | 6 | 80 |
-| `_accessors/dataframe.py` | 211 | 36 | 38 | 2 | 135 |
-| `cleaning/enrich/geocode.py` | 182 | 84 | 42 | 0 | 56 |
-| `cleaning/_outputs.py` | 129 | 36 | 32 | 1 | 60 |
-| `cleaning/_common.py` | 126 | 37 | 28 | 3 | 58 |
-| `caching/_keys.py` | 88 | 23 | 24 | 1 | 40 |
-| `_internal/values.py` | 33 | 9 | 10 | 0 | 14 |
-| `cleaning/enrich/__init__.py` | 19 | 16 | 2 | 0 | 1 |
-| `__init__.py` | 18 | 10 | 3 | 0 | 5 |
-| `_accessors/__init__.py` | 10 | 1 | 3 | 0 | 6 |
-| `caching/__init__.py` | 8 | 7 | 1 | 0 | 0 |
-| `_internal/__init__.py` | 5 | 2 | 2 | 0 | 1 |
-| `analytics/__init__.py` | 5 | 2 | 2 | 0 | 1 |
-| `profiling/__init__.py` | 4 | 3 | 1 | 0 | 0 |
-| `cleaning/__init__.py` | 3 | 2 | 1 | 0 | 0 |
-| **Total (31 files)** | **10,317** | **3,553** | **1,878** | **48** | **4,838** |
-
-`bynat/_accessors/dataframe.pyi` (1,570 lines) is generated and excluded from the `.py` measurement. The
-research report measured 10,171 physical LOC at its `b2a5f43` Phase 0 baseline; the difference is the commit
-and Phase 1–3 implementation, not a decision conflict.
-
-### 2.13 Documented hazards and dispositions (Current)
+### 2.11 Documented hazards and dispositions (Current)
 
 These are verified findings about the current implementation. They are not structural proposals; each has an
 explicit disposition.
@@ -568,13 +483,6 @@ changes, extract one shared contract helper and pin parity. `_shares_doc`: **Ret
 doc-sync verification. `import_optional`: **Deferred** behavioral follow-up. `cache_value_key`,
 `cache_has_value`, `cache_lookup_value`: **Required**, covered by the alias normalization. `is_basedata_type`:
 **Retain**, documented relocation hazard. `shared_cache_manager`: **Retain**, intentional lifecycle.
-
-### 2.14 Behavioral follow-ups are not architecture
-
-The source documents record 12 implementation–documentation discrepancies and 15 test coverage gaps. They
-are correctness/coverage follow-ups, not architectural decisions, and are intentionally not duplicated here
-(see [§7](#7-testing-scope-separation)). The architecture-relevant parts of those findings that impose a
-constraint or hazard are captured in [§2.13](#213-documented-hazards-and-dispositions-current).
 
 ---
 
@@ -916,7 +824,7 @@ These are deliberate non-decisions. None prevents the near-term work.
 
 **Behavioral follow-ups are not architecture decisions.** Correctness findings and verification gaps recorded by
 the source documents are outside this constitution's scope and are not duplicated here. The architecture-relevant
-constraints and hazards they expose are recorded in [§2.13](#213-documented-hazards-and-dispositions-current); the
+constraints and hazards they expose are recorded in [§2.11](#211-documented-hazards-and-dispositions-current); the
 remainder are correctness/coverage follow-ups governed by `docs/TESTING_STANDARDS.md`. See [§7](#7-testing-scope-separation).
 
 ---
@@ -975,10 +883,9 @@ The prohibitions in [§1.13](#113-prohibited-patterns) are normative. The evalua
    ARCH-025 (private-import exceptions), ARCH-064 (reversibility), and the hard rules ARCH-068.
 3. **Enforce.** Confirm the change has an automated check or an explicit documented exception (ARCH-063). A new
    cross-package private import requires a new exception entry before merge.
-4. **Record.** Update the traceability matrix in [§8](#8-traceability), including the source/evidence references.
-5. **Resolve conflicts.** Apply ARCH-002 and ARCH-090: label status explicitly; prefer later implemented status over
+4. **Resolve conflicts.** Apply ARCH-002 and ARCH-090: label status explicitly; prefer later implemented status over
    earlier historical prose; prefer current checkout facts over source-reported baselines.
-6. **Review.** A structural change review states the trigger it satisfies and its rollback (ARCH-078). Conditional
+5. **Review.** A structural change review states the trigger it satisfies and its rollback (ARCH-078). Conditional
    phases are opened only through the operational review procedure (ARCH-066).
 
 The constitution may be corrected for internal consistency without changing an architectural decision; such a

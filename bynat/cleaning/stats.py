@@ -7,15 +7,15 @@ import numpy as np
 import pandas as pd
 
 from ._common import (
-    _HIERARCHICAL_STATS_COLUMNS,
+    HIERARCHICAL_STATS_COLUMNS,
     FrameT,
-    _left_merge_aligned,
+    left_merge_aligned,
     logger,
 )
 from ._outputs import (
-    _convert_default_output,
-    _convert_output,
-    _validate_output_type,
+    convert_default_output,
+    convert_output,
+    validate_output_type,
 )
 
 __all__ = [
@@ -422,7 +422,7 @@ def fill_missing(
                     columns = {col: '_mode_val'}
                 )
 
-                temp_df = _left_merge_aligned(
+                temp_df = left_merge_aligned(
                     result, modes_df[current_group + ['_mode_val']], current_group
                 )
                 result[col] = result[col].fillna(temp_df['_mode_val'])
@@ -635,7 +635,7 @@ def fill_missing_from(
     if not resolved_targets:
         logger.warning("No valid target columns found for imputation.")
         if get_hierarchical_stats:
-            stats_df = pd.DataFrame(columns=_HIERARCHICAL_STATS_COLUMNS)
+            stats_df = pd.DataFrame(columns=HIERARCHICAL_STATS_COLUMNS)
             return result, stats_df
         return result
 
@@ -643,7 +643,7 @@ def fill_missing_from(
     if not valid_cols:
         logger.warning("No valid target columns found for imputation.")
         if get_hierarchical_stats:
-            stats_df = pd.DataFrame(columns=_HIERARCHICAL_STATS_COLUMNS)
+            stats_df = pd.DataFrame(columns=HIERARCHICAL_STATS_COLUMNS)
             return result, stats_df
         return result
 
@@ -723,7 +723,7 @@ def fill_missing_from(
                     rename_map = {ref: tgt for tgt, ref in zip(current_group, ref_current_group)}
                     stats_df = stats_df.rename(columns=rename_map)
 
-                temp_df = _left_merge_aligned(
+                temp_df = left_merge_aligned(
                     result, stats_df[current_group + ['_impute_val']], current_group
                 )
                 result[col] = result[col].fillna(temp_df['_impute_val'])
@@ -759,7 +759,7 @@ def fill_missing_from(
                     rename_map = {ref: tgt for tgt, ref in zip(current_group, ref_current_group)}
                     modes_df = modes_df.rename(columns=rename_map)
 
-                temp_df = _left_merge_aligned(
+                temp_df = left_merge_aligned(
                     result, modes_df[current_group + ['_mode_val']], current_group
                 )
                 result[col] = result[col].fillna(temp_df['_mode_val'])
@@ -881,12 +881,12 @@ def get_hierarchical_stats(
         )
     ```
     """
-    _validate_output_type(output_type)
+    validate_output_type(output_type)
     default_output = output_type is None
     resolved_output_type = type(df) if default_output else output_type
-    _validate_output_type(resolved_output_type)
+    validate_output_type(resolved_output_type)
 
-    stats_df = pd.DataFrame(columns=_HIERARCHICAL_STATS_COLUMNS)
+    stats_df = pd.DataFrame(columns=HIERARCHICAL_STATS_COLUMNS)
 
     if isinstance(strategy, str):
         requested_strategies = [strategy]
@@ -922,8 +922,8 @@ def get_hierarchical_stats(
     if not valid_cols:
         logger.warning("No valid target columns found for statistics extraction.")
         if default_output:
-            return _convert_default_output(stats_df, resolved_output_type)
-        return _convert_output(stats_df, resolved_output_type)
+            return convert_default_output(stats_df, resolved_output_type)
+        return convert_output(stats_df, resolved_output_type)
 
     if isinstance(hierarchy_cols, str):
         hierarchy_cols = [hierarchy_cols]
@@ -938,8 +938,8 @@ def get_hierarchical_stats(
         )
     if not valid_group or df.empty:
         if default_output:
-            return _convert_default_output(stats_df, resolved_output_type)
-        return _convert_output(stats_df, resolved_output_type)
+            return convert_default_output(stats_df, resolved_output_type)
+        return convert_output(stats_df, resolved_output_type)
 
     source_df = pd.DataFrame(df)
     strategy_rows: dict[str, list[dict[str, Any]]] = {
@@ -1033,7 +1033,7 @@ def get_hierarchical_stats(
     for current_strategy in canonical_strategies:
         rows.extend(strategy_rows[current_strategy])
 
-    stats_df = pd.DataFrame(rows, columns=_HIERARCHICAL_STATS_COLUMNS)
+    stats_df = pd.DataFrame(rows, columns=HIERARCHICAL_STATS_COLUMNS)
     logical_key_columns = [
         'hierarchy_level',
         'hierarchy_columns',
@@ -1046,8 +1046,8 @@ def get_hierarchical_stats(
             "hierarchical statistics produced duplicate logical keys"
         )
     if default_output:
-        return _convert_default_output(stats_df, resolved_output_type)
-    return _convert_output(stats_df, resolved_output_type)
+        return convert_default_output(stats_df, resolved_output_type)
+    return convert_output(stats_df, resolved_output_type)
 
 # The hierarchy methods take a `get_hierarchical_stats` flag that shadows the
 # function name inside their bodies.

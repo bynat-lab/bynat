@@ -6,7 +6,7 @@ from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
-from .._common import _import_optional
+from .._common import import_optional
 
 __all__ = [
     "Geocoder",
@@ -109,7 +109,7 @@ class GoogleTranslatorProvider:
         Raises:
             ImportError: If `deep_translator` is not installed.
         """
-        self._module = _import_optional("deep_translator", "deep-translator", feature)
+        self._module = import_optional("deep_translator", "deep-translator", feature)
         self._local = threading.local()
 
     def translate(self, text: str, target_lang: str) -> str | None:
@@ -168,8 +168,8 @@ class NominatimGeocoder:
         Raises:
             ImportError: If `geopy` is not installed.
         """
-        geocoders = _import_optional("geopy.geocoders", "geopy", feature)
-        rate_limiter = _import_optional("geopy.extra.rate_limiter", "geopy", feature)
+        geocoders = import_optional("geopy.geocoders", "geopy", feature)
+        rate_limiter = import_optional("geopy.extra.rate_limiter", "geopy", feature)
 
         geolocator = geocoders.Nominatim(user_agent = user_agent)
         self._geocode = rate_limiter.RateLimiter(geolocator.geocode, min_delay_seconds = min_delay_seconds)
@@ -217,7 +217,7 @@ class YFinanceRateSource:
         Raises:
             ImportError: If `yfinance` is not installed.
         """
-        self._yfinance = _import_optional("yfinance", "yfinance", feature)
+        self._yfinance = import_optional("yfinance", "yfinance", feature)
 
     def yearly_rates(self, currency: str, start_year: int, end_year: int) -> dict[int, float]:
         """

@@ -80,9 +80,3 @@ def cache_lookup_value(cache: dict, value: Any) -> Any:
         return cache[value]
     except (KeyError, TypeError):
         return value
-
-
-# Package-internal aliases for backward compatibility with private imports.
-_cache_value_key = cache_value_key
-_cache_has_value = cache_has_value
-_cache_lookup_value = cache_lookup_value

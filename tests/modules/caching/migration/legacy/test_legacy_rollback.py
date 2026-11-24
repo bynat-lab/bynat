@@ -177,4 +177,4 @@ def test_legacy_migration_unsupported_serialization_and_locking_retry(tmp_path, 
     manager._migrate_legacy_json_cache("translate")
     assert attempts["count"] == 2
 
-    manager._migrate_legacy_cache("translate")
+    manager._migrate_legacy_json_cache("translate")

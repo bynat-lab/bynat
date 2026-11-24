@@ -9,7 +9,7 @@ import pandas as pd
 
 from bynat._internal import dedupe_key as _dedupe_key
 
-from ._common import _import_optional, logger
+from ._common import import_optional, logger
 
 __all__ = [
     "IfExists",
@@ -367,7 +367,7 @@ def save_to_sql(
 
         engine_url = f"{db_type}://{encoded_user}:{encoded_pass}@{db_host}:{db_port}/{db_name}"
 
-    sqlalchemy = _import_optional("sqlalchemy", "SQLAlchemy", "save_to_sql")
+    sqlalchemy = import_optional("sqlalchemy", "SQLAlchemy", "save_to_sql")
 
     export_df = df.copy()
 

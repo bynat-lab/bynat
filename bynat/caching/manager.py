@@ -13,11 +13,7 @@ from ._migration import (
     migrate_legacy_json_cache,
     quarantine_corrupt_cache_file,
 )
-from ._storage import (
-    SQLITE_DATABASE_NAME,
-    SQLITE_TIMEOUT_SECONDS,
-    SQLiteStorage,
-)
+from ._storage import SQLiteStorage
 
 __all__ = [
     "CACHE_DIR_ENV_VAR",
@@ -35,8 +31,6 @@ CACHE_DIR_ENV_VAR = "BYNAT_CACHE_DIR"
 
 DEFAULT_CACHE_DIR = "Settings/Cache Data/Automated"
 """Legacy relative default cache directory, resolved from the working directory."""
-_SQLITE_DATABASE_NAME = SQLITE_DATABASE_NAME
-_SQLITE_TIMEOUT_SECONDS = SQLITE_TIMEOUT_SECONDS
 
 
 def resolve_cache_dir(cache_dir: str | PathLike | None) -> str | PathLike:
@@ -154,10 +148,6 @@ class CacheManager:
             initialize_fn = self._initialize_sqlite,
             connect_fn = self._connect_sqlite,
         )
-
-    def _migrate_legacy_cache(self, func_name: str) -> None:
-        """Compatibility name for the reusable legacy migration helper."""
-        self._migrate_legacy_json_cache(func_name)
 
     def _rebuild_function_cache_from_sqlite(self, func_name: str) -> dict:
         """

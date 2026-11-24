@@ -116,11 +116,3 @@ def like(df: FrameT, data: pd.DataFrame) -> FrameT:
     # pandas-stubs types `_constructor` as an attribute, not a callable.
     constructor: Any = df._constructor
     return cast(FrameT, constructor(data).__finalize__(df))
-
-
-# Internal aliases for backward compatibility within the package.
-_HIERARCHICAL_STATS_COLUMNS = HIERARCHICAL_STATS_COLUMNS
-_import_optional = import_optional
-_require_positive_int = require_positive_int
-_left_merge_aligned = left_merge_aligned
-_like = like

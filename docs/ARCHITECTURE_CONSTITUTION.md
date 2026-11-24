@@ -15,7 +15,7 @@
 >
 > **Implementation authorization.** This constitution is documentation. It authorizes no source, test, configuration,
 > or CI change by itself. The internal normalization in [§1.8](#18-private-helpers-aliases-and-naming) is an adopted
-> rule whose implementation is still pending at the current HEAD. The helper placement and organization rules in
+> rule whose implementation is complete in the current checkout (ARCH-045/ARCH-046). The helper placement and organization rules in
 > [§1.15](#115-helper-placement-and-organization) are adopted normative rules whose current-state status is recorded
 > in [§2.10](#210-module-responsibility-inventory-current); they do not force code moves.
 
@@ -67,7 +67,7 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 
 | ID | Rule |
 |---|---|
-| ARCH-022 | Permitted internal dependency edges are exactly: root → `cleaning`, `caching`, `analytics`, `profiling`, `_accessors`, `cleaning.io`; `_accessors` → `cleaning` (public modules plus `_outputs.is_basedata_type`), `caching`, `profiling`; `cleaning` → `caching` (public API plus the documented `caching._keys` edges), `profiling`, `_internal`; `profiling` → `_internal`; `analytics` → none; `caching` → none; `_internal` → none. |
+| ARCH-022 | Permitted internal dependency edges are exactly: root → `cleaning`, `caching`, `analytics`, `profiling`, `_accessors`, `cleaning.io`; `_accessors` → `cleaning` (`columns`, `io`, `stats`, `text`, `_outputs.is_basedata_type`, and the enrichment feature modules `cleaning.enrich.{currency,geocode,nlp,translate}`), `caching`, `profiling`; `cleaning` → `caching` (public API plus the documented `caching._keys` edges), `profiling`, `_internal`; `profiling` → `_internal`; `analytics` → none; `caching` → none; `_internal` → none. |
 | ARCH-023 | Prohibited internal edges: `caching` → `cleaning`/`analytics`/`profiling`/`_accessors`; `analytics` → any `bynat` package; `profiling` → `cleaning`/`analytics`/`caching`/`_accessors`; `cleaning` → `analytics`/`_accessors`; any functional package → `_accessors`; `_internal` → any functional package; `_accessors` → `_internal` (no use case; add only with evidence). |
 | ARCH-024 | Cross-package private-module imports are exactly the **five documented exceptions** below. No other cross-package private-module import exists. |
 
@@ -91,7 +91,7 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 |---|---|
 | ARCH-028 | The adopted shape is **Functional Core + Facades**. Pure data transformations live in the functional modules; `BaseData`, `BynatAccessor`, providers, and `CacheManager` form the imperative shell that performs I/O and external effects. |
 | ARCH-029 | Transformations are stateless functions with frame-first signatures. They preserve index, order, and length; they state copy-versus-mutate (`inplace`) and output-container (`output_type`) behavior explicitly. No `fit`/`transform` estimator layer and no lazy execution layer is introduced. |
-| ARCH-030 | Facades delegate; they do not duplicate algorithms. `BaseData` delegates to the functional modules; `BynatAccessor` adapts shared functions through the binding factories. The dual `BaseData._finish_with_stats` / `_frame_method(stats=True)` contract is retained as a parity-pinned duplication, not silently unified. |
+| ARCH-030 | Facades delegate; they do not duplicate algorithms. `BaseData` delegates to the functional modules; `BynatAccessor` adapts shared functions through the binding factories. The dual `BaseData._finish_with_stats` / `bynat._accessors._binding._frame_method(stats=True)` contract, including the accessor methods generated from it, is retained as a parity-pinned duplication, not silently unified. |
 | ARCH-031 | Accessor eligibility is contract-based. A function belongs on `df.bynat` only when all seven criteria hold: DataFrame receiver fit; stable fluent workflow; clear receiver contract; facade independence; optional integration value; justified public API cost; no hidden external boundary. Automatic mirroring is rejected. |
 | ARCH-032 | Classes and protocols are introduced only with a concrete consumer and a lifecycle or structural contract. Composition is preferred over inheritance. The only protocols are `Translator`, `Geocoder`, and `RateSource`. |
 | ARCH-033 | The normative internal interface inventory is: `CacheManager`; `Analyzer`; `BaseData`/`JsonFile`/`CsvFile`; `BynatAccessor`; `Translator`/`Geocoder`/`RateSource`; `DatasetProfile`/`ColumnProfile`/`ProfileReport`; `SQLiteStorage`. |
@@ -122,8 +122,8 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ID | Rule |
 |---|---|
 | ARCH-044 | The canonical name of every private helper is the name declared in its owning module's `__all__`. No module-level compatibility alias is retained; internal consumers import the canonical name. |
-| ARCH-045 | **Adopted, pending implementation.** The alias layer in `cleaning/_common.py`, `cleaning/_outputs.py`, `caching/_keys.py`, `caching/_migration.py`, and `caching/manager.py` is removed, and consumer imports are updated to canonical names. At the current HEAD these aliases are still present; the current state is explicitly pre-normalization. |
-| ARCH-046 | Dead private wrappers `_SQLITE_DATABASE_NAME`, `_SQLITE_TIMEOUT_SECONDS`, and `CacheManager._migrate_legacy_cache` are removed. The surviving migration symbol is `CacheManager._migrate_legacy_json_cache`; the module-level alias `caching._migration._migrate_legacy_json_cache` is dead and removed. |
+| ARCH-045 | **Implemented.** The alias layer in `cleaning/_common.py`, `cleaning/_outputs.py`, `caching/_keys.py`, `caching/_migration.py`, and `caching/manager.py` is removed, and consumer imports are updated to canonical names in the current checkout. |
+| ARCH-046 | **Implemented.** Dead private wrappers `_SQLITE_DATABASE_NAME`, `_SQLITE_TIMEOUT_SECONDS`, and `CacheManager._migrate_legacy_cache` are removed. The surviving migration symbol is `CacheManager._migrate_legacy_json_cache`; the module-level alias `caching._migration._migrate_legacy_json_cache` is dead and removed. |
 | ARCH-047 | Consumer-side local naming (`cleaning/io.py` and `profiling/profile.py` importing `dedupe_key as _dedupe_key`) is a naming convention, not a module-level alias, and remains unchanged. |
 | ARCH-048 | True delegating methods (`CacheManager._quarantine_corrupt_cache_file`, `CacheManager._migrate_legacy_json_cache`) are not aliases and remain. |
 | ARCH-049 | The stale logger names `"bynat.cleaning.Cleaning"` and `"bynat.caching.Caching"` are a documented compatibility decision and are retained. |
@@ -246,7 +246,7 @@ This is illustrative, not a proposed current-tree change. A single helper module
 
 ## 2. Current architecture reference (Current facts)
 
-This section records the architecture as observed at the current HEAD. It is reference, not proposal.
+This section records the architecture as observed in the current checkout. It is reference, not proposal.
 
 ### 2.1 Repository identity
 
@@ -323,11 +323,11 @@ Importing `bynat` registers `df.bynat`. `BaseData`, `CsvFile`, `JsonFile`, `Byna
 
 ### 2.4 Current dependency matrix
 
-Permitted edges are listed in ARCH-022; prohibited edges in ARCH-023. The observed internal import graph at HEAD is:
+Permitted edges are listed in ARCH-022; prohibited edges in ARCH-023. The observed internal import graph in the current checkout is:
 
 ```text
 bynat/__init__ ──> cleaning, caching, analytics, profiling, _accessors, cleaning.io
-_accessors/dataframe ──> cleaning (public + _outputs), caching, profiling, _accessors._binding
+_accessors/dataframe ──> cleaning (columns/io/stats/text + _outputs + enrich.currency/geocode/nlp/translate), caching, profiling, _accessors._binding
 cleaning/base ──> cleaning (columns, io, stats, text, enrich, enrich.providers), caching, profiling, cleaning._outputs
 cleaning/{columns,text} ──> cleaning._common
 cleaning/stats ──> cleaning._common, cleaning._outputs
@@ -345,19 +345,26 @@ No import cycle is present.
 
 ### 2.5 The five current private-import exceptions
 
-Observed at HEAD (all absolute imports):
+Observed in the current checkout (all absolute imports). These are exactly the five cross-package private-module imports of
+ARCH-024; the root package's registration import is separate and is described after the table.
 
 | # | Importer | Import statement |
 |---|---|---|
-| 1 | `bynat/cleaning/enrich/engine.py` | `from bynat.caching._keys import _cache_value_key` |
-| 2 | `bynat/cleaning/enrich/translate.py` | `from bynat.caching._keys import _cache_has_value, _cache_lookup_value` |
+| 1 | `bynat/cleaning/enrich/engine.py` | `from bynat.caching._keys import cache_value_key` |
+| 2 | `bynat/cleaning/enrich/translate.py` | `from bynat.caching._keys import cache_has_value, cache_lookup_value` |
 | 3 | `bynat/_accessors/dataframe.py` | `from bynat.cleaning._outputs import is_basedata_type` |
 | 4 | `bynat/cleaning/io.py` | `from bynat._internal import dedupe_key as _dedupe_key` |
 | 5 | `bynat/profiling/profile.py` | `from bynat._internal import dedupe_key as _dedupe_key` |
 
 The canonical exports are `cache_value_key`, `cache_has_value`, `cache_lookup_value` in `caching/_keys.py`, and
-`is_basedata_type` in `cleaning/_outputs.py`. Importers 1–2 currently use the alias names; the normalization rule
-ARCH-045 changes them to the canonical names.
+`is_basedata_type` in `cleaning/_outputs.py`. Importers 1–2 import the canonical names; normalization ARCH-045 is
+implemented in the current checkout.
+
+The root package's own registration import, `bynat/__init__.py → bynat._accessors`, is **not** one of these five
+exceptions. It is explicitly required by ARCH-006 ("Importing `bynat` registers `df.bynat` through a private
+`_accessors` import") and is a root-to-registration-package import, not a functional-package cross-package
+private-module import. The dependency-graph test observes it separately as a mandatory root edge; the count of
+ARCH-024 exceptions remains exactly five.
 
 ### 2.6 Compatibility surfaces
 
@@ -387,10 +394,27 @@ ARCH-045 changes them to the canonical names.
 ### 2.8 Current architecture-governance state
 
 The repository has existing boundary-verification evidence for the root API, package exports, accessor ownership,
-profiling independence, and the canonical `_internal` helper. The dependency-graph enforcement required by ARCH-075 is not yet present. Import-Linter and the optional private-import lint rule are not adopted. Private
-alias normalization (ARCH-045/046) is adopted but not implemented; the aliases remain in the current checkout.
-Helper placement and organization rules ARCH-092–ARCH-097 are adopted and normative; the current responsibility-named
-owner modules remain in place (ARCH-095).
+profiling independence, and the canonical `_internal` helper. The dependency-graph enforcement required by ARCH-075 is
+provided by the AST contract test `tests/cross_cutting/contracts/test_architecture_dependencies.py` in the current
+checkout: it models runtime package/module edges, rejects prohibited and unlisted edges, enforces the five
+private-import exceptions with their exact symbol allowlists, detects runtime cycles with TYPE_CHECKING-only imports
+ignored, and rejects row-wise iteration (ARCH-027) in production transformation paths. Automated checks are
+separate from human review: the AST dependency contract plus the root public-API/export contract
+(`tests/cross_cutting/contracts/test_root_api.py`), accessor ownership/boundary tests
+(`tests/cross_cutting/accessor/test_accessor_package_boundary.py`), profiling independence
+(`tests/modules/profile/test_profiling_package_boundary.py`), and the canonical `_internal` helper contract
+(`test_internal_shared_helpers.py`) mechanically verify names, import edges, symbols, and signatures. Semantic
+helper placement, discoverability, cohesion, and whether indirection adds value are **not**
+inferred from module or package names alone; they remain a human review responsibility under ARCH-101 and follow
+the decision procedure in ARCH-066/ARCH-099. The naming-only contract
+`tests/cross_cutting/contracts/test_prohibited_helper_names.py` enforces the prohibited generic helper names of
+ARCH-021/ARCH-081 and the `_internal` naming convention of ARCH-094 at any scope, grandfathering only
+`cleaning/_common.py` per ARCH-095; it is objective naming enforcement, not evidence of semantic placement.
+Import-Linter remains optional and deferred, not an unresolved blocker under ARCH-076: the repository-native AST
+contract already satisfies ARCH-076 without a runtime dependency, and Import-Linter is a Phase 2 option adopted only
+on a demonstrated repository need (AE-Q5). Private alias normalization (ARCH-045/046) is implemented in the
+current checkout. Helper placement and organization rules ARCH-092–ARCH-097 are adopted and normative; the current
+responsibility-named owner modules remain in place (ARCH-095).
 
 ### 2.9 Behavioral contracts (Current)
 
@@ -516,25 +540,23 @@ explicit disposition.
 | # | Finding | Disposition |
 |---|---|---|
 | 1 | `_shares_doc` copies functional docstrings onto `BaseData` methods at import time, and `tools/sync_docs.py` mirrors them literally; 1,638 of 2,234 `base.py` lines are docstrings, so every docstring edit touches multiple artifacts. | Behavioral/maintenance cost, not an ownership defect. Retain; drift is caught by doc-sync verification. |
-| 2 | `BaseData._finish_with_stats` and `_frame_method(stats=True)` independently implement the same `inplace` + statistics return semantics; parity is pinned by tests, but a semantic change could satisfy one side silently. | Parity pinned; a future contract change must update both. Retain (no structural change now). |
+| 2 | `BaseData._finish_with_stats` and `bynat._accessors._binding._frame_method(stats=True)` (with the accessor methods it generates) independently implement the same `inplace` + statistics return semantics; parity is pinned by tests, but a semantic change could satisfy one side silently. | Parity pinned; a future contract change must update both. Retain (no structural change now). |
 | 3 | `is_basedata_type` identifies `BaseData` by MRO string matching on `__name__ == 'BaseData'` and `__module__ == 'bynat.cleaning.base'`; renaming or relocating the class silently disables `BaseData` profile output adaptation. | Intentional (avoids a lower-level-to-facade import). Retain; recorded as a **relocation hazard**. |
-| 4 | The two cross-package `_keys` consumers import the alias names `_cache_value_key`/`_cache_has_value`/`_cache_lookup_value` while `caching/_keys.py` `__all__` declares the canonical names. | Required: removed by the alias normalization (ARCH-045); consumers import the canonical `cache_*` names. |
-| 5 | `shared_cache_manager` constructs a throwaway `CacheManager` probe on every call and registers managers by absolute path in a dict with no eviction; long-lived processes accumulate manager instances. | Intentional lifecycle; process-wide registry. Retain. |
-| 6 | `caching/manager.py` defines `_SQLITE_DATABASE_NAME`, `_SQLITE_TIMEOUT_SECONDS`, and `_migrate_legacy_cache`; the last is used only by one legacy-rollback test line. | Required: removed (ARCH-046). |
-| 7 | `import_optional` catches any `ImportError` raised during module import and rewrites it as a missing-dependency error, masking genuine defects inside an installed optional package. | Behavioral follow-up (narrow to `ModuleNotFoundError` for the target module, or re-raise when the module is present). |
-| 8 | `Analyzer._is_safe_expression` feeds expressions to `DataFrame.eval` with a token denylist (`__`, `@`, `import`, `lambda`, `;`) documented as "a guardrail, not a full sandbox"; the dynamic eval remains a code-injection surface. | Documented guardrail, not a sandbox. Security/behavioral follow-up, not architectural. |
-| 9 | `dedupe_key` serializes set, NumPy array, list, and tuple to the same JSON text (for example `[1, 2]`, `(1, 2)`, `{1, 2}`, `np.array([1, 2])` all become `'[1, 2]'`), so profiling duplicate and distinct counting treats values of different Python types as identical. | Behavioral follow-up. |
-| 10 | `JsonFile`/`CsvFile` reinterpret any str or path-like `data` as a file path and raise `FileNotFoundError` when it does not exist; with an explicit path argument the string reaches pandas and raises `ValueError('DataFrame constructor not properly called!')`. | Behavioral edge case; see the F1 contract. |
-| 11 | `CacheManager` still logs legacy `<func>_cache.json` filenames in `delete_column_cache` and `_get_file_path` after persistence moved to SQLite, so operator-facing messages misdescribe storage. | Behavioral follow-up. |
-| 12 | `YFinanceRateSource` uses `ticker.history(end=f'{end_year}-12-31')`; yfinance's end is exclusive, so December 31 closes are excluded from the yearly mean. | Behavioral follow-up; verify against the intended inclusive-range contract. |
-| 13 | `ProfileReport.columns` keeps only the last occurrence of a duplicate column name while `column_list` preserves every position; consumers indexing by name silently lose earlier profiles. | Documented asymmetry; behavioral follow-up. |
-| 14 | `NominatimGeocoder`'s default `user_agent` is still `'data_cleaning_core_geocoder'`, a stale pre-rename identifier sent to an external service; `GoogleTranslatorProvider` class knobs `max_workers`/`min_interval` are the only provider tuning surface and are implicit rather than injected. | Behavioral follow-up. |
+| 4 | `shared_cache_manager` constructs a throwaway `CacheManager` probe on every call and registers managers by absolute path in a dict with no eviction; long-lived processes accumulate manager instances. | Intentional lifecycle; process-wide registry. Retain. |
+| 5 | `import_optional` catches any `ImportError` raised during module import and rewrites it as a missing-dependency error, masking genuine defects inside an installed optional package. | Behavioral follow-up (narrow to `ModuleNotFoundError` for the target module, or re-raise when the module is present). |
+| 6 | `Analyzer._is_safe_expression` feeds expressions to `DataFrame.eval` with a token denylist (`__`, `@`, `import`, `lambda`, `;`) documented as "a guardrail, not a full sandbox"; the dynamic eval remains a code-injection surface. | Documented guardrail, not a sandbox. Security/behavioral follow-up, not architectural. |
+| 7 | `dedupe_key` serializes set, NumPy array, list, and tuple to the same JSON text (for example `[1, 2]`, `(1, 2)`, `{1, 2}`, `np.array([1, 2])` all become `'[1, 2]'`), so profiling duplicate and distinct counting treats values of different Python types as identical. | Behavioral follow-up. |
+| 8 | `JsonFile`/`CsvFile` reinterpret any str or path-like `data` as a file path and raise `FileNotFoundError` when it does not exist; with an explicit path argument the string reaches pandas and raises `ValueError('DataFrame constructor not properly called!')`. | Behavioral edge case; see the F1 contract. |
+| 9 | `CacheManager` still logs legacy `<func>_cache.json` filenames in `delete_column_cache` and `_get_file_path` after persistence moved to SQLite, so operator-facing messages misdescribe storage. | Behavioral follow-up. |
+| 10 | `YFinanceRateSource` uses `ticker.history(end=f'{end_year}-12-31')`; yfinance's end is exclusive, so December 31 closes are excluded from the yearly mean. | Behavioral follow-up; verify against the intended inclusive-range contract. |
+| 11 | `ProfileReport.columns` keeps only the last occurrence of a duplicate column name while `column_list` preserves every position; consumers indexing by name silently lose earlier profiles. | Documented asymmetry; behavioral follow-up. |
+| 12 | `NominatimGeocoder`'s default `user_agent` is still `'data_cleaning_core_geocoder'`, a stale pre-rename identifier sent to an external service; `GoogleTranslatorProvider` class knobs `max_workers`/`min_interval` are the only provider tuning surface and are implicit rather than injected. | Behavioral follow-up. |
 
-**Component assessments marked `Adjust` — decisions.** `BaseData`, `_frame_method`, and
-`_cached_frame_method` (dual inplace/stats contract): **Deferred**, no structural change now; if the contract
+**Component assessments marked `Adjust` — decisions.** `BaseData`, `bynat._accessors._binding._frame_method`, and
+`bynat._accessors._binding._cached_frame_method` (dual inplace/stats contract): **Deferred**, no structural change now; if the contract
 changes, extract one shared contract helper and pin parity. `_shares_doc`: **Retain**, drift already fails
 doc-sync verification. `import_optional`: **Deferred** behavioral follow-up. `cache_value_key`,
-`cache_has_value`, `cache_lookup_value`: **Required**, covered by the alias normalization. `is_basedata_type`:
+`cache_has_value`, `cache_lookup_value`: **Implemented**, covered by the alias normalization. `is_basedata_type`:
 **Retain**, documented relocation hazard. `shared_cache_manager`: **Retain**, intentional lifecycle.
 
 ---
@@ -984,6 +1006,7 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 | 6 | The design and strategy decide private-alias normalization and dependency-graph enforcement. | Both are **adopted but not implemented** at HEAD; the constitution states them as rules with a pending-implementation note rather than as current facts. |
 | 7 | `ARCHITECTURE_RESEARCH.md` is dated 2026-11-21; the design and strategy are dated 2026-11-22. | Later documents supersede earlier historical sections; the current checkout supersedes all source baselines. |
 | 8 | The strategy's Rule of Three guidance (EV-11/EV-12) recommends multiple consumers before sharing, which could be read as blocking same-branch helper extraction. | The Rule of Three is scoped to broader reuse abstraction (ARCH-097); same-branch and multi-file extraction follows the narrowest-common-scope hierarchy (ARCH-092) and is not blocked by the consumer count. |
+| 9 | ARCH-022 as previously written omitted the accessor's imports of the `cleaning.enrich` feature modules, while `_accessors/dataframe.py` imports `currency`, `geocode`, `nlp`, and `translate`. | Verified correction: the actual delegation imports are now permitted edges in ARCH-022 (`_accessors` → `cleaning.enrich.{currency,geocode,nlp,translate}`) because the accessor must directly delegate those public functions; the dependency matrix in §2.4 records them. Rationale: preserve the accessor's required direct delegation without routing through a facade. Rollback would remove these imports only together with an approved alternate permitted delegation path. No public API change; stable ARCH IDs preserved. |
 
 ### 8.2 Rule-to-source mapping
 

@@ -8,7 +8,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 
-from ._common import FrameT, _import_optional
+from ._common import FrameT, import_optional
 
 __all__ = [
     "categorize_by_reference",
@@ -461,7 +461,7 @@ def categorize_by_reference(
 
         return result
 
-    ahocorasick = _import_optional(
+    ahocorasick = import_optional(
         "ahocorasick", "pyahocorasick", "categorize_by_reference"
     )
     automaton = ahocorasick.Automaton()

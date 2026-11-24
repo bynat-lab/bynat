@@ -225,8 +225,3 @@ def migrate_legacy_json_cache(
     finally:
         if connection is not None:
             connection.close()
-
-
-# Internal aliases
-_quarantine_corrupt_cache_file = quarantine_corrupt_cache_file
-_migrate_legacy_json_cache = migrate_legacy_json_cache

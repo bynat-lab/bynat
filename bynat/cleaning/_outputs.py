@@ -119,11 +119,3 @@ def convert_default_output(data: pd.DataFrame, output_type: Any) -> Any:
     if output_type is pd.DataFrame or not constructor_accepts_data(output_type):
         return data
     return convert_output(data, output_type)
-
-
-# Package-internal aliases for backward compatibility with private imports.
-_is_basedata_type = is_basedata_type
-_validate_output_type = validate_output_type
-_convert_output = convert_output
-_constructor_accepts_data = constructor_accepts_data
-_convert_default_output = convert_default_output

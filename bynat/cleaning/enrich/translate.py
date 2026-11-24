@@ -7,13 +7,13 @@ import numpy as np
 import pandas as pd
 
 from bynat.caching import CacheManager
-from bynat.caching._keys import _cache_has_value, _cache_lookup_value
+from bynat.caching._keys import cache_has_value, cache_lookup_value
 
 from .._common import (
     FrameT,
-    _import_optional,
-    _require_positive_int,
+    import_optional,
     logger,
+    require_positive_int,
 )
 from .engine import SKIP, _cached_map, _rate_limited_map
 from .providers import GoogleTranslatorProvider, Translator
@@ -73,7 +73,7 @@ def _translate_cached(
         save_every,
         cache_manager = cache_manager,
         func_name = func_name,
-        is_cached = _cache_has_value,
+        is_cached = cache_has_value,
         fetch_many = fetch_many,
         on_fetch_start = start,
         action = "translate",
@@ -142,7 +142,7 @@ def impute_by_language(
     if reference_col not in df.columns:
         return df.copy()
 
-    langdetect = _import_optional(
+    langdetect = import_optional(
         "langdetect", "langdetect", "impute_by_language"
     )
     langdetect.DetectorFactory.seed = 0
@@ -280,16 +280,16 @@ def translate_conditional_column(
     if not (0.0 <= threshold <= 1.0):
         raise ValueError("The 'threshold' parameter must be a float between 0.0 and 1.0")
 
-    _require_positive_int(sample_size, "sample_size")
-    _require_positive_int(number_of_samples, "number_of_samples")
-    _require_positive_int(save_every, "save_every")
+    require_positive_int(sample_size, "sample_size")
+    require_positive_int(number_of_samples, "number_of_samples")
+    require_positive_int(save_every, "save_every")
 
     required_cols = [partition_col, detect_col, target_col]
 
     if not all(col in df.columns for col in required_cols):
         return df.copy()
 
-    langdetect = _import_optional(
+    langdetect = import_optional(
         "langdetect", "langdetect", "translate_conditional_column"
     )
     langdetect.DetectorFactory.seed = 0
@@ -350,7 +350,7 @@ def translate_conditional_column(
     unique_vals = result[target_col].dropna().unique()
 
     lookup_dict = {
-        val: _cache_lookup_value(current_cache, val)
+        val: cache_lookup_value(current_cache, val)
         for val in unique_vals
     }
 
@@ -427,7 +427,7 @@ def translate_categorical_column(
     if target_col not in df.columns:
         return df.copy()
 
-    _require_positive_int(save_every, "save_every")
+    require_positive_int(save_every, "save_every")
 
     result = df.copy()
 
@@ -450,7 +450,7 @@ def translate_categorical_column(
     unique_vals = result[target_col].dropna().unique()
 
     lookup_dict = {
-        val: _cache_lookup_value(current_cache, val)
+        val: cache_lookup_value(current_cache, val)
         for val in unique_vals
     }
 

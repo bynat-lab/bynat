@@ -8,7 +8,7 @@ import pandas as pd
 
 from bynat.caching import CacheManager
 
-from .._common import FrameT, _import_optional, _left_merge_aligned, logger
+from .._common import FrameT, import_optional, left_merge_aligned, logger
 from .engine import _cached_map
 from .providers import RateSource, YFinanceRateSource
 
@@ -100,8 +100,8 @@ def convert_to_usd(
     if result.empty:
         return result
 
-    pycountry = _import_optional("pycountry", "pycountry", "convert_to_usd")
-    babel_numbers = _import_optional(
+    pycountry = import_optional("pycountry", "pycountry", "convert_to_usd")
+    babel_numbers = import_optional(
         "babel.numbers", "Babel", "convert_to_usd"
     )
     rate_source = provider if provider is not None else YFinanceRateSource()
@@ -224,7 +224,7 @@ def convert_to_usd(
     if not rates_df.empty:
         rates_df.columns = [country_col, year_col, '_conversion_rate']
 
-        temp_df = _left_merge_aligned(result, rates_df, [country_col, year_col])
+        temp_df = left_merge_aligned(result, rates_df, [country_col, year_col])
 
         for col in valid_cols:
             col_name = f"{col}_usd" if new_cols else col

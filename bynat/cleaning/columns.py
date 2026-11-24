@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pandas as pd
 
-from ._common import FrameT, _like
+from ._common import FrameT, like
 
 __all__ = [
     "align_lat_lng",
@@ -488,7 +488,7 @@ def melt_transform_pivot(
 
     pivoted.columns.name = None
 
-    return _like(df, pivoted)
+    return like(df, pivoted)
 
 
 def move_column(df: FrameT, col_to_move: str, col_target: str, position: str = "after") -> FrameT:

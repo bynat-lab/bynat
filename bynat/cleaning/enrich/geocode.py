@@ -4,7 +4,7 @@ from typing import Any
 
 from bynat.caching import CacheManager
 
-from .._common import FrameT, _require_positive_int, logger
+from .._common import FrameT, logger, require_positive_int
 from .engine import _cached_map
 from .providers import Geocoder, NominatimGeocoder
 
@@ -80,7 +80,7 @@ def fill_missing_coordinates(
             is not installed and no `provider` is given.
     """
 
-    _require_positive_int(save_every, "save_every")
+    require_positive_int(save_every, "save_every")
 
     required_cols = [lat_col, long_col]
     if not all(col in df.columns for col in required_cols):

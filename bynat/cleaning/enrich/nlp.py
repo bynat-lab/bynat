@@ -8,7 +8,7 @@ from typing import Any
 
 from bynat.caching import CacheManager
 
-from .._common import FrameT, _import_optional, _require_positive_int, logger
+from .._common import FrameT, import_optional, logger, require_positive_int
 from .engine import _cached_map
 
 __all__ = [
@@ -238,7 +238,7 @@ def extract_entities_nlp(
     else:
         excluded_pos = {str(pos).strip().upper() for pos in exclude_pos}
 
-    _require_positive_int(save_every, "save_every")
+    require_positive_int(save_every, "save_every")
 
     if not target_cols_and_json_keys:
         raise ValueError("Provide at least one target column and JSON key as keyword arguments.")
@@ -301,8 +301,8 @@ def extract_entities_nlp(
     active: dict[str, Any] = {}
 
     def start(count: int) -> None:
-        spacy = _import_optional("spacy", "spacy", "extract_entities_nlp")
-        matcher_module = _import_optional(
+        spacy = import_optional("spacy", "spacy", "extract_entities_nlp")
+        matcher_module = import_optional(
             "spacy.matcher", "spacy", "extract_entities_nlp"
         )
         logger.info("Loading NLP Model and building Multi-Label Matcher...")

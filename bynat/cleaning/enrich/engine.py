@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from bynat.caching import CacheManager
-from bynat.caching._keys import _cache_value_key
+from bynat.caching._keys import cache_value_key
 
 from .._common import logger
 
@@ -84,7 +84,7 @@ def _cached_map(
     *,
     cache_manager: CacheManager,
     func_name: str,
-    key: Callable[[Any], Hashable] = _cache_value_key,
+    key: Callable[[Any], Hashable] = cache_value_key,
     is_cached: Callable[[Any, Any], bool] | None = None,
     fetch_many: FetchMany | None = None,
     on_fetch_start: Callable[[int], Any] | None = None,

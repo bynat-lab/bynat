@@ -11,8 +11,9 @@ pytestmark = pytest.mark.integration
 
 
 EXCLUDED_METHODS = [
-    "get_hierarchical_stats", "profile", "save_to_json", "save_to_sql",
-    "clear_cache_for_column", "with_cache",
+    "get_categorical_distribution", "get_numerical_aggregation", "get_time_series",
+    "get_kpi_value", "get_bins", "get_hierarchical_stats", "profile", "save_to_json",
+    "save_to_sql", "clear_cache_for_column", "with_cache",
 ]
 
 
@@ -25,13 +26,21 @@ def _sqlite_arguments(database):
     "method_name",
     EXCLUDED_METHODS,
     ids=[
-        "get_hierarchical_stats", "profile", "save_to_json",
+        "get_categorical_distribution", "get_numerical_aggregation", "get_time_series",
+        "get_kpi_value", "get_bins", "get_hierarchical_stats", "profile", "save_to_json",
         "save_to_sql", "clear_cache_for_column", "with_cache",
     ],
 )
 def test_accessor_methods_without_inplace_support_still_reject_the_keyword(tmp_path, method_name):
     frame = pd.DataFrame({"v": [1.0, None]})
     calls = {
+        "get_categorical_distribution": lambda: frame.bynat.get_categorical_distribution(
+            "v", inplace=True),
+        "get_numerical_aggregation": lambda: frame.bynat.get_numerical_aggregation(
+            "v", "v", inplace=True),
+        "get_time_series": lambda: frame.bynat.get_time_series("v", inplace=True),
+        "get_kpi_value": lambda: frame.bynat.get_kpi_value("v", inplace=True),
+        "get_bins": lambda: frame.bynat.get_bins("v", inplace=True),
         "get_hierarchical_stats": lambda: frame.bynat.get_hierarchical_stats("v", inplace=True),
         "profile": lambda: frame.bynat.profile(inplace=True),
         "save_to_json": lambda: frame.bynat.save_to_json(tmp_path / "out.json", inplace=True),

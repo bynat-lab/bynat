@@ -67,8 +67,8 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 
 | ID | Rule |
 |---|---|
-| ARCH-022 | Permitted internal dependency edges are exactly: root → `cleaning`, `caching`, `analytics`, `profiling`, `_accessors`, `cleaning.io`; `_accessors` → `cleaning` (`columns`, `io`, `stats`, `text`, `_outputs.is_basedata_type`, and the enrichment feature modules `cleaning.enrich.{currency,geocode,nlp,translate}`), `caching`, `profiling`; `cleaning` → `caching` (public API plus the documented `caching._keys` edges), `profiling`, `_internal`; `profiling` → `_internal`; `analytics` → none; `caching` → none; `_internal` → none. |
-| ARCH-023 | Prohibited internal edges: `caching` → `cleaning`/`analytics`/`profiling`/`_accessors`; `analytics` → any `bynat` package; `profiling` → `cleaning`/`analytics`/`caching`/`_accessors`; `cleaning` → `analytics`/`_accessors`; any functional package → `_accessors`; `_internal` → any functional package; `_accessors` → `_internal` (no use case; add only with evidence). |
+| ARCH-022 | Permitted internal dependency edges are exactly: root → `cleaning`, `caching`, `analytics`, `profiling`, `_accessors`, `cleaning.io`; `_accessors` → `cleaning` (`columns`, `io`, `stats`, `text`, `_outputs.is_basedata_type`, and the enrichment feature modules `cleaning.enrich.{currency,geocode,nlp,translate}`), `caching`, `profiling`, `analytics`; `cleaning` → `caching` (public API plus the documented `caching._keys` edges), `profiling`, `_internal`; `profiling` → `_internal`; `analytics` → none; `caching` → none; `_internal` → none. |
+| ARCH-023 | Prohibited internal edges: `caching` → `cleaning`/`analytics`/`profiling`/`_accessors`; `analytics` → any `bynat` package (including `_accessors`); `profiling` → `cleaning`/`analytics`/`caching`/`_accessors`; `cleaning` → `analytics`/`_accessors`; any functional package → `_accessors`; `_internal` → any functional package; `_accessors` → `_internal` (no use case; add only with evidence). |
 | ARCH-024 | Cross-package private-module imports are exactly the **five documented exceptions** below. No other cross-package private-module import exists. |
 
 | # | Importing module | Imported module | Symbol(s) | Ownership rationale |
@@ -327,7 +327,7 @@ Permitted edges are listed in ARCH-022; prohibited edges in ARCH-023. The observ
 
 ```text
 bynat/__init__ ──> cleaning, caching, analytics, profiling, _accessors, cleaning.io
-_accessors/dataframe ──> cleaning (columns/io/stats/text + _outputs + enrich.currency/geocode/nlp/translate), caching, profiling, _accessors._binding
+_accessors/dataframe ──> cleaning (columns/io/stats/text + _outputs + enrich.currency/geocode/nlp/translate), analytics, caching, profiling, _accessors._binding
 cleaning/base ──> cleaning (columns, io, stats, text, enrich, enrich.providers), caching, profiling, cleaning._outputs
 cleaning/{columns,text} ──> cleaning._common
 cleaning/stats ──> cleaning._common, cleaning._outputs
@@ -495,7 +495,7 @@ public API.
 | `bynat/py.typed` | PEP 561 typing marker | marker file | none | Public |
 | `bynat/_accessors/__init__.py` | Export the accessor class | `BynatAccessor` | `_accessors.dataframe` | Package-internal |
 | `bynat/_accessors/_binding.py` | Wrapper factories for accessor methods | `_method_signature`, `_with_inplace`, `_frame_method`, `_cached_frame_method` | none | Private |
-| `bynat/_accessors/dataframe.py` | Registered `df.bynat` accessor and delegation | `BynatAccessor`, module-level `profile` adapter | `cleaning`, `caching`, `profiling`, `_binding` | Package-internal |
+| `bynat/_accessors/dataframe.py` | Registered `df.bynat` accessor and delegation | `BynatAccessor`, module-level `profile` and analytics adapters | `cleaning`, `analytics`, `caching`, `profiling`, `_binding` | Package-internal |
 | `bynat/_accessors/dataframe.pyi` | Generated typing surface | stub methods | generated | Package-internal |
 | `bynat/_internal/__init__.py` | Export the canonical value helper | `dedupe_key` | `_internal.values` | Private |
 | `bynat/_internal/values.py` | Domain-independent value normalization | `dedupe_key` | none | Private |
@@ -644,8 +644,8 @@ represent future growth. E1–E6 (§3.4) are future structural evolution.
 | 1 | Remove private alias blocks and dead wrappers; update consumer imports; update one test reference; add the AST dependency contract check | Phase 0 complete | Full suite, ruff, mypy, and doc-sync pass; no public change; the dependency check passes and fails on a prohibited edge | Independent diff review; verify no public signature/docstring change | Revert the commit; no public API change |
 | 2 | Adopt Import Linter as a dev dependency; add `protected` contracts for the five documented edges; optionally enable Ruff `PLC2701` | Phase 1 complete; a CI enforcement need is identified | `lint-imports` passes; CI job added | Verify all five edges are represented | Remove the dev dependency and config |
 
-**Explicitly deferred (not near-term):** splitting `base.py`; analytics accessor methods (no use case); a
-generic transformation engine; a lazy execution layer; expanding `caching.__all__`.
+**Explicitly deferred (not near-term):** splitting `base.py`; a generic transformation engine; a lazy
+execution layer; expanding `caching.__all__`. Analytics accessor methods were implemented (AE-Q3, [§4](#4-deferred-and-superseded-decisions)).
 
 ### 3.4 Conditional scenarios E1–E6
 
@@ -892,15 +892,15 @@ no pre-built capability subpackages and no speculative `_internal/`.
 
 ---
 
-## 4. Deferred decisions
+## 4. Deferred and superseded decisions
 
-These are deliberate non-decisions. None prevents the near-term work.
+These are deliberate non-decisions. None prevents the near-term work. AE-Q3 was later decided and implemented, so its row records the outcome instead of an open question.
 
 | ID | Item | Disposition | Revisit trigger |
 |---|---|---|---|
 | AE-Q1 | Should `caching._keys` become a narrow public contract? | Keep private with a documented edge | A second consumer or a user-facing requirement |
 | AE-Q2 | Should `base.py` be split or generated? | Defer | Concrete maintenance pain; docstring-generation cost |
-| AE-Q3 | Should any `Analyzer` operation become an accessor method? | Defer | A concrete stable DataFrame contract |
+| AE-Q3 | Should any `Analyzer` operation become an accessor method? | Implemented (supersedes Defer); every public operation is exposed on `df.bynat` and delegates to `Analyzer` | Only if the accessor delegation contract changes |
 | AE-Q4 | Should `save_to_sql` move to its own module? | No | Never (the lazy import already isolates the dependency) |
 | AE-Q5 | Should dependency-boundary enforcement be hardened now? | No | A demonstrated repository enforcement need (Phase 2) |
 | AE-Q6 | When a derived `BaseData` frame's `CacheManager` is cleared or replaced, should the recreated manager inherit the originating custom `cache_dir`? | Missing behavioral contract; no intended contract is stated in repository evidence, so none is invented | A user report or a decision to propagate `_bynat_cache_dir` through pandas metadata |

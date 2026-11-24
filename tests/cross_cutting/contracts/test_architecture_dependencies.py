@@ -13,16 +13,16 @@ REPO_ROOT = Path(
 ).resolve()
 PACKAGE_ROOT = REPO_ROOT / "bynat"
 
-# ARCH-022: exact target modules permitted for cross-package runtime imports.
+# ARCH-022: exact target modules permitted for cross-package runtime imports. analytics permits none.
 PERMITTED_CROSS_PACKAGE: dict[str, frozenset[str]] = {
     "bynat": frozenset({"bynat.cleaning", "bynat.caching", "bynat.analytics",
                         "bynat.profiling", "bynat._accessors", "bynat.cleaning.io"}),
-    "_accessors": frozenset({"bynat.cleaning.columns", "bynat.cleaning.io",
-                             "bynat.cleaning.stats", "bynat.cleaning.text",
-                             "bynat.cleaning._outputs", "bynat.cleaning.enrich.currency",
-                             "bynat.cleaning.enrich.geocode", "bynat.cleaning.enrich.nlp",
-                             "bynat.cleaning.enrich.translate", "bynat.caching",
-                             "bynat.profiling", "bynat.profiling.profile"}),
+    "_accessors": frozenset({"bynat.analytics",
+                             "bynat.cleaning.columns", "bynat.cleaning.io", "bynat.cleaning.stats",
+                             "bynat.cleaning.text", "bynat.cleaning._outputs",
+                             "bynat.cleaning.enrich.currency", "bynat.cleaning.enrich.geocode",
+                             "bynat.cleaning.enrich.nlp", "bynat.cleaning.enrich.translate",
+                             "bynat.caching", "bynat.profiling", "bynat.profiling.profile"}),
     "cleaning": frozenset({"bynat.caching", "bynat.caching._keys", "bynat.profiling",
                            "bynat.profiling.profile", "bynat._internal"}),
     "profiling": frozenset({"bynat._internal"}),
@@ -180,7 +180,7 @@ def test_dependency_edges_stay_within_permitted_boundaries():
         and target not in PERMITTED_CROSS_PACKAGE[_owner(source)]
     ]
     assert violations == []
-    assert all(
+    assert PERMITTED_CROSS_PACKAGE["analytics"] == frozenset() and all(
         ("bynat._accessors.dataframe", f"bynat.cleaning.enrich.{name}") in edges
         for name in ("currency", "geocode", "nlp", "translate")
     )

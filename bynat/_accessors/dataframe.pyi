@@ -1073,6 +1073,208 @@ class BynatAccessor:
         """
         ...
 
+    def get_categorical_distribution(self, x_col: str, top_n: int | None=None, show_others: bool=False, filters: dict[str, Any] | None=None, rules: list[dict[str, Any]] | None=None, orient: str='records', **kwargs: Any) -> dict[str, Any]:
+        """
+        Return distribution counts for a categorical column.
+
+        Rows are counted with `value_counts()` and returned in descending
+        count order. With `show_others=True` the rows beyond `top_n` are
+        collapsed into a single `"Others"` row carrying `is_others=True` and
+        an `others_breakdown` list of the collapsed `{"x", "y"}` rows; the
+        retained rows get `is_others=False` and `others_breakdown=None`.
+        `show_others` has no effect when `top_n` is None or the number of
+        categories does not exceed it.
+
+        Notes:
+            - An empty filtered frame or a missing `x_col` returns
+              `{"data": []}`.
+            - The response `data` value is `DataFrame.to_dict(orient=orient)`,
+              so `orient` changes the shape of every row mapping.
+
+        Args:
+            x_col (str): Categorical column to aggregate.
+            top_n (int | None): Optional limit for top categories. Defaults to
+                None (no limit).
+            show_others (bool): If True, collapse categories outside `top_n`
+                into an `"Others"` row with a breakdown payload. Defaults to
+                False.
+            filters (dict[str, Any] | None): Optional pre-aggregation filters.
+                Defaults to None.
+            rules (list[dict[str, Any]] | None): Optional computed rules applied to the result.
+                Defaults to None.
+            orient (str): Output orientation for `DataFrame.to_dict`.
+                Defaults to `"records"`.
+            **kwargs: Extra metadata merged into the returned response object.
+
+        Returns:
+            dict[str, Any]: Response object with a `"data"` key containing the
+            serialized distribution rows, plus any `kwargs` entries.
+
+        Example:
+        ```
+            analyzer.get_categorical_distribution(
+                x_col="country",
+                top_n=10,
+                filters={"contract_type": "Permanent"}
+            )
+        ```
+        """
+        ...
+
+    def get_numerical_aggregation(self, x_col: str, y_col: str, agg_func: str='mean', round_value: int=2, top_n: int | None=None, show_others: bool=False, filters: dict[str, Any] | None=None, rules: list[dict[str, Any]] | None=None, orient: str='records', **kwargs: Any) -> dict[str, Any]:
+        """
+        Aggregate a numeric column by category.
+
+        Rows with a null `y_col` are dropped before grouping, and the groups
+        are returned sorted by aggregated value in descending order. Numeric
+        results are rounded to `round_value` decimals. With
+        `show_others=True` the groups beyond `top_n` are collapsed into one
+        `"Others"` row whose value is recomputed from the underlying rows (not
+        summed from the rounded group values) and whose `others_breakdown`
+        lists the collapsed `{"x", "y"}` rows; the retained rows get
+        `is_others=False` and `others_breakdown=None`.
+
+        Notes:
+            - An empty filtered frame, a missing `x_col` or `y_col`, or a
+              failing `agg_func` returns `{"data": []}`. The failure is logged
+              as a warning.
+            - `round_value` is applied to the group values and, separately, to
+              the recomputed `"Others"` value.
+
+        Args:
+            x_col (str): Grouping column.
+            y_col (str): Numeric column to aggregate.
+            agg_func (str): Aggregation function name (for example: `mean`,
+                `sum`, `median`, `max`). Defaults to `"mean"`.
+            round_value (int): Decimal places used when the aggregated value is
+                numeric. Defaults to 2.
+            top_n (int | None): Optional cap for highest `y` rows. Defaults to
+                None (no cap).
+            show_others (bool): If True, collapse categories outside `top_n`
+                into an `"Others"` row while preserving a breakdown payload.
+                Defaults to False.
+            filters (dict[str, Any] | None): Optional filters applied before aggregation.
+                Defaults to None.
+            rules (list[dict[str, Any]] | None): Optional computed rules on output rows.
+                Defaults to None.
+            orient (str): Output orientation for `DataFrame.to_dict`.
+                Defaults to `"records"`.
+            **kwargs: Extra metadata merged into the returned response object.
+
+        Returns:
+            dict[str, Any]: Response object with a `"data"` key containing the
+            serialized aggregation rows, plus any `kwargs` entries.
+        """
+        ...
+
+    def get_time_series(self, date_col: str, time_period: str='M', num_col: str | None=None, agg_func: str='count', filters: dict[str, Any] | None=None, rules: list[dict[str, Any]] | None=None, orient: str='records', **kwargs: Any) -> dict[str, Any]:
+        """
+        Build a time-series aggregation from a date/datetime column.
+
+        The date column is parsed with `pd.to_datetime(errors="coerce")` and
+        rows whose date is missing or unparseable are dropped. timezone-aware
+        values are converted to naive local time before bucketing. The result
+        is reindexed onto a complete date range between the first and last
+        bucket, so gaps appear as rows with `y=0`, and the `x` labels are
+        sorted ascending.
+
+        Notes:
+            Accepted `time_period` values (matched case-insensitively):
+            - `M`: Monthly buckets (`YYYY-MM`)
+            - `Y`: Yearly buckets (`YYYY`)
+            - `H`: Hourly Buckets (`YYYY-MM-DD HH:00`)
+            - Any other value: Daily buckets (`YYYY-MM-DD`)
+
+            With `num_col` set and `agg_func != "count"`, the numeric column is
+            aggregated per bucket and rounded to whole numbers. Otherwise the
+            bucket row count is used. A missing `num_col`, a failing
+            `agg_func`, or an empty frame returns `{"data": []}`; the failure
+            is logged as a warning.
+
+        Args:
+            date_col (str): Source datetime/date column used for time bucketing.
+            time_period (str): Time bucket granularity. Defaults to `"M"`.
+            num_col (str | None): Optional numeric column for non-count
+                aggregation. Defaults to None (count rows).
+            agg_func (str): Aggregation function for `num_col`. Defaults to
+                `"count"`.
+            filters (dict[str, Any] | None): Optional filters applied before aggregation.
+                Defaults to None.
+            rules (list[dict[str, Any]] | None): Optional computed rules on output rows.
+                Defaults to None.
+            orient (str): Output orientation for `DataFrame.to_dict`.
+                Defaults to `"records"`.
+            **kwargs: Extra metadata merged into the returned response object.
+
+        Returns:
+            dict[str, Any]: Response object with a `"data"` key containing the
+            serialized time-series rows, plus any `kwargs` entries.
+        """
+        ...
+
+    def get_kpi_value(self, column: str, agg_func: str='count', round_value: int=2, filters: dict[str, Any] | None=None, **kwargs: Any) -> dict[str, Any]:
+        """
+        Compute a single KPI metric.
+
+        With `agg_func="count"` the value is the number of filtered rows and
+        `column` is only used as the default title. Otherwise the value is
+        `data[column].agg(agg_func)`; a missing column, a failing aggregation,
+        or a non-scalar result yields `None` (logged as a warning for the
+        latter two). NumPy scalars are converted to Python scalars, a null
+        value becomes `None`, a float is rounded to `round_value` when that is
+        non-zero, and other numeric values are converted to `int`.
+
+        Args:
+            column (str): Source column used when `agg_func` is not `count`.
+                Also the default card title.
+            agg_func (str): Aggregation function name; `count` uses row count.
+                Defaults to `"count"`.
+            round_value (int): Decimal places used when the KPI result is a
+                floating-point value. A value of 0 skips rounding. Defaults
+                to 2.
+            filters (dict[str, Any] | None): Optional filters applied before KPI
+                computation. Defaults to None.
+            **kwargs: Optional metadata fields for the response card. `title`
+                customizes the KPI title and is removed from the extra
+                metadata; every other entry is copied into the card.
+
+        Returns:
+            dict[str, Any]: KPI payload containing `"data"`, `"title"`, and
+            any additional metadata.
+        """
+        ...
+
+    def get_bins(self, col: str, bins: int=10, filters: dict[str, Any] | None=None, rules: list[dict[str, Any]] | None=None, orient: str='records', **kwargs: Any) -> dict[str, Any]:
+        """
+        Create histogram bins for a numeric column.
+
+        The column is coerced with `pd.to_numeric(errors="coerce")` and nulls
+        are dropped, so non-numeric text is ignored rather than raising. Bins
+        come from `numpy.histogram`, and each row's `x` label is the
+        `"<lower>-<upper>"` bin range formatted to two decimals.
+
+        Notes:
+            - An empty filtered frame, a missing `col`, a non-positive or
+              non-integer `bins` (booleans included), or no numeric values
+              returns `{"data": []}`.
+
+        Args:
+            col (str): Numeric source column.
+            bins (int): Number of histogram bins. Defaults to 10.
+            filters (dict[str, Any] | None): Optional filters applied before binning.
+                Defaults to None.
+            rules (list[dict[str, Any]] | None): Optional computed rules on output rows.
+                Defaults to None.
+            orient (str): Output orientation for `DataFrame.to_dict`.
+                Defaults to `"records"`.
+            **kwargs: Extra metadata merged into the returned response object.
+
+        Returns:
+            dict[str, Any]: Response object with a `"data"` key containing the
+            serialized histogram rows, plus any `kwargs` entries.
+        """
+        ...
+
     def impute_by_language(self, reference_col: str, *target_cols: Any, inplace=False, target_lang: str='en') -> pd.DataFrame | None:
         """
         Impute missing or inconsistent values in target columns based on a reference column

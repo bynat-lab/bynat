@@ -11,6 +11,7 @@ from typing import Any
 
 import pandas as pd
 
+import bynat.analytics as analytics
 from bynat.caching import CacheManager, shared_cache_manager
 from bynat.cleaning import columns, io, stats, text
 from bynat.cleaning._outputs import is_basedata_type
@@ -95,6 +96,148 @@ def profile(df: pd.DataFrame, *columns: Any, output_type: Any = None) -> Any:
     if is_basedata_type(output_type):
         return output_type(data = _profiling_profile(df, *columns, output_type = pd.DataFrame))
     return _profiling_profile(df, *columns, output_type = output_type)
+
+
+def _reject_inplace(method_name: str, kwargs: dict[str, Any]) -> None:
+    """
+    Reject the reserved `inplace` keyword on non-mutating analytics methods.
+
+    Args:
+        method_name (str): Accessor method name used in the error message.
+        kwargs (dict[str, Any]): Caller keyword arguments to inspect.
+
+    Raises:
+        TypeError: If `kwargs` contains `inplace`, so it can never leak into
+            an analyzer response as metadata.
+    """
+    if "inplace" in kwargs:
+        raise TypeError(f"{method_name}() got an unexpected keyword argument 'inplace'")
+
+
+def _get_categorical_distribution(
+    df: pd.DataFrame,
+    x_col: str,
+    top_n: int | None = None,
+    show_others: bool = False,
+    filters: dict[str, Any] | None = None,
+    rules: list[dict[str, Any]] | None = None,
+    orient: str = "records",
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Return distribution counts for a categorical column."""
+    _reject_inplace("get_categorical_distribution", kwargs)
+    return analytics.Analyzer(df).get_categorical_distribution(
+        x_col,
+        top_n=top_n,
+        show_others=show_others,
+        filters=filters,
+        rules=rules,
+        orient=orient,
+        **kwargs,
+    )
+
+
+def _get_numerical_aggregation(
+    df: pd.DataFrame,
+    x_col: str,
+    y_col: str,
+    agg_func: str = "mean",
+    round_value: int = 2,
+    top_n: int | None = None,
+    show_others: bool = False,
+    filters: dict[str, Any] | None = None,
+    rules: list[dict[str, Any]] | None = None,
+    orient: str = "records",
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Aggregate a numeric column by category."""
+    _reject_inplace("get_numerical_aggregation", kwargs)
+    return analytics.Analyzer(df).get_numerical_aggregation(
+        x_col,
+        y_col,
+        agg_func=agg_func,
+        round_value=round_value,
+        top_n=top_n,
+        show_others=show_others,
+        filters=filters,
+        rules=rules,
+        orient=orient,
+        **kwargs,
+    )
+
+
+def _get_time_series(
+    df: pd.DataFrame,
+    date_col: str,
+    time_period: str = "M",
+    num_col: str | None = None,
+    agg_func: str = "count",
+    filters: dict[str, Any] | None = None,
+    rules: list[dict[str, Any]] | None = None,
+    orient: str = "records",
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Build a time-series aggregation from a date/datetime column."""
+    _reject_inplace("get_time_series", kwargs)
+    return analytics.Analyzer(df).get_time_series(
+        date_col,
+        time_period=time_period,
+        num_col=num_col,
+        agg_func=agg_func,
+        filters=filters,
+        rules=rules,
+        orient=orient,
+        **kwargs,
+    )
+
+
+def _get_kpi_value(
+    df: pd.DataFrame,
+    column: str,
+    agg_func: str = "count",
+    round_value: int = 2,
+    filters: dict[str, Any] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Compute a single KPI metric."""
+    _reject_inplace("get_kpi_value", kwargs)
+    return analytics.Analyzer(df).get_kpi_value(
+        column,
+        agg_func=agg_func,
+        round_value=round_value,
+        filters=filters,
+        **kwargs,
+    )
+
+
+def _get_bins(
+    df: pd.DataFrame,
+    col: str,
+    bins: int = 10,
+    filters: dict[str, Any] | None = None,
+    rules: list[dict[str, Any]] | None = None,
+    orient: str = "records",
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Create histogram bins for a numeric column."""
+    _reject_inplace("get_bins", kwargs)
+    return analytics.Analyzer(df).get_bins(
+        col,
+        bins=bins,
+        filters=filters,
+        rules=rules,
+        orient=orient,
+        **kwargs,
+    )
+
+
+# The canonical docstrings live on `Analyzer`; keep runtime help and the
+# generated stub synchronized with that single source of truth.
+_get_categorical_distribution.__doc__ = analytics.Analyzer.get_categorical_distribution.__doc__
+_get_numerical_aggregation.__doc__ = analytics.Analyzer.get_numerical_aggregation.__doc__
+_get_time_series.__doc__ = analytics.Analyzer.get_time_series.__doc__
+_get_kpi_value.__doc__ = analytics.Analyzer.get_kpi_value.__doc__
+_get_bins.__doc__ = analytics.Analyzer.get_bins.__doc__
 
 
 @pd.api.extensions.register_dataframe_accessor("bynat")
@@ -197,6 +340,12 @@ class BynatAccessor:
     fill_missing_from = _frame_method(stats.fill_missing_from, inplace = True, stats = True)
     get_hierarchical_stats = _frame_method(stats.get_hierarchical_stats)
     profile = _frame_method(profile)
+
+    get_categorical_distribution = _frame_method(_get_categorical_distribution)
+    get_numerical_aggregation = _frame_method(_get_numerical_aggregation)
+    get_time_series = _frame_method(_get_time_series)
+    get_kpi_value = _frame_method(_get_kpi_value)
+    get_bins = _frame_method(_get_bins)
 
     impute_by_language = _frame_method(translate.impute_by_language, inplace = True)
     translate_conditional_column = _cached_frame_method(

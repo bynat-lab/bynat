@@ -1,13 +1,16 @@
 """AST contract enforcing the constitutional dependency rules ARCH-022--ARCH-027."""
 
 import ast
+import os
 from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.unit
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(
+    os.environ.get("BYNAT_VERIFY_SOURCE_ROOT", str(Path(__file__).resolve().parents[3]))
+).resolve()
 PACKAGE_ROOT = REPO_ROOT / "bynat"
 
 # ARCH-022: exact target modules permitted for cross-package runtime imports.

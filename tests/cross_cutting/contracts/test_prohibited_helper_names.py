@@ -6,13 +6,16 @@ for the `_internal` naming convention in ARCH-094. It inspects only module and p
 cohesion (ARCH-092/ARCH-093), which require human review under ARCH-101.
 """
 
+import os
 from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.unit
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(
+    os.environ.get("BYNAT_VERIFY_SOURCE_ROOT", str(Path(__file__).resolve().parents[3]))
+).resolve()
 PACKAGE_ROOT = REPO_ROOT / "bynat"
 
 PROHIBITED_GENERIC_NAMES = frozenset(

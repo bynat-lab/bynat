@@ -23,7 +23,7 @@
 
 ## 1. Normative rules
 
-Rules are grouped by topic and numbered `ARCH-001` … `ARCH-097`. Each ID is unique and stable: amendments add,
+Rules are grouped by topic and numbered `ARCH-001` … `ARCH-101`. Each ID is unique and stable: amendments add,
 repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure).
 
 ### 1.1 Authority, scope, and evidence
@@ -35,6 +35,7 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-003 | Compatibility with previous published versions is **out of scope**. Obsolete public paths and aliases are removed directly, not retained as compatibility facades. Behavior and contracts that remain part of the current intentional API are preserved because they are current correctness, not legacy compatibility. |
 | ARCH-004 | `bynat` is **one installable modular monolith** with a flat package layout at the repository root (not `src/`). Extraction into separate distributions or services (Stage E) is rejected unless a concrete deployment, versioning, or team-boundary requirement appears. |
 | ARCH-005 | The public surface is **frozen during internal evolution**. Internal reorganization must not change a public import path, a package `__all__` value, a public signature, a docstring, or documented behavior. A public module move is a public API change and requires explicit approval. |
+| ARCH-098 | **Stable invariants, context-driven internal organization.** Keep architectural invariants stable: package ownership, dependency direction, public boundaries, and documented contracts. Choose internal module and helper organization according to the actual responsibilities, invariants, consumers, change reasons, and lifecycle of the code. Different structures are justified when those facts materially differ; superficially similar code does not require identical structure, and different-looking code does not by itself justify different structure. Flexibility is constrained by this constitution, the decision procedure in ARCH-066/ARCH-099, and the enforcement requirements in ARCH-075/ARCH-101; it is not permission for arbitrary or undocumented variation. |
 
 ### 1.2 Public API and compatibility
 
@@ -94,6 +95,7 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-031 | Accessor eligibility is contract-based. A function belongs on `df.bynat` only when all seven criteria hold: DataFrame receiver fit; stable fluent workflow; clear receiver contract; facade independence; optional integration value; justified public API cost; no hidden external boundary. Automatic mirroring is rejected. |
 | ARCH-032 | Classes and protocols are introduced only with a concrete consumer and a lifecycle or structural contract. Composition is preferred over inheritance. The only protocols are `Translator`, `Geocoder`, and `RateSource`. |
 | ARCH-033 | The normative internal interface inventory is: `CacheManager`; `Analyzer`; `BaseData`/`JsonFile`/`CsvFile`; `BynatAccessor`; `Translator`/`Geocoder`/`RateSource`; `DatasetProfile`/`ColumnProfile`/`ProfileReport`; `SQLiteStorage`. |
+| ARCH-100 | **Patterns are defaults, not templates.** The adopted patterns in ARCH-028–ARCH-032 are the preferred starting points where their stated responsibilities and contracts fit. Apply a pattern because it solves the concrete problem, not to make unrelated components look uniform. A deviation is valid when repository evidence shows a material difference in responsibility, invariant, ownership, consumer needs, lifecycle, or change reasons; record the reason when the deviation affects an architectural boundary. Do not invent layers, facades, classes, or abstractions solely for consistency, and do not create unexplained variation between components whose relevant constraints are materially the same. |
 
 ### 1.6 Optional integrations and providers
 
@@ -130,6 +132,8 @@ Helper placement and organization rules are in [§1.15](#115-helper-placement-an
 
 ### 1.9 Structural evolution model
 
+The stage labels below describe possible structural states and conditional options, not a mandatory maturity ladder. They do not imply that every package must pass through every stage, that a higher-numbered stage is inherently better, or that a transition should occur merely because it is available. Evaluate each candidate transition against its own trigger and the decision procedure in ARCH-066/ARCH-099. A package may remain flat indefinitely; a conditional option may never be used.
+
 | ID | Rule |
 |---|---|
 | ARCH-050 | **Stage A — flat domain modules (current).** Each domain package contains flat modules plus at most one capability subpackage where a real subsystem already exists (`cleaning/enrich`). |
@@ -140,7 +144,7 @@ Helper placement and organization rules are in [§1.15](#115-helper-placement-an
 | ARCH-055 | Module states: **M0** single module; **M1** split one module into ≥2 modules in the same package; **M2** convert a module into a same-named package with a curated `__init__`; **M3** merge modules that always change together; **M4** add a new module to an existing package. The decision table requires one responsibility and one reason to change for “keep”, demonstrated divergence for “split”, distinct consumers for “convert”, and ≥2 real consumers for a cross-domain “extract shared helper” abstraction (ARCH-097); same-branch/multi-file extraction follows ARCH-092. |
 | ARCH-056 | **M2 naming rule.** A module-to-package conversion keeps the same name so `from bynat.cleaning import columns, io, stats, text` and `from bynat.cleaning.enrich.providers import ...` continue to work. |
 | ARCH-057 | Evolution principles: **P-1** change reasons before size; **P-2** one responsibility per module (statable without “and”); **P-3** public surface frozen; **P-4** extract shared code into a broader reuse abstraction only after multiple real consumers (Rule of Three, scoped by ARCH-097; same-branch extraction follows ARCH-092); **P-5** dependency direction is a rule, not a directory tree; **P-6** subpackages need a responsibility, not a theme; **P-7** boundaries are enforced, not aspirational; **P-8** every conditional phase is reversible without public API change; **P-9** depth is the last resort; **P-10** the container stays a modular monolith. |
-| ARCH-058 | Near-term work is Phase 0 (baseline/decision record), Phase 1 (internal normalization plus dependency-graph enforcement), and Phase 2 (optional enforcement hardening on a demonstrated repository need). No subpackage is pre-built and no module is converted before its trigger fires. |
+| ARCH-058 | Near-term work is Phase 0 (baseline/decision record), Phase 1 (internal normalization plus dependency-graph enforcement), and Phase 2 (optional enforcement hardening on a demonstrated repository need). No subpackage is pre-built and no module is converted before its trigger fires. These work phases do not make Stages A–E or module states M0–M4 a required sequence; each structural transition remains independently trigger-gated. |
 
 ### 1.10 Growth decision procedure and triggers
 
@@ -153,13 +157,14 @@ Helper placement and organization rules are in [§1.15](#115-helper-placement-an
 | ARCH-063 | Every boundary must have a reviewable verification mechanism or an explicit documented exception. |
 | ARCH-064 | Every conditional phase must have a rollback that restores the previous structure without a public API change. |
 | ARCH-065 | Prefer flat modules; add a subpackage only when it improves navigation and ownership. |
-| ARCH-066 | **Operational review procedure** for opening a conditional phase: (1) inspect repository history and build a change-coupling matrix for the candidate modules and their invariant owners; (2) identify independent change clusters; (3) distinguish genuine responsibility divergence from coincidental similarity using a one-sentence responsibility, invariant, and owner per cluster; (4) replay a recent real change, count the modules and owners touched, and check dependency direction and cycles; (5) record the trigger, one-sentence responsibilities, change-coupling result, replay result, and rollback. |
+| ARCH-066 | **Operational architectural decision procedure.** For a proposed keep, split, merge, module-to-package conversion, helper extraction, new layer, or new package: (1) state the concrete problem and the candidate components; (2) inspect current code, repository history, consumers, invariant owners, and change coupling; (3) state each candidate component's responsibility, invariants, owner, consumers, and reasons to change in one sentence each; (4) evaluate the candidate against responsibility fit, ownership clarity, cohesion, coupling and dependency direction, human discoverability, machine analyzability, and total complexity/maintenance cost; (5) compare at least one plausible alternative, including keeping the current structure when applicable; (6) replay a recent representative change where evidence exists and record which modules, owners, and boundaries it touches; (7) select the least complex option that satisfies the hard rules and materially improves the stated problem; (8) record the evidence, trade-offs, chosen structure, rejected alternative(s), trigger, verification mechanism, and rollback. This is a reasoned review, not a numerical scorecard: no single criterion or file-count threshold decides the outcome, and a criterion that is not relevant must be marked not applicable with a reason. |
+| ARCH-099 | **Decision quality and justification.** A structural decision must explain why the selected organization fits the actual responsibilities and constraints better than plausible alternatives. Consider responsibility, ownership, cohesion, coupling, dependency direction, human discoverability, machine analyzability, and complexity cost together. Prefer the simplest structure that makes ownership and relationships clear while preserving the required contracts. Do not optimize for visual symmetry, uniform file counts, or theoretical future growth. If two alternatives satisfy the constraints, prefer the one with lower ongoing cognitive and maintenance cost; document material trade-offs and uncertainty rather than disguising judgment as a fixed threshold. |
 | ARCH-067 | Trigger evidence weights: change-coupling **high**; one-sentence responsibility **high**; dependency-direction violation **high**; cohesion/coupling signals **high**; consumer count **medium**; module size (LOC) **low**; new optional dependency **medium**; new public contract **high**. |
 | ARCH-068 | Hard rules: **R-1** never split on LOC alone; **R-2** never use `shared`, `_shared`, `utils`, `helpers`, or `common` as generic internal-helper module or package names; use `_internal` only under ARCH-092–ARCH-094; **R-3** never introduce a protocol, base class, manager, registry, or engine without a concrete consumer; **R-4** never change a public import path or `__all__` value during internal reorganization; **R-5** never add a cross-package private import without a documented exception and enforcement entry; **R-6** never introduce a cycle; **R-7** never pre-build a structure for a scenario that has not occurred; **R-11** counts (files, modules, lines, clusters) are supporting signals only; consumer counts gate broader reuse abstraction, not same-branch/multi-file extraction (ARCH-097); **R-12** a split that only moves files without improving ownership or change behavior is rejected; extracting a helper to the narrowest common scope under ARCH-092 improves ownership and is not a mere file move. |
 
 ### 1.11 Conditional evolution phases E1–E6
 
-These are **Conditional** rules. Each phase is opened only when its trigger fires, is independent of the others, is not sequential, and may never occur.
+These are **Conditional** rules. Each phase is opened only when its trigger fires, is independent of the others, is not sequential, and may never occur. They are scenarios, not a roadmap sequence or a target that every package is expected to reach. A phase is selected only when its own evidence and decision review justify it; skipping a phase or remaining in the current structure indefinitely is valid.
 
 | ID | Phase | Scenario | Structural transition | Trigger | Scope | Acceptance | Rollback |
 |---|---|---|---|---|---|---|---|
@@ -174,7 +179,8 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 
 | ID | Rule |
 |---|---|
-| ARCH-075 | Architecture enforcement must cover: exact public exports; permitted and prohibited dependency directions; the five private-import exceptions; `_internal` independence; helper placement at the narrowest common scope, helper-file cohesion, and the `_internal` naming and directory convention (ARCH-092–ARCH-094); accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment; and the prohibition on row-wise data-path iteration. |
+| ARCH-075 | Architecture enforcement must cover: exact public exports; permitted and prohibited dependency directions; the five private-import exceptions; `_internal` independence; helper placement at the narrowest common scope, helper-file cohesion, and the `_internal` naming and directory convention (ARCH-092–ARCH-094); accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment; the prohibition on row-wise data-path iteration; and the discoverability/analyzability expectations in ARCH-101. |
+| ARCH-101 | **Human discoverability and machine analyzability.** A reviewer should be able to infer a module's responsibility and owner from its name, location, and nearby package boundaries without tracing unrelated code or relying on undocumented tribal knowledge. Related components and their permitted dependencies should be findable through clear ownership and explicit exports/imports; avoid intermediate modules or layers that add indirection without a concrete boundary benefit. A machine-assisted analysis should be able to identify package/module ownership, dependency edges, public/private boundaries, and documented exceptions from repository artifacts and explicit rules rather than guessing from naming similarity or directory shape alone. Do not force identical file layouts to achieve this: use the narrowest clear organization that fits each responsibility. Automate objective checks where practical; assess semantic clarity, cohesion, and whether indirection adds value through human review. |
 | ARCH-076 | The enforcement mechanism MAY be a repository-native static or structural check, a dedicated dependency-analysis tool, or another reviewable mechanism selected for the repository. The mechanism MUST represent all five private-import exceptions precisely and MUST NOT require a runtime dependency merely to describe the architecture. |
 | ARCH-077 | A new **module** has one responsibility, a correct owner, no unapproved cross-package private import, an explicit export boundary, and placement at the narrowest common architectural scope (ARCH-092). A new **subpackage** satisfies its trigger, curates `__init__`, adds no cycle, inherits the parent's dependency budget, and changes no public API. A new **domain package** has its own public contract, ≥2–3 operations, no dependency on functional internals, and an explicit extension to the dependency matrix. |
 | ARCH-078 | Every structural change review states the trigger it satisfies and its rollback. |
@@ -205,7 +211,9 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 ### 1.15 Helper placement and organization
 
 These rules govern where a helper lives and how helper modules are grouped. They apply to new helpers and to future
-reorganization; they do not force moves of existing private owner modules (ARCH-095).
+reorganization; they do not force moves of existing private owner modules (ARCH-095). They are a concrete application
+of ARCH-098: the placement is selected from actual consumer scope and responsibility, while the ownership and dependency
+invariants remain stable. They do not require every package or branch to have the same helper-file shape.
 
 | ID | Rule |
 |---|---|
@@ -981,19 +989,19 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 
 | Constitution topic | ARCH IDs | Primary source |
 |---|---|---|
-| Authority, scope, evidence | ARCH-001–ARCH-005 | Design §1; strategy §1; research Executive conclusion |
+| Authority, scope, evidence, stable invariants and context-driven organization | ARCH-001–ARCH-005, ARCH-098 | Design §1; strategy §1; research Executive conclusion; this constitution's architecture decision principle |
 | Public API and compatibility | ARCH-006–ARCH-013 | Design §2.4, §22.1 AR-1/AR-2; strategy §13 C-1–C-10; research §2.3–2.4, ADR-05/ADR-08 |
 | Package boundaries and ownership | ARCH-014–ARCH-021 | Design §6.A–C, §7, §18; research §10.5, ADR-02/ADR-03 |
 | Dependency direction and private imports | ARCH-022–ARCH-027 | Design §13, §22.1 AR-3–AR-9; research §5, §7.1 |
-| Functional Core + Facades | ARCH-028–ARCH-033 | Design §5, §6.D–G; research §2.2, §8.4, ADR-01/ADR-07 |
+| Functional Core + Facades and pattern selection | ARCH-028–ARCH-033, ARCH-100 | Design §5, §6.D–G; research §2.2, §8.4, ADR-01/ADR-07; this constitution's pattern-selection clarification |
 | Optional integrations and providers | ARCH-034–ARCH-037 | Design §6.E, §19; research §6.4 |
 | CacheManager boundaries | ARCH-038–ARCH-043 | Design §6.G, §7.2, §20.2; research §4.11, §6.3 |
 | Private helpers and aliases | ARCH-044–ARCH-049 | Design §3.3 F-1/F-2, §6.I, §12 |
 | Helper placement and organization | ARCH-092–ARCH-097 | This constitution [§1.15](#115-helper-placement-and-organization); user helper placement and organization rules |
 | Structural evolution model | ARCH-050–ARCH-058 | Strategy §4–§6, §14 |
-| Growth decision procedure | ARCH-059–ARCH-068 | Strategy §8, §15.4; design §3.2, §3.3 F-5 |
+| Growth decision procedure and decision quality | ARCH-059–ARCH-068, ARCH-099 | Strategy §8, §15.4; design §3.2, §3.3 F-5; this constitution's decision-quality clarification |
 | Conditional phases E1–E6 | ARCH-069–ARCH-074 | Strategy §7, §10, §14.4 |
-| Enforcement and fitness functions | ARCH-075–ARCH-078 | Design §22; strategy §16; research §13 |
+| Enforcement, fitness functions, discoverability and analyzability | ARCH-075–ARCH-078, ARCH-101 | Design §22; strategy §16; research §13; this constitution's discoverability/analyzability clarification |
 | Prohibited patterns | ARCH-079–ARCH-088 | Design §5, §21; strategy §18.3; research §11 |
 | Governance and amendment | ARCH-089–ARCH-091 | Strategy §16.3; this constitution §6 |
 

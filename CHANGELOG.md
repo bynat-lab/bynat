@@ -4,28 +4,15 @@
 
 ### Breaking changes
 
-- **`df.bynat` now accepts `inplace=True`.** The accessor previously never modified the wrapped DataFrame and had no `inplace` argument. It now accepts `inplace` for the same transformations as the class-based API: `inplace=True` mutates the DataFrame the accessor wraps in place and returns `None`, while the default still returns a new DataFrame and leaves the original untouched. Code that passed `inplace` to one of the variadic accessor methods (`extract_keywords`, `split_list_objects`, `truncate_after_substring`, `melt_transform_pivot`, `extract_entities_nlp`) previously had it silently absorbed as a column, lexicon, or pivot argument; that keyword is now always the in-place control flag.
+- **`inplace` is now reserved on variadic `df.bynat` methods.** In `0.6.6`, `extract_keywords`, `split_list_objects`, `truncate_after_substring`, `melt_transform_pivot`, and `extract_entities_nlp` forwarded extra keywords through flexible arguments, so `inplace` could be treated as method data or passed on as an option instead of controlling mutation. It now controls mutation on supported transformations, so code that relied on `inplace` as another argument may behave differently.
 
 ### Added
 
-- Integrated `bynat.analytics` with `Analyzer` exported cleanly via `__all__ = ["Analyzer"]` in both `bynat.analytics` and `bynat.analytics.analyzer`, providing `get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, and `get_bins` independently of application-specific or Power BI integrations.
-- Added input type validation in `Analyzer.__init__` (`TypeError` for non-`pandas.DataFrame` inputs) and edge-case guards for boolean `bins`, timezone-aware datetimes in `get_time_series`, `observed=True` categorical groupby handling, nullable dtype filter masks, callable Series method validation, and non-scalar KPI aggregation fallbacks.
-- Added unit and contract test suite under `tests/modules/analytics/`.
-- `inplace=True` support on `df.bynat` for every transformation that supports it on `BaseData`: `drop_by_substring`, `drop_CLASS_columns`, `rename_by_substring`, `rename_all_DOTS`, `reorder_columns`, `melt_transform_pivot`, `move_column`, `align_lat_lng`, `extract_keywords`, `split_list_objects`, `impute_by_language`, `translate_conditional_column`, `translate_categorical_column`, `truncate_after_substring`, `fill_missing_coordinates`, `convert_to_usd`, `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `categorize_by_reference`, and `extract_entities_nlp`.
+- **New analytics API.** `bynat.analytics` ships for the first time with `Analyzer`, which provides `get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, and `get_bins`. Each summarizes a `pandas.DataFrame` into a dictionary payload (`{"data": ...}`) for charts, dashboards, and APIs. Call the methods on `df.bynat` after `import bynat`, or construct `Analyzer(df)` from `bynat.analytics`; both routes delegate to one implementation, so the results match. The API needs only `pandas` and `numpy`, accepts optional `filters` and post-aggregation `rules`, and stays independent of Power BI and other application-specific integrations.
+- The new analytics API validates that `Analyzer` receives a `pandas.DataFrame`. Distribution, numerical aggregation, time-series, and bin methods return empty data when required columns are missing or inputs contain no rows. KPI results follow the selected aggregation: for example, `count` returns `0` for an empty frame, while a missing source column returns `None` for non-count aggregations. Filter and aggregation errors log warnings; unsafe or unsupported computed rules are skipped.
+- `df.bynat` accepts `inplace=True` for every transformation that supports it on `BaseData`. The accessor in `0.6.6` had no `inplace` argument; `BaseData` already accepted it, and the accessor now matches. Supported methods: `drop_by_substring`, `drop_CLASS_columns`, `rename_by_substring`, `rename_all_DOTS`, `reorder_columns`, `melt_transform_pivot`, `move_column`, `align_lat_lng`, `extract_keywords`, `split_list_objects`, `impute_by_language`, `translate_conditional_column`, `translate_categorical_column`, `truncate_after_substring`, `fill_missing_coordinates`, `convert_to_usd`, `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `categorize_by_reference`, and `extract_entities_nlp`. `inplace=True` mutates the wrapped DataFrame in place and returns `None`; the default returns a new DataFrame and leaves the original untouched. Pass it positionally wherever the corresponding `BaseData` method accepts it positionally (`df.bynat.rename_all_DOTS("_", True)`), or by keyword on every accessor method.
 - In-place mutation preserves the wrapped DataFrame's object identity, so every reference the caller holds observes the change. `handle_outliers`, `drop_outliers`, `fill_missing`, and `fill_missing_from` still return the hierarchical statistics frame when `get_hierarchical_stats=True`, including when `inplace=True`.
-- `bynat/cleaning/accessor.pyi` regenerated through `tools/sync_docs.py`, so the shipped stub matches the runtime accessor signatures including the new `inplace` parameters.
-
-### Changed
-
-- Renamed `bynat/analytics/Analytics.py` to `bynat/analytics/analyzer.py` to align with package naming conventions.
-- Replaced `print` diagnostics in `bynat.analytics.analyzer` with standard library logging (`logging.getLogger(__name__)`).
-- `df.bynat` and `BaseData` accept `inplace` for the same transformations and with the same calling conventions: `inplace` may be passed positionally wherever the corresponding `BaseData` method accepts it positionally (`df.bynat.rename_all_DOTS("_", True)`), and by keyword on every accessor method.
-- `get_hierarchical_stats`, `profile`, `save_to_json`, `save_to_sql`, `clear_cache_for_column`, and `with_cache` do not transform the wrapped DataFrame, so they do not accept `inplace` and still raise `TypeError` when it is passed.
-- Updated `README.md` and the `BaseData` module docstring, both of which previously stated that the accessor rejects `inplace`.
-
-### Fixed
-
-- The variadic accessor methods no longer absorb an unexpected `inplace` keyword into their flexible arguments; it is recognised as the in-place control argument on every accessor method.
+- Accessor type information includes the new analytics methods and `inplace` signatures for IDE completion and static checking.
 
 ## [0.6.6]
 

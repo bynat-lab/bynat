@@ -478,15 +478,46 @@ Empty and all-null columns do not raise errors. When a column has no non-null va
 
 ## Analytics
 
-Need numbers that are ready for a chart, a dashboard, or an API response? `Analyzer` in `bynat.analytics` summarizes an ordinary `pandas.DataFrame` into dictionary payloads (`{"data": ...}`).
+Need numbers for a chart, a dashboard, or an API response? `Analyzer` summarizes a `pandas.DataFrame` into plain dictionaries (`{"data": ...}`) you can serialize as they are.
 
-- It copies the input DataFrame on initialization, so your original stays untouched.
-- It supports optional `filters` and post-aggregation `rules`.
-- It requires only `pandas` and `numpy`, with no optional extras.
-- It stays independent of Power BI and other application-specific integrations.
-- It takes any `pandas.DataFrame`, so you can analyze a frame you just cleaned with `bynat.cleaning`, including a `BaseData`.
+Use it either way:
 
-Here are all five methods on a small sales table:
+- **On a DataFrame:** `import bynat`, then call the methods on `df.bynat`.
+- **With `Analyzer`:** `from bynat.analytics import Analyzer`, then call the same methods on an instance.
+
+Both routes run the same code, so the results match.
+
+```python
+import bynat
+import pandas as pd
+
+sales = pd.DataFrame({
+    "region": ["North", "North", "South", "East", "West"],
+    "revenue": [120.0, 80.0, 200.0, 50.0, 40.0],
+    "order_date": ["2026-01-05", "2026-01-20", "2026-03-10", "2026-03-12", "2026-03-15"],
+})
+
+# 1. Categorical distribution with top_n + Others breakdown
+dist = sales.bynat.get_categorical_distribution("region", top_n=2, show_others=True)
+
+# 2. Grouped numerical aggregation
+rev_by_region = sales.bynat.get_numerical_aggregation("region", "revenue", agg_func="sum")
+
+# 3. Gap-filled time series ("M", "Y", "H", "D")
+monthly = sales.bynat.get_time_series("order_date", time_period="M", num_col="revenue", agg_func="sum")
+
+# 4. Single-value KPI card
+total_rev = sales.bynat.get_kpi_value("revenue", agg_func="sum", round_value=2, title="Total Revenue")
+
+# 5. Histogram bins
+hist = sales.bynat.get_bins("revenue", bins=3)
+```
+
+Each call returns the same `{"data": ...}` dictionary as the matching `Analyzer` method, and leaves your DataFrame untouched.
+
+The five methods are `get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, and `get_bins`. Their arguments are the same through either route.
+
+Prefer `Analyzer` directly?
 
 ```python
 import pandas as pd
@@ -500,34 +531,22 @@ sales = pd.DataFrame({
 })
 
 analyzer = Analyzer(sales)
-
-# 1. Categorical distribution with top_n + Others breakdown
 dist = analyzer.get_categorical_distribution("region", top_n=2, show_others=True)
-
-# 2. Grouped numerical aggregation with filters and computed rules on output rows
-rev_by_region = analyzer.get_numerical_aggregation(
-    "region",
-    "revenue",
-    agg_func="sum",
-    filters={"revenue": {">=": 50}},
-    rules=[{"new_col": "y_k", "expression": "y / 1000"}],
-)
-
-# 3. Gap-filled time series ("M", "Y", "H", "D")
-monthly = analyzer.get_time_series("order_date", time_period="M", num_col="revenue", agg_func="sum")
-
-# 4. Single-value KPI card
-total_rev = analyzer.get_kpi_value("revenue", agg_func="sum", round_value=2, title="Total Revenue")
-
-# 5. Histogram bins
-hist = analyzer.get_bins("revenue", bins=3)
 ```
+
+`Analyzer` copies the input DataFrame when you create it, so your original stays untouched. It takes any `pandas.DataFrame`, including a `BaseData` or a frame you cleaned with `bynat.cleaning`.
+
+Other things to know:
+
+- Both routes support optional `filters` and post-aggregation `rules`.
+- Both need only `pandas` and `numpy`, with no optional extras.
+- Both stay independent of Power BI and other application-specific integrations.
 
 What happens when something goes wrong:
 
-- All five methods (`get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, `get_bins`) return empty or `None` payloads (`{"data": []}` or `{"data": None, "title": ...}`) when columns are missing or empty.
+- The distribution, numerical aggregation, time-series, and bin methods return `{"data": []}` when required columns are missing or the input has no rows. `get_kpi_value` follows the selected aggregation: `count` returns the row count (including `0` for an empty frame), while a missing source column returns `None` for non-count aggregations.
 - `Analyzer(...)` raises `TypeError` on non-`DataFrame` inputs.
-- Invalid filters, unsafe expressions, and failing aggregations log warnings via `"bynat.analytics.analyzer"` instead of crashing your code.
+- Filter and aggregation errors log warnings; unsafe or unsupported computed rules are skipped.
 
 ---
 

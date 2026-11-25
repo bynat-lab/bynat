@@ -1,20 +1,20 @@
 """Hierarchical outlier handling, imputation, and statistics helpers."""
 
-from collections.abc import Iterable, Iterator, Sequence
+import logging
+from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from ._common import (
+from ._internal import (
     HIERARCHICAL_STATS_COLUMNS,
     FrameT,
-    left_merge_aligned,
-    logger,
-)
-from ._outputs import (
     convert_default_output,
     convert_output,
+    hierarchical_outlier_masks,
+    left_merge_aligned,
+    normalize_hierarchy,
     validate_output_type,
 )
 
@@ -26,82 +26,7 @@ __all__ = [
     "handle_outliers",
 ]
 
-
-def _hierarchical_outlier_masks(
-    frame: pd.DataFrame,
-    target_cols: Sequence[Any],
-    hierarchy_cols: Sequence[Any],
-    min_samples: int,
-) -> Iterator[tuple[Any, np.ndarray]]:
-    """
-    Yield `(target_col, outlier_mask)` for every target and hierarchy level.
-
-    The full hierarchy is evaluated first, then its last column is dropped at
-    each level. A row is judged only at the most specific level where its
-    group has at least `min_samples` non-null values; values outside the
-    group's 1.5 IQR bounds are flagged. Quartiles come from one grouped
-    `quantile([0.25, 0.75])` call per level and are mapped back to rows by
-    group number, with no merge.
-
-    `frame` is re-read at every level, so a caller that blanks the yielded
-    outliers before resuming excludes them from later levels
-    (`handle_outliers`); a caller that leaves `frame` untouched keeps them in
-    later quartiles (`drop_outliers`).
-    """
-    row_count = len(frame)
-
-    for target_col in target_cols:
-        if target_col not in frame.columns:
-            continue
-
-        processed = np.zeros(row_count, dtype = bool)
-        current_hierarchy = list(hierarchy_cols)
-
-        while current_hierarchy:
-            values = frame[target_col]
-            unprocessed = ~processed & values.notna().to_numpy()
-
-            if not unprocessed.any():
-                break
-
-            grouped = values.groupby(
-                [frame[col] for col in current_hierarchy],
-                dropna = False,
-                observed = True,
-                sort = False,
-            )
-
-            group_ids = grouped.ngroup().to_numpy()
-            valid = grouped.count().to_numpy()[group_ids] >= min_samples
-
-            if valid.any():
-                quartiles = grouped.quantile([0.25, 0.75]).to_numpy(dtype = float).reshape(-1, 2)
-                q1 = quartiles[group_ids, 0]
-                q3 = quartiles[group_ids, 1]
-                iqr = q3 - q1
-
-                lower_bound = q1 - 1.5 * iqr
-                upper_bound = q3 + 1.5 * iqr
-                numeric = values.to_numpy(dtype = float, na_value = np.nan)
-
-                with np.errstate(invalid = 'ignore'):
-                    outliers = (
-                        valid & unprocessed & ~np.isnan(lower_bound) &
-                        ((numeric < lower_bound) | (numeric > upper_bound))
-                    )
-
-                yield target_col, outliers
-
-            processed |= valid
-            current_hierarchy.pop()
-
-
-def _normalize_hierarchy(hierarchy_cols: Any) -> list:
-    """Return the hierarchy as a list, treating one string as one column."""
-    if isinstance(hierarchy_cols, str):
-        return [hierarchy_cols]
-
-    return list(hierarchy_cols) if hierarchy_cols else []
+logger = logging.getLogger(__name__)
 
 
 def handle_outliers(
@@ -168,8 +93,8 @@ def handle_outliers(
     if not hierarchy_cols:
         logger.warning("No hierarchy columns provided.")
     else:
-        masks = _hierarchical_outlier_masks(
-            result, target_cols, _normalize_hierarchy(hierarchy_cols), min_samples
+        masks = hierarchical_outlier_masks(
+            result, target_cols, normalize_hierarchy(hierarchy_cols), min_samples
         )
 
         for target_col, outliers in masks:
@@ -245,8 +170,8 @@ def drop_outliers(
         logger.warning("No hierarchy columns provided.")
     else:
         drop_mask = np.zeros(len(result), dtype = bool)
-        masks = _hierarchical_outlier_masks(
-            result, target_cols, _normalize_hierarchy(hierarchy_cols), min_samples
+        masks = hierarchical_outlier_masks(
+            result, target_cols, normalize_hierarchy(hierarchy_cols), min_samples
         )
 
         for _, outliers in masks:
@@ -654,7 +579,7 @@ def fill_missing_from(
                 f"Reference column '{ref_col}' for target '{col}' does not exist in reference dataset."
             )
 
-    norm_hierarchy = _normalize_hierarchy(hierarchy_cols)
+    norm_hierarchy = normalize_hierarchy(hierarchy_cols)
     for h_col in norm_hierarchy:
         if h_col not in result.columns:
             raise ValueError(f"Hierarchy column '{h_col}' does not exist in target dataframe.")

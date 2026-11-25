@@ -13,9 +13,9 @@ import pandas as pd
 
 import bynat.analytics as analytics
 from bynat.caching import CacheManager, shared_cache_manager
-from bynat.cleaning import columns, io, stats, text
-from bynat.cleaning._outputs import is_basedata_type
-from bynat.cleaning.enrich import currency, geocode, nlp, translate
+from bynat.cleaning import _columns, _stats, _text, io
+from bynat.cleaning._internal import is_basedata_type
+from bynat.cleaning.enrich import _currency, _geocode, _nlp, _translate
 from bynat.profiling import profile as _profiling_profile
 
 from ._binding import _cached_frame_method, _frame_method
@@ -320,25 +320,25 @@ class BynatAccessor:
         """
         self.cache_manager.delete_column_cache(func_name, target_col)
 
-    drop_by_substring = _frame_method(columns.drop_by_substring, inplace = True)
-    drop_CLASS_columns = _frame_method(columns.drop_CLASS_columns, inplace = True)
-    rename_by_substring = _frame_method(columns.rename_by_substring, inplace = True)
-    rename_all_DOTS = _frame_method(columns.rename_all_DOTS, inplace = True)
-    reorder_columns = _frame_method(columns.reorder_columns, inplace = True)
-    melt_transform_pivot = _frame_method(columns.melt_transform_pivot, inplace = True)
-    move_column = _frame_method(columns.move_column, inplace = True)
-    align_lat_lng = _frame_method(columns.align_lat_lng, inplace = True)
-    split_list_objects = _frame_method(columns.split_list_objects, inplace = True)
+    drop_by_substring = _frame_method(_columns.drop_by_substring, inplace = True)
+    drop_CLASS_columns = _frame_method(_columns.drop_CLASS_columns, inplace = True)
+    rename_by_substring = _frame_method(_columns.rename_by_substring, inplace = True)
+    rename_all_DOTS = _frame_method(_columns.rename_all_DOTS, inplace = True)
+    reorder_columns = _frame_method(_columns.reorder_columns, inplace = True)
+    melt_transform_pivot = _frame_method(_columns.melt_transform_pivot, inplace = True)
+    move_column = _frame_method(_columns.move_column, inplace = True)
+    align_lat_lng = _frame_method(_columns.align_lat_lng, inplace = True)
+    split_list_objects = _frame_method(_columns.split_list_objects, inplace = True)
 
-    extract_keywords = _frame_method(text.extract_keywords, inplace = True)
-    truncate_after_substring = _frame_method(text.truncate_after_substring, inplace = True)
-    categorize_by_reference = _frame_method(text.categorize_by_reference, inplace = True)
+    extract_keywords = _frame_method(_text.extract_keywords, inplace = True)
+    truncate_after_substring = _frame_method(_text.truncate_after_substring, inplace = True)
+    categorize_by_reference = _frame_method(_text.categorize_by_reference, inplace = True)
 
-    handle_outliers = _frame_method(stats.handle_outliers, inplace = True, stats = True)
-    drop_outliers = _frame_method(stats.drop_outliers, inplace = True, stats = True)
-    fill_missing = _frame_method(stats.fill_missing, inplace = True, stats = True)
-    fill_missing_from = _frame_method(stats.fill_missing_from, inplace = True, stats = True)
-    get_hierarchical_stats = _frame_method(stats.get_hierarchical_stats)
+    handle_outliers = _frame_method(_stats.handle_outliers, inplace = True, stats = True)
+    drop_outliers = _frame_method(_stats.drop_outliers, inplace = True, stats = True)
+    fill_missing = _frame_method(_stats.fill_missing, inplace = True, stats = True)
+    fill_missing_from = _frame_method(_stats.fill_missing_from, inplace = True, stats = True)
+    get_hierarchical_stats = _frame_method(_stats.get_hierarchical_stats)
     profile = _frame_method(profile)
 
     get_categorical_distribution = _frame_method(_get_categorical_distribution)
@@ -347,14 +347,14 @@ class BynatAccessor:
     get_kpi_value = _frame_method(_get_kpi_value)
     get_bins = _frame_method(_get_bins)
 
-    impute_by_language = _frame_method(translate.impute_by_language, inplace = True)
+    impute_by_language = _frame_method(_translate.impute_by_language, inplace = True)
     translate_conditional_column = _cached_frame_method(
-        translate.translate_conditional_column, inplace = True, inplace_before = "random_state"
+        _translate.translate_conditional_column, inplace = True, inplace_before = "random_state"
     )
-    translate_categorical_column = _cached_frame_method(translate.translate_categorical_column, inplace = True)
-    fill_missing_coordinates = _cached_frame_method(geocode.fill_missing_coordinates, inplace = True)
-    convert_to_usd = _cached_frame_method(currency.convert_to_usd, inplace = True)
-    extract_entities_nlp = _cached_frame_method(nlp.extract_entities_nlp, inplace = True)
+    translate_categorical_column = _cached_frame_method(_translate.translate_categorical_column, inplace = True)
+    fill_missing_coordinates = _cached_frame_method(_geocode.fill_missing_coordinates, inplace = True)
+    convert_to_usd = _cached_frame_method(_currency.convert_to_usd, inplace = True)
+    extract_entities_nlp = _cached_frame_method(_nlp.extract_entities_nlp, inplace = True)
 
     save_to_json = _frame_method(io.save_to_json)
     save_to_sql = _frame_method(io.save_to_sql)

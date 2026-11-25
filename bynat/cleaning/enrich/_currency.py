@@ -1,5 +1,6 @@
 """Cached conversion of local-currency amounts to USD."""
 
+import logging
 import time
 from collections import defaultdict
 from typing import Any
@@ -8,18 +9,16 @@ import pandas as pd
 
 from bynat.caching import CacheManager
 
-from .._common import FrameT, import_optional, left_merge_aligned, logger
-from .engine import _cached_map
+from .._internal import FrameT, import_optional, left_merge_aligned
+from ._engine import cached_map
+from ._internal import lookback_years
 from .providers import RateSource, YFinanceRateSource
 
 __all__ = [
     "convert_to_usd",
 ]
 
-
-def _lookback_years(year: int, min_year: int) -> range:
-    """Years checked for a rate, from `year` back to `min_year`."""
-    return range(year, min_year - 1, -1)
+logger = logging.getLogger(__name__)
 
 
 def convert_to_usd(
@@ -129,7 +128,7 @@ def convert_to_usd(
 
         return currencies[0] if currencies else None
 
-    currency_cache = _cached_map(
+    currency_cache = cached_map(
         [str(country).strip() for country in unique_pairs[country_col]],
         find_currency,
         "currency_codes",
@@ -158,7 +157,7 @@ def convert_to_usd(
                 year = None
 
             if year is not None:
-                for lookback_year in _lookback_years(year, min_year_limit):
+                for lookback_year in lookback_years(year, min_year_limit):
                     rate_key = f"{curr_code}_{lookback_year}"
 
                     if rates_cache.get(rate_key):
@@ -212,7 +211,7 @@ def convert_to_usd(
             rate = 1.0
 
         elif curr_code and year is not None:
-            for lookback_year in _lookback_years(year, min_year_limit):
+            for lookback_year in lookback_years(year, min_year_limit):
                 rate = rates_cache.get(f"{curr_code}_{lookback_year}")
 
                 if rate:

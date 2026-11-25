@@ -1,15 +1,15 @@
 """JSON and SQL export helpers, and the JSON/CSV loaders."""
 
 import json
+import logging
 import os
-import urllib.parse
 from typing import Any, Literal
 
 import pandas as pd
 
 from bynat._internal import dedupe_key as _dedupe_key
 
-from ._common import import_optional, logger
+from ._internal import build_engine_url, import_optional
 
 __all__ = [
     "IfExists",
@@ -19,6 +19,8 @@ __all__ = [
     "save_to_json",
     "save_to_sql",
 ]
+
+logger = logging.getLogger(__name__)
 
 JsonOrient = Literal['split', 'records', 'index', 'columns', 'values', 'table']
 IfExists = Literal['fail', 'replace', 'append']
@@ -322,7 +324,6 @@ def save_to_sql(
     db_name = str(database_name or '').strip()
     db_driver = str(database_driver or '').strip() or None
     table_name = str(table_name or '').strip()
-    engine_kwargs = {}
 
     if not table_name:
         raise ValueError("table_name cannot be empty.")
@@ -333,39 +334,16 @@ def save_to_sql(
     if not db_type:
         raise ValueError("database_type cannot be empty.")
 
-    if db_type.startswith('sqlite'):
-        if not db_name:
-            raise ValueError("database_name is required for SQLite.")
-
-        if db_name == ':memory:':
-            engine_url = "sqlite:///:memory:"
-
-        else:
-            engine_url = f"sqlite:///{db_name}"
-
-    elif 'mssql' in db_type or 'sqlserver' in db_type:
-        if not all([db_user, db_pass, db_host, db_port, db_name]):
-            raise ValueError("SQL Server needs database_user, database_password, database_host, database_port, and database_name.")
-
-        if not db_driver:
-            raise ValueError("database_driver is required for SQL Server.")
-
-        encoded_driver = urllib.parse.quote_plus(db_driver)
-        encoded_user = urllib.parse.quote_plus(db_user)
-        encoded_pass = urllib.parse.quote_plus(db_pass)
-
-        engine_url = f"{db_type}://{encoded_user}:{encoded_pass}@{db_host}:{db_port}/{db_name}?driver={encoded_driver}"
-        engine_kwargs['fast_executemany'] = fast_executemany
-
-    else:
-
-        if not all([db_user, db_pass, db_host, db_port, db_name]):
-            raise ValueError("database_user, database_password, database_host, database_port, and database_name are required.")
-
-        encoded_user = urllib.parse.quote_plus(db_user)
-        encoded_pass = urllib.parse.quote_plus(db_pass)
-
-        engine_url = f"{db_type}://{encoded_user}:{encoded_pass}@{db_host}:{db_port}/{db_name}"
+    engine_url, engine_kwargs = build_engine_url(
+        db_type = db_type,
+        db_user = db_user,
+        db_pass = db_pass,
+        db_host = db_host,
+        db_port = db_port,
+        db_name = db_name,
+        db_driver = db_driver,
+        fast_executemany = fast_executemany,
+    )
 
     sqlalchemy = import_optional("sqlalchemy", "SQLAlchemy", "save_to_sql")
 

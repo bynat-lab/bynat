@@ -1,116 +1,22 @@
 """Cached lexicon-based entity extraction with spaCy."""
 
-import hashlib
 import json
+import logging
 import os
 from collections.abc import Iterable
 from typing import Any
 
 from bynat.caching import CacheManager
 
-from .._common import FrameT, import_optional, logger, require_positive_int
-from .engine import _cached_map
+from .._internal import FrameT, import_optional, require_positive_int
+from ._engine import cached_map
+from ._internal import lexicon_terms, nlp_cache_bucket, normalize_nlp_disable
 
 __all__ = [
     "extract_entities_nlp",
 ]
 
-_NLP_REQUIRED_PIPES = frozenset(
-    {'tok2vec', 'tagger', 'attribute_ruler', 'lemmatizer', 'morphologizer'}
-)
-
-
-def _normalize_nlp_disable(disable: Iterable[str] | str | None) -> tuple[str, ...]:
-    """Normalize and validate spaCy components requested for disabling."""
-    if disable is None:
-        return ()
-
-    if isinstance(disable, str):
-        components: tuple = (disable,)
-    else:
-        try:
-            components = tuple(disable)
-        except TypeError as exc:
-            raise TypeError(
-                "disable must be None, a string, or an iterable of strings."
-            ) from exc
-
-    normalized: list[str] = []
-
-    for component in components:
-        if not isinstance(component, str):
-            raise TypeError("disable must contain only strings.")
-
-        component = component.strip()
-
-        if not component:
-            raise ValueError("disable cannot contain empty component names.")
-
-        if component not in normalized:
-            normalized.append(component)
-
-    prohibited = sorted(set(normalized) & _NLP_REQUIRED_PIPES)
-
-    if prohibited:
-        raise ValueError(
-            "disable cannot disable spaCy components required for NLP extraction: "
-            f"{prohibited}."
-        )
-
-    return tuple(normalized)
-
-
-def _nlp_cache_bucket(target_col: str, model_identifier: str, disable: tuple[str, ...]) -> str:
-    """Build a filesystem-safe cache bucket for one NLP configuration."""
-    identity = json.dumps(
-        [target_col, model_identifier, sorted(disable)],
-        ensure_ascii = False,
-        separators = (',', ':'),
-    )
-    digest = hashlib.sha1(identity.encode('utf-8')).hexdigest()[:16]
-    return f"nlp_{digest}"
-
-
-def _lexicon_terms(lexicon_data: Any, keys_to_match: list) -> set[str]:
-    """Collect lowercase terms found under any of the requested lexicon keys."""
-    extracted_terms = set()
-
-    stack = [(lexicon_data, False)]
-
-    while stack:
-        current_node, is_inside = stack.pop()
-
-        if isinstance(current_node, dict):
-            for k, v in current_node.items():
-                current_is_target = is_inside or (str(k) in keys_to_match)
-
-                if current_is_target and isinstance(v, bool) and v is True:
-                    term = str(k).strip().lower()
-
-                    if term:
-                        extracted_terms.add(term)
-
-                elif current_is_target and isinstance(v, str):
-                    term = str(v).strip().lower()
-
-                    if term:
-                        extracted_terms.add(term)
-
-                elif isinstance(v, (dict, list)):
-                    stack.append((v, current_is_target))
-
-        elif isinstance(current_node, list):
-            for item in current_node:
-                if is_inside and isinstance(item, str):
-                    term = str(item).strip().lower()
-
-                    if term:
-                        extracted_terms.add(term)
-
-                elif isinstance(item, (dict, list)):
-                    stack.append((item, is_inside))
-
-    return extracted_terms
+logger = logging.getLogger(__name__)
 
 
 def extract_entities_nlp(
@@ -223,7 +129,7 @@ def extract_entities_nlp(
             "'noisey_terms'; did you mean 'noisy_terms'?"
         )
 
-    normalized_disable = _normalize_nlp_disable(disable)
+    normalized_disable = normalize_nlp_disable(disable)
     ignored_terms: set[str] = set()
 
     if noisy_terms is not None:
@@ -253,7 +159,7 @@ def extract_entities_nlp(
 
     for target_col, json_key in target_cols_and_json_keys.items():
         keys_to_match = json_key if isinstance(json_key, list) else [json_key]
-        extracted_terms = _lexicon_terms(lexicon_data, keys_to_match)
+        extracted_terms = lexicon_terms(lexicon_data, keys_to_match)
 
         if extracted_terms:
             term_dict[target_col] = list(extracted_terms)
@@ -294,7 +200,7 @@ def extract_entities_nlp(
 
     model_identifier = os.fsdecode(model_path)
     buckets = {
-        target_col: _nlp_cache_bucket(target_col, model_identifier, normalized_disable)
+        target_col: nlp_cache_bucket(target_col, model_identifier, normalized_disable)
         for target_col in term_dict
     }
 
@@ -385,7 +291,7 @@ def extract_entities_nlp(
 
         return outcomes
 
-    caches = _cached_map(
+    caches = cached_map(
         all_valid_texts,
         None,
         tuple(buckets.values()),

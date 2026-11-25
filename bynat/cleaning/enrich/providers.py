@@ -6,7 +6,7 @@ from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
-from .._common import import_optional
+from .._internal import import_optional
 
 __all__ = [
     "Geocoder",

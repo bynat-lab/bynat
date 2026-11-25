@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bynat.cleaning import text
+from bynat.cleaning import _text
 from tests.cross_cutting.equivalence._bench_refs import _legacy_extract_keywords
 
 pytestmark = pytest.mark.integration
@@ -56,7 +56,7 @@ def test_extract_keywords_literal_matches_legacy(keyword_frame, keywords, remove
     expected = _legacy_extract_keywords(
         keyword_frame, "title", "body", remove_extracted=remove_extracted, found=keywords
     )
-    actual = text.extract_keywords(keyword_frame, "title", "body", remove_extracted=remove_extracted, found=keywords)
+    actual = _text.extract_keywords(keyword_frame, "title", "body", remove_extracted=remove_extracted, found=keywords)
 
     pd.testing.assert_frame_equal(actual, expected)
     pd.testing.assert_frame_equal(keyword_frame, original)
@@ -76,7 +76,7 @@ def test_extract_keywords_regex_matches_legacy(keyword_frame, patterns, remove_e
     expected = _legacy_extract_keywords(
         keyword_frame, "title", "body", remove_extracted=remove_extracted, use_regex=True, found=patterns
     )
-    actual = text.extract_keywords(
+    actual = _text.extract_keywords(
         keyword_frame, "title", "body", remove_extracted=remove_extracted, use_regex=True, found=patterns
     )
 
@@ -93,8 +93,8 @@ def test_extract_keywords_repeated_calls_into_existing_column_match_legacy(keywo
     expected = _legacy_extract_keywords(keyword_frame, "title", use_regex=use_regex, existing=first)
     expected = _legacy_extract_keywords(expected, "body", use_regex=use_regex, existing=second)
 
-    actual = text.extract_keywords(keyword_frame, "title", use_regex=use_regex, existing=first)
-    actual = text.extract_keywords(actual, "body", use_regex=use_regex, existing=second)
+    actual = _text.extract_keywords(keyword_frame, "title", use_regex=use_regex, existing=first)
+    actual = _text.extract_keywords(actual, "body", use_regex=use_regex, existing=second)
 
     pd.testing.assert_frame_equal(actual, expected)
     pd.testing.assert_frame_equal(keyword_frame, original)
@@ -106,9 +106,9 @@ def test_extract_keywords_aho_corasick_and_regex_paths_agree(monkeypatch, keywor
     original = keyword_frame.copy(deep=True)
     keywords = ["data", "data analyst", "analyst", "c++", ".net", "x_y", "red"]
 
-    with_automaton = text.extract_keywords(keyword_frame, "title", "body", found=keywords)
-    monkeypatch.setattr(text, "_optional_ahocorasick", lambda: None)
-    regex_only = text.extract_keywords(keyword_frame, "title", "body", found=keywords)
+    with_automaton = _text.extract_keywords(keyword_frame, "title", "body", found=keywords)
+    monkeypatch.setattr(_text, "_optional_ahocorasick", lambda: None)
+    regex_only = _text.extract_keywords(keyword_frame, "title", "body", found=keywords)
 
     pd.testing.assert_frame_equal(with_automaton, regex_only)
     pd.testing.assert_frame_equal(keyword_frame, original)
@@ -118,7 +118,7 @@ def test_extract_keywords_overlapping_keywords_respect_priority():
     frame = pd.DataFrame({"text": ["x ab c", "ab c x", "x ab"]})
     original = frame.copy(deep=True)
 
-    result = text.extract_keywords(frame, "text", found=["ab c", "x ab"])
+    result = _text.extract_keywords(frame, "text", found=["ab c", "x ab"])
 
     assert result["found"].tolist() == ["Ab C", "Ab C", "X Ab"]
     pd.testing.assert_frame_equal(frame, original)

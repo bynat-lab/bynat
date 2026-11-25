@@ -8,7 +8,7 @@ import pytest
 
 from bynat.caching import CacheManager
 from bynat.cleaning import BaseData
-from bynat.cleaning.enrich import geocode
+from bynat.cleaning.enrich import _geocode
 from tests.modules.enrichment.helpers import Geocoder, Location, install_fake_module
 
 pytestmark = pytest.mark.unit
@@ -84,7 +84,7 @@ def test_fill_missing_coordinates_defaults_to_nominatim_geocoder(monkeypatch, tm
     frame = pd.DataFrame({"city": ["Paris"], "lat": [None], "lng": [None]})
     original = frame.copy(deep=True)
 
-    located = geocode.fill_missing_coordinates(
+    located = _geocode.fill_missing_coordinates(
         frame,
         "city",
         lat_col="lat",

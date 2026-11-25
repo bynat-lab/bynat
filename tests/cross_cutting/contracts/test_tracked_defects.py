@@ -9,7 +9,7 @@ The accessor half is fixed and covered in
 import pandas as pd
 import pytest
 
-from bynat.cleaning import columns, text
+from bynat.cleaning import _columns, _text
 
 pytestmark = pytest.mark.integration
 
@@ -38,19 +38,19 @@ def _variadic_frame():
     "call",
     [
         pytest.param(
-            lambda frame: text.extract_keywords(frame, "text", found=["alpha"], inplace=True),
+            lambda frame: _text.extract_keywords(frame, "text", found=["alpha"], inplace=True),
             id="extract_keywords",
         ),
         pytest.param(
-            lambda frame: text.truncate_after_substring(frame, text="-", inplace=True),
+            lambda frame: _text.truncate_after_substring(frame, text="-", inplace=True),
             id="truncate_after_substring",
         ),
         pytest.param(
-            lambda frame: columns.split_list_objects(frame, "items", first=0, inplace=True),
+            lambda frame: _columns.split_list_objects(frame, "items", first=0, inplace=True),
             id="split_list_objects",
         ),
         pytest.param(
-            lambda frame: columns.melt_transform_pivot(
+            lambda frame: _columns.melt_transform_pivot(
                 frame, id_vars="id", value_vars=["left", "right"], inplace=True
             ),
             id="melt_transform_pivot",

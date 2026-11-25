@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bynat.cleaning import BaseData, stats
+from bynat.cleaning import BaseData, _stats
 from tests.shared.constants import OUTPUT_COLUMNS
 
 pytestmark = pytest.mark.integration
@@ -33,7 +33,7 @@ def test_fill_missing_from_validation():
 
     dup_target = pd.DataFrame([[1, 2]], columns=["v", "v"])
     with pytest.raises(ValueError, match="Target dataframe contains duplicate column names"):
-        stats.fill_missing_from(dup_target, valid_train, "v")
+        _stats.fill_missing_from(dup_target, valid_train, "v")
 
     with pytest.raises(TypeError, match="match_cols must be a dictionary"):
         target.bynat.fill_missing_from(valid_train, "v", match_cols="invalid")
@@ -130,7 +130,7 @@ def test_fill_missing_from_non_numeric_all_nan_target_is_exempt():
     reference = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
     target = pd.DataFrame({"g": ["a", "b"], "v": pd.Series([None, None], dtype=object)})
 
-    result = stats.fill_missing_from(
+    result = _stats.fill_missing_from(
         target, reference, "v", strategy="median", hierarchy_cols=["g"]
     )
 
@@ -141,7 +141,7 @@ def test_fill_missing_from_skips_missing_targets_and_fills_valid_ones():
     reference = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
     target = pd.DataFrame({"g": ["a", "b"], "v": [None, None]})
 
-    result = stats.fill_missing_from(target, reference, "v", "missing", hierarchy_cols=["g"])
+    result = _stats.fill_missing_from(target, reference, "v", "missing", hierarchy_cols=["g"])
 
     assert result["v"].tolist() == [1.0, 2.0]
     assert "missing" not in result.columns
@@ -151,8 +151,8 @@ def test_fill_missing_from_duplicate_targets_are_deduplicated():
     reference = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
     target = pd.DataFrame({"g": ["a", "b"], "v": [None, None]})
 
-    unique = stats.fill_missing_from(target, reference, "v", hierarchy_cols=["g"])
-    duplicated = stats.fill_missing_from(target, reference, "v", "v", hierarchy_cols=["g"])
+    unique = _stats.fill_missing_from(target, reference, "v", hierarchy_cols=["g"])
+    duplicated = _stats.fill_missing_from(target, reference, "v", "v", hierarchy_cols=["g"])
 
     pd.testing.assert_frame_equal(duplicated, unique)
 
@@ -169,35 +169,35 @@ def test_fill_missing_from_rejects_empty_match_cols_strings(match_cols):
     target = pd.DataFrame({"g": ["a", "b"], "v": [None, None]})
 
     with pytest.raises(ValueError, match="cannot be empty strings"):
-        stats.fill_missing_from(target, reference, "v", match_cols=match_cols)
+        _stats.fill_missing_from(target, reference, "v", match_cols=match_cols)
 
 
 def test_fill_missing_from_target_specification_shapes_and_empty_edge_cases():
     ref = pd.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0], "m": ["x", "y"]})
     tgt = pd.DataFrame({"g": ["a", "b"], "v": [np.nan, np.nan], "m": [None, None]})
 
-    res_list = stats.fill_missing_from(tgt, ref, ["v"], hierarchy_cols=["g"])
+    res_list = _stats.fill_missing_from(tgt, ref, ["v"], hierarchy_cols=["g"])
     assert res_list["v"].tolist() == [1.0, 2.0]
 
-    res_str = stats.fill_missing_from(tgt, ref, targets="v", hierarchy_cols=["g"])
+    res_str = _stats.fill_missing_from(tgt, ref, targets="v", hierarchy_cols=["g"])
     assert res_str["v"].tolist() == [1.0, 2.0]
 
-    res_scalar = stats.fill_missing_from(tgt, ref, targets="v", hierarchy_cols=["g"])
+    res_scalar = _stats.fill_missing_from(tgt, ref, targets="v", hierarchy_cols=["g"])
     assert res_scalar["v"].tolist() == [1.0, 2.0]
 
-    res_no_targets = stats.fill_missing_from(tgt, ref, hierarchy_cols=["g"])
+    res_no_targets = _stats.fill_missing_from(tgt, ref, hierarchy_cols=["g"])
     pd.testing.assert_frame_equal(res_no_targets, tgt)
 
-    res_no_targets_stats, stat_df = stats.fill_missing_from(tgt, ref, hierarchy_cols=["g"], get_hierarchical_stats=True)
+    res_no_targets_stats, stat_df = _stats.fill_missing_from(tgt, ref, hierarchy_cols=["g"], get_hierarchical_stats=True)
     pd.testing.assert_frame_equal(res_no_targets_stats, tgt)
     assert stat_df.empty
 
-    res_invalid_targets_stats, stat_df2 = stats.fill_missing_from(tgt, ref, "nonexistent", hierarchy_cols=["g"], get_hierarchical_stats=True)
+    res_invalid_targets_stats, stat_df2 = _stats.fill_missing_from(tgt, ref, "nonexistent", hierarchy_cols=["g"], get_hierarchical_stats=True)
     pd.testing.assert_frame_equal(res_invalid_targets_stats, tgt)
     assert stat_df2.empty
 
     empty_tgt = pd.DataFrame(columns=["g", "v"])
-    res_empty, stat_empty = stats.fill_missing_from(empty_tgt, ref, "v", hierarchy_cols=["g"], get_hierarchical_stats=True)
+    res_empty, stat_empty = _stats.fill_missing_from(empty_tgt, ref, "v", hierarchy_cols=["g"], get_hierarchical_stats=True)
     assert res_empty.empty
     assert not stat_empty.empty
 
@@ -206,17 +206,17 @@ def test_fill_missing_from_mode_strategy_edge_cases():
     ref = pd.DataFrame({"g": ["a", "b"], "v": [None, None], "ref_cat": ["X", "Y"]})
     tgt = pd.DataFrame({"g": ["a", "b"], "v": [None, None], "tgt_cat": [None, None]})
 
-    res_all_nan = stats.fill_missing_from(tgt, ref, "v", strategy="mode", hierarchy_cols=["g"])
+    res_all_nan = _stats.fill_missing_from(tgt, ref, "v", strategy="mode", hierarchy_cols=["g"])
     assert res_all_nan["v"].isna().all()
 
     ref2 = pd.DataFrame({"g": ["a", "b"], "ref_cat": ["cat1", "cat2"]})
     tgt2 = pd.DataFrame({"g": ["a", "b"], "tgt_cat": [None, None]})
-    res_insufficient = stats.fill_missing_from(
+    res_insufficient = _stats.fill_missing_from(
         tgt2, ref2, "tgt_cat", strategy="mode", hierarchy_cols=["g"], match_cols={"tgt_cat": "ref_cat"}, min_samples=5
     )
     assert res_insufficient["tgt_cat"].isna().all()
 
-    res_match_mode = stats.fill_missing_from(
+    res_match_mode = _stats.fill_missing_from(
         tgt2, ref2, "tgt_cat", strategy="mode", hierarchy_cols=["g"], match_cols={"tgt_cat": "ref_cat"}, min_samples=1
     )
     assert res_match_mode["tgt_cat"].tolist() == ["cat1", "cat2"]

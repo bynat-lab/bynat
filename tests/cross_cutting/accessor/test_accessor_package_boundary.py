@@ -16,6 +16,8 @@ import pytest
 import bynat
 import bynat._accessors as accessors
 from bynat._accessors import BynatAccessor
+from bynat.cleaning import _columns, _stats, _text
+from bynat.cleaning.enrich import _currency, _geocode, _nlp
 
 pytestmark = pytest.mark.unit
 
@@ -86,33 +88,33 @@ def test_accessor_module_imports_only_allowed_boundaries():
 
 
 def test_accessor_methods_delegate_to_functional_module_apis():
-    from bynat.cleaning import columns, io, stats, text
-    from bynat.cleaning.enrich import currency, geocode, nlp, translate
+    from bynat.cleaning import io
+    from bynat.cleaning.enrich import _translate
 
     expected = {
-        "drop_by_substring": columns.drop_by_substring,
-        "drop_CLASS_columns": columns.drop_CLASS_columns,
-        "rename_by_substring": columns.rename_by_substring,
-        "rename_all_DOTS": columns.rename_all_DOTS,
-        "reorder_columns": columns.reorder_columns,
-        "melt_transform_pivot": columns.melt_transform_pivot,
-        "move_column": columns.move_column,
-        "align_lat_lng": columns.align_lat_lng,
-        "split_list_objects": columns.split_list_objects,
-        "extract_keywords": text.extract_keywords,
-        "truncate_after_substring": text.truncate_after_substring,
-        "categorize_by_reference": text.categorize_by_reference,
-        "handle_outliers": stats.handle_outliers,
-        "drop_outliers": stats.drop_outliers,
-        "fill_missing": stats.fill_missing,
-        "fill_missing_from": stats.fill_missing_from,
-        "get_hierarchical_stats": stats.get_hierarchical_stats,
-        "impute_by_language": translate.impute_by_language,
-        "translate_conditional_column": translate.translate_conditional_column,
-        "translate_categorical_column": translate.translate_categorical_column,
-        "fill_missing_coordinates": geocode.fill_missing_coordinates,
-        "convert_to_usd": currency.convert_to_usd,
-        "extract_entities_nlp": nlp.extract_entities_nlp,
+        "drop_by_substring": _columns.drop_by_substring,
+        "drop_CLASS_columns": _columns.drop_CLASS_columns,
+        "rename_by_substring": _columns.rename_by_substring,
+        "rename_all_DOTS": _columns.rename_all_DOTS,
+        "reorder_columns": _columns.reorder_columns,
+        "melt_transform_pivot": _columns.melt_transform_pivot,
+        "move_column": _columns.move_column,
+        "align_lat_lng": _columns.align_lat_lng,
+        "split_list_objects": _columns.split_list_objects,
+        "extract_keywords": _text.extract_keywords,
+        "truncate_after_substring": _text.truncate_after_substring,
+        "categorize_by_reference": _text.categorize_by_reference,
+        "handle_outliers": _stats.handle_outliers,
+        "drop_outliers": _stats.drop_outliers,
+        "fill_missing": _stats.fill_missing,
+        "fill_missing_from": _stats.fill_missing_from,
+        "get_hierarchical_stats": _stats.get_hierarchical_stats,
+        "impute_by_language": _translate.impute_by_language,
+        "translate_conditional_column": _translate.translate_conditional_column,
+        "translate_categorical_column": _translate.translate_categorical_column,
+        "fill_missing_coordinates": _geocode.fill_missing_coordinates,
+        "convert_to_usd": _currency.convert_to_usd,
+        "extract_entities_nlp": _nlp.extract_entities_nlp,
         "save_to_json": io.save_to_json,
         "save_to_sql": io.save_to_sql,
     }

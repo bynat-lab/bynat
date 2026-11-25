@@ -1,23 +1,22 @@
 """The cached-lookup engine shared by every enrichment method."""
 
-import threading
-import time
+import logging
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-import pandas as pd
-
 from bynat.caching import CacheManager
-from bynat.caching._keys import cache_value_key
+from bynat.caching._internal import cache_value_key
 
-from .._common import logger
+from ._internal import unique_values
 
 __all__ = [
     "Fetch",
     "FetchMany",
     "SKIP",
+    "cached_map",
 ]
+
+logger = logging.getLogger(__name__)
 
 # Returned by a fetch to leave a value uncached without logging a failure.
 SKIP = object()
@@ -30,53 +29,7 @@ FetchMany = Callable[[list], Sequence[Any]]
 """Callable resolving one chunk of values, returning one outcome per value."""
 
 
-def _unique_values(values: Iterable) -> list:
-    """Return the unique non-null values in first-seen order."""
-    series = values if isinstance(values, pd.Series) else pd.Series(list(values), dtype = object)
-    return list(series.dropna().unique())
-
-
-def _rate_limited_map(
-    func: Fetch,
-    items: Sequence[Any],
-    max_workers: int = 1,
-    min_interval: float = 0.0,
-) -> list:
-    """
-    Call `func` on every item and return results in input order, with an
-    exception in place of each failed call.
-
-    At most `max_workers` calls run at once, and call starts are spaced at
-    least `min_interval` seconds apart across all workers.
-    """
-    lock = threading.Lock()
-    next_start = time.monotonic()
-
-    def call(item: Any) -> Any:
-        nonlocal next_start
-
-        if min_interval > 0:
-            with lock:
-                now = time.monotonic()
-                wait = next_start - now
-                next_start = max(now, next_start) + min_interval
-
-            if wait > 0:
-                time.sleep(wait)
-
-        try:
-            return func(item)
-        except Exception as error:
-            return error
-
-    if max_workers <= 1 or len(items) <= 1:
-        return [call(item) for item in items]
-
-    with ThreadPoolExecutor(max_workers = min(max_workers, len(items))) as pool:
-        return list(pool.map(call, items))
-
-
-def _cached_map(
+def cached_map(
     series: Iterable,
     fetch: Fetch | None,
     bucket: str | Sequence[str],
@@ -150,7 +103,7 @@ def _cached_map(
     cached = is_cached if is_cached is not None else in_every_bucket
     pending: dict[Hashable, Any] = {}
 
-    for value in _unique_values(series):
+    for value in unique_values(series):
         if not cached(view, value):
             pending.setdefault(key(value), value)
 
@@ -192,7 +145,7 @@ def _cached_map(
                     outcomes.append(error)
 
         else:
-            raise TypeError("_cached_map needs fetch or fetch_many")
+            raise TypeError("cached_map needs fetch or fetch_many")
 
         for value, outcome in zip(chunk, outcomes):
             if isinstance(outcome, Exception):

@@ -1,21 +1,18 @@
 """Language-aware imputation and cached translation helpers."""
 
-from collections.abc import Callable, Sequence
+import logging
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from bynat.caching import CacheManager
-from bynat.caching._keys import cache_has_value, cache_lookup_value
+from bynat.caching._internal import cache_has_value, cache_lookup_value
 
-from .._common import (
-    FrameT,
-    import_optional,
-    logger,
-    require_positive_int,
-)
-from .engine import SKIP, _cached_map, _rate_limited_map
+from .._internal import FrameT, import_optional, require_positive_int
+from ._engine import SKIP, cached_map
+from ._internal import translate_all
 from .providers import GoogleTranslatorProvider, Translator
 
 __all__ = [
@@ -24,20 +21,7 @@ __all__ = [
     "translate_conditional_column",
 ]
 
-
-def _translate_all(provider: Any, texts: Sequence[str], target_lang: str) -> list[Any]:
-    """Translate texts with a provider's batch method or its rate-limited `translate`."""
-    translate_batch = getattr(provider, "translate_batch", None)
-
-    if callable(translate_batch):
-        return list(translate_batch(list(texts), target_lang))
-
-    return _rate_limited_map(
-        lambda text: provider.translate(text, target_lang),
-        texts,
-        max_workers = int(getattr(provider, "max_workers", 1) or 1),
-        min_interval = float(getattr(provider, "min_interval", 0.0) or 0.0),
-    )
+logger = logging.getLogger(__name__)
 
 
 def _translate_cached(
@@ -59,14 +43,14 @@ def _translate_cached(
         active["provider"] = provider if provider is not None else GoogleTranslatorProvider(func_name)
 
     def fetch_many(chunk: list) -> list:
-        translations = _translate_all(active["provider"], [str(value) for value in chunk], target_lang)
+        translations = translate_all(active["provider"], [str(value) for value in chunk], target_lang)
 
         return [
             translation if isinstance(translation, Exception) or not reject(translation) else SKIP
             for translation in translations
         ]
 
-    return _cached_map(
+    return cached_map(
         values,
         None,
         target_col,

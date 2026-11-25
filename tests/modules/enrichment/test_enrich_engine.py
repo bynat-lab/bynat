@@ -4,8 +4,8 @@ import pandas as pd
 import pytest
 
 from bynat.caching import CacheManager
-from bynat.cleaning.enrich import engine
-from bynat.cleaning.enrich.engine import SKIP, _cached_map, _rate_limited_map
+from bynat.cleaning.enrich import _engine
+from bynat.cleaning.enrich._engine import SKIP, _cached_map, _rate_limited_map
 
 pytestmark = pytest.mark.unit
 
@@ -50,8 +50,8 @@ def test_rate_limited_map_spaces_call_starts(monkeypatch):
         sleeps.append(round(seconds, 6))
         clock["now"] += seconds
 
-    monkeypatch.setattr(engine.time, "monotonic", lambda: clock["now"])
-    monkeypatch.setattr(engine.time, "sleep", sleep)
+    monkeypatch.setattr(_engine.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(_engine.time, "sleep", sleep)
 
     results = _rate_limited_map(lambda item: item, ["a", "b", "c"], max_workers=1, min_interval=0.2)
 

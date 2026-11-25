@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bynat.cleaning import BaseData, stats
+from bynat.cleaning import BaseData, _stats
 
 pytestmark = pytest.mark.unit
 
@@ -65,10 +65,10 @@ def test_fill_missing_and_fill_missing_from_reject_invalid_min_samples(value):
     reference = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 2.0]})
 
     with pytest.raises(ValueError, match="min_samples must be an integer"):
-        stats.fill_missing(frame, "v", hierarchy_cols="g", min_samples=value)
+        _stats.fill_missing(frame, "v", hierarchy_cols="g", min_samples=value)
 
     with pytest.raises(ValueError, match="min_samples must be an integer"):
-        stats.fill_missing_from(frame, reference, "v", hierarchy_cols="g", min_samples=value)
+        _stats.fill_missing_from(frame, reference, "v", hierarchy_cols="g", min_samples=value)
 
 
 
@@ -77,21 +77,21 @@ def test_fill_missing_non_numeric_target_with_hierarchy_raises_typeerror():
     frame = pd.DataFrame({"g": ["a", "a", "b"], "label": ["x", None, "y"]})
 
     with pytest.raises(TypeError):
-        stats.fill_missing(frame, "label", strategy="median", hierarchy_cols=["g"])
+        _stats.fill_missing(frame, "label", strategy="median", hierarchy_cols=["g"])
 
 
 def test_fill_missing_non_numeric_target_with_fallback_global_raises_typeerror():
     frame = pd.DataFrame({"g": ["a", "a", "b"], "label": ["x", None, "y"]})
 
     with pytest.raises(TypeError):
-        stats.fill_missing(frame, "label", strategy="median", fallback_global=True)
+        _stats.fill_missing(frame, "label", strategy="median", fallback_global=True)
 
 
 def test_fill_missing_non_numeric_target_without_hierarchy_is_unchanged():
     frame = pd.DataFrame({"g": ["a", "a", "b"], "label": ["x", None, "y"]})
     original = frame.copy(deep=True)
 
-    result = stats.fill_missing(frame, "label", strategy="median")
+    result = _stats.fill_missing(frame, "label", strategy="median")
 
     pd.testing.assert_frame_equal(result, original)
 
@@ -99,7 +99,7 @@ def test_fill_missing_non_numeric_target_without_hierarchy_is_unchanged():
 def test_fill_missing_non_numeric_all_nan_target_does_not_raise():
     frame = pd.DataFrame({"g": ["a", "a"], "label": [None, None]})
 
-    result = stats.fill_missing(frame, "label", strategy="median", hierarchy_cols=["g"])
+    result = _stats.fill_missing(frame, "label", strategy="median", hierarchy_cols=["g"])
 
     assert result["label"].isna().all()
 
@@ -110,7 +110,7 @@ def test_fill_missing_skips_missing_targets_and_fills_valid_ones():
     frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, None], "w": [None, None]})
     original = frame.copy(deep=True)
 
-    result = stats.fill_missing(frame, "v", "missing", hierarchy_cols=["g"])
+    result = _stats.fill_missing(frame, "v", "missing", hierarchy_cols=["g"])
 
     assert result["v"].tolist() == [1.0, 1.0]
     assert "missing" not in result.columns
@@ -169,7 +169,7 @@ def test_fill_missing_rejects_unknown_strategy(tmp_path):
 
 
 def test_fill_missing_min_samples_and_fallback_global_reproduction():
-    from bynat.cleaning import stats
+    from bynat.cleaning import _stats
 
     df1 = pd.DataFrame({
         "country": ["EG", "EG", "EG", "US", "US", "DE"],
@@ -177,11 +177,11 @@ def test_fill_missing_min_samples_and_fallback_global_reproduction():
     })
     df1_before = df1.copy(deep=True)
 
-    default_res = stats.fill_missing(df1, "salary", strategy="median", hierarchy_cols=["country"])
+    default_res = _stats.fill_missing(df1, "salary", strategy="median", hierarchy_cols=["country"])
     assert pd.isna(default_res.loc[5, "salary"])
     assert default_res.loc[2, "salary"] == 12.0
 
-    fallback_res = stats.fill_missing(
+    fallback_res = _stats.fill_missing(
         df1, "salary", strategy="median", hierarchy_cols=["country"], fallback_global=True
     )
     assert fallback_res.loc[2, "salary"] == 12.0
@@ -192,25 +192,25 @@ def test_fill_missing_min_samples_and_fallback_global_reproduction():
         "salary":  [10.0, np.nan, 1000.0, np.nan],
     })
     df2_before = df2.copy(deep=True)
-    res_min1 = stats.fill_missing(df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=1)
+    res_min1 = _stats.fill_missing(df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=1)
     assert res_min1.loc[1, "salary"] == 10.0
     assert res_min1.loc[3, "salary"] == 1000.0
 
-    res_min2 = stats.fill_missing(df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=2)
+    res_min2 = _stats.fill_missing(df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=2)
     assert pd.isna(res_min2.loc[1, "salary"])
     assert pd.isna(res_min2.loc[3, "salary"])
 
-    res_min2_fallback = stats.fill_missing(
+    res_min2_fallback = _stats.fill_missing(
         df2, "salary", strategy="median", hierarchy_cols=["country"], min_samples=2, fallback_global=True
     )
     assert res_min2_fallback.loc[1, "salary"] == 505.0
     assert res_min2_fallback.loc[3, "salary"] == 505.0
 
-    res_none_default = stats.fill_missing(df1, "salary", strategy="median")
+    res_none_default = _stats.fill_missing(df1, "salary", strategy="median")
     assert pd.isna(res_none_default.loc[2, "salary"])
     assert pd.isna(res_none_default.loc[5, "salary"])
 
-    res_none_global = stats.fill_missing(df1, "salary", strategy="median", fallback_global=True)
+    res_none_global = _stats.fill_missing(df1, "salary", strategy="median", fallback_global=True)
     assert res_none_global.loc[2, "salary"] == 42.0
     assert res_none_global.loc[5, "salary"] == 42.0
 
@@ -319,6 +319,6 @@ def test_basedata_fill_missing_helper(tmp_path):
 
 def test_fill_missing_mode_all_nan_col():
     df = pd.DataFrame({"g": ["a", "b"], "v": [np.nan, np.nan]})
-    result = stats.fill_missing(df, "v", strategy="mode", hierarchy_cols=["g"])
+    result = _stats.fill_missing(df, "v", strategy="mode", hierarchy_cols=["g"])
     pd.testing.assert_frame_equal(result, df)
 

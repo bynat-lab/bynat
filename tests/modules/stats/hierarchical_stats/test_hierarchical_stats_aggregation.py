@@ -7,7 +7,7 @@ import textwrap
 import pandas as pd
 import pytest
 
-from bynat.cleaning import BaseData, stats
+from bynat.cleaning import BaseData, _stats
 from tests.shared.constants import OUTPUT_COLUMNS
 
 pytestmark = pytest.mark.unit
@@ -147,7 +147,7 @@ def test_get_hierarchical_stats_does_not_change_fill_missing_behavior(tmp_path):
 
 
 def test_get_hierarchical_stats_has_no_nested_functions_or_apply_lambda():
-    source = textwrap.dedent(inspect.getsource(stats.get_hierarchical_stats))
+    source = textwrap.dedent(inspect.getsource(_stats.get_hierarchical_stats))
     tree = ast.parse(source)
 
     assert not any(
@@ -247,7 +247,7 @@ def test_get_hierarchical_stats_supports_ordered_multiple_strategies(tmp_path):
 def test_get_hierarchical_stats_non_numeric_target_mode_is_allowed():
     frame = pd.DataFrame({"g": ["a", "a", "b"], "label": ["x", "y", "z"]})
 
-    result = stats.get_hierarchical_stats(frame, "label", strategy="mode", hierarchy_cols=["g"])
+    result = _stats.get_hierarchical_stats(frame, "label", strategy="mode", hierarchy_cols=["g"])
 
     assert result["statistic"].tolist() == ["x", "z"]
 
@@ -255,6 +255,6 @@ def test_get_hierarchical_stats_non_numeric_target_mode_is_allowed():
 def test_get_hierarchical_stats_skips_missing_targets():
     frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 3.0]})
 
-    result = stats.get_hierarchical_stats(frame, "v", "missing", hierarchy_cols=["g"])
+    result = _stats.get_hierarchical_stats(frame, "v", "missing", hierarchy_cols=["g"])
 
     assert result["target_column"].unique().tolist() == ["v"]

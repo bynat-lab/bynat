@@ -1,16 +1,19 @@
 """Cached geocoding of missing coordinates."""
 
+import logging
 from typing import Any
 
 from bynat.caching import CacheManager
 
-from .._common import FrameT, logger, require_positive_int
-from .engine import _cached_map
+from .._internal import FrameT, require_positive_int
+from ._engine import cached_map
 from .providers import Geocoder, NominatimGeocoder
 
 __all__ = [
     "fill_missing_coordinates",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def fill_missing_coordinates(
@@ -153,7 +156,7 @@ def fill_missing_coordinates(
         logger.info("Location not found for '%s'. Cached as not found.", query)
         return None
 
-    current_cache = _cached_map(
+    current_cache = cached_map(
         queries,
         geocode,
         "geocode_queries",

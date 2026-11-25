@@ -8,7 +8,7 @@ import warnings
 import pytest
 
 from bynat.cleaning import BaseData
-from bynat.cleaning.enrich import nlp
+from bynat.cleaning.enrich import _nlp
 from tests.modules.enrichment.helpers import install_fake_module
 
 pytestmark = pytest.mark.unit
@@ -340,7 +340,7 @@ def test_free_enrichment_extract_entities_nlp_rejects_noisey_terms_spelling(tmp_
     lexicon = {"skills": ["python", "sql"]}
     frame = BaseData({"text": ["python sql"]}, cache_dir=tmp_path / "free")
     with pytest.raises(TypeError, match="did you mean 'noisy_terms'"):
-        nlp.extract_entities_nlp(
+        _nlp.extract_entities_nlp(
             frame,
             "text",
             lexicon_source=lexicon,

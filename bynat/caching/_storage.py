@@ -12,7 +12,7 @@ __all__ = [
     "connect_sqlite",
 ]
 
-logger = logging.getLogger("bynat.caching.Caching")
+logger = logging.getLogger(__name__)
 
 SQLITE_DATABASE_NAME = "cache.sqlite3"
 """File name of the SQLite cache database inside the cache directory."""

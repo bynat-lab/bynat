@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bynat.cleaning import stats
+from bynat.cleaning import _stats
 from tests.cross_cutting.equivalence._bench_refs import (
     _legacy_drop_outliers,
     _legacy_handle_outliers,
@@ -94,8 +94,8 @@ def test_outliers_match_a_brute_force_reference(seed, min_samples):
     _, expected_handled = _brute_force_outliers(frame, ["bonus", "salary"], hierarchy, min_samples, True)
     flagged, _ = _brute_force_outliers(frame, ["bonus", "salary"], hierarchy, min_samples, False)
 
-    handled = stats.handle_outliers(frame, "bonus", "salary", hierarchy_cols=hierarchy, min_samples=min_samples)
-    dropped = stats.drop_outliers(frame, "bonus", "salary", hierarchy_cols=hierarchy, min_samples=min_samples)
+    handled = _stats.handle_outliers(frame, "bonus", "salary", hierarchy_cols=hierarchy, min_samples=min_samples)
+    dropped = _stats.drop_outliers(frame, "bonus", "salary", hierarchy_cols=hierarchy, min_samples=min_samples)
 
     pd.testing.assert_frame_equal(handled.reset_index(drop=True), expected_handled)
     pd.testing.assert_frame_equal(dropped, frame.iloc[np.flatnonzero(~flagged)])
@@ -113,11 +113,11 @@ def test_handle_and_drop_outliers_match_legacy(seed, min_samples):
     hierarchy = ["country", "title", "company"]
 
     pd.testing.assert_frame_equal(
-        stats.handle_outliers(frame, "salary", "bonus", "salary", hierarchy_cols=hierarchy, min_samples=min_samples),
+        _stats.handle_outliers(frame, "salary", "bonus", "salary", hierarchy_cols=hierarchy, min_samples=min_samples),
         _legacy_handle_outliers(frame, "salary", "bonus", "salary", hierarchy_cols=hierarchy, min_samples=min_samples),
     )
     pd.testing.assert_frame_equal(
-        stats.drop_outliers(frame, "salary", "bonus", hierarchy_cols=hierarchy, min_samples=min_samples),
+        _stats.drop_outliers(frame, "salary", "bonus", hierarchy_cols=hierarchy, min_samples=min_samples),
         _legacy_drop_outliers(frame, "salary", "bonus", hierarchy_cols=hierarchy, min_samples=min_samples),
     )
     pd.testing.assert_frame_equal(frame, original)
@@ -130,7 +130,7 @@ def test_outliers_match_legacy_with_categorical_hierarchy():
     original = frame.copy(deep=True)
 
     pd.testing.assert_frame_equal(
-        stats.handle_outliers(frame, "bonus", hierarchy_cols=["country", "title"], min_samples=4),
+        _stats.handle_outliers(frame, "bonus", hierarchy_cols=["country", "title"], min_samples=4),
         _legacy_handle_outliers(frame, "bonus", hierarchy_cols=["country", "title"], min_samples=4),
     )
     pd.testing.assert_frame_equal(frame, original)
@@ -144,5 +144,5 @@ def test_outlier_masks_do_not_merge(monkeypatch):
         pytest.fail("the one-pass IQR must not merge bounds back")
 
     monkeypatch.setattr(pd.DataFrame, "merge", unexpected_merge)
-    stats.drop_outliers(frame, "bonus", hierarchy_cols=["country", "title"])
+    _stats.drop_outliers(frame, "bonus", hierarchy_cols=["country", "title"])
     pd.testing.assert_frame_equal(frame, original)

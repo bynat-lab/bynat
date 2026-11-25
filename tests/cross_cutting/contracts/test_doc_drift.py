@@ -38,8 +38,8 @@ def test_package_typing_artifacts_exist():
 
 def test_runtime_inspect_signature_and_help_preserved():
     """Runtime inspect.signature and __doc__ must continue to reflect wrapped functions."""
-    from bynat.cleaning import stats
-    from bynat.cleaning.enrich import currency
+    from bynat.cleaning import _stats
+    from bynat.cleaning.enrich import _currency
 
     df = pd.DataFrame({"a": [1.0, None], "country": ["US", "US"], "year": [2020, 2020]})
 
@@ -63,8 +63,8 @@ def test_runtime_inspect_signature_and_help_preserved():
         "fallback_global", "get_hierarchical_stats"
     ]
     assert "cache_manager" not in inspect.signature(df.bynat.convert_to_usd).parameters
-    assert df.bynat.convert_to_usd.__doc__ == currency.convert_to_usd.__doc__
-    assert df.bynat.fill_missing.__doc__ == stats.fill_missing.__doc__
+    assert df.bynat.convert_to_usd.__doc__ == _currency.convert_to_usd.__doc__
+    assert df.bynat.fill_missing.__doc__ == _stats.fill_missing.__doc__
 
     base_from_sig = inspect.signature(BaseData.fill_missing_from)
     assert "dataset" in base_from_sig.parameters
@@ -90,7 +90,7 @@ def test_runtime_inspect_signature_and_help_preserved():
         "dataset", "target_cols", "inplace", "match_cols", "targets", "strategy",
         "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
     ]
-    assert df.bynat.fill_missing_from.__doc__ == stats.fill_missing_from.__doc__
+    assert df.bynat.fill_missing_from.__doc__ == _stats.fill_missing_from.__doc__
 
 
 def test_documented_caching_exports_and_cleaning_namespace_boundary():

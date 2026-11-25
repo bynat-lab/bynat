@@ -5,7 +5,7 @@ import logging
 import pandas as pd
 import pytest
 
-from bynat.cleaning import stats
+from bynat.cleaning import _stats
 
 pytestmark = pytest.mark.unit
 
@@ -31,7 +31,7 @@ def test_handle_outliers_rejects_invalid_min_samples(value):
     frame = pd.DataFrame({"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]})
 
     with pytest.raises(ValueError, match="min_samples"):
-        stats.handle_outliers(frame, "v", hierarchy_cols=["g"], min_samples=value)
+        _stats.handle_outliers(frame, "v", hierarchy_cols=["g"], min_samples=value)
 
 
 @MIN_SAMPLES_XFAIL
@@ -40,7 +40,7 @@ def test_drop_outliers_rejects_invalid_min_samples(value):
     frame = pd.DataFrame({"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]})
 
     with pytest.raises(ValueError, match="min_samples"):
-        stats.drop_outliers(frame, "v", hierarchy_cols=["g"], min_samples=value)
+        _stats.drop_outliers(frame, "v", hierarchy_cols=["g"], min_samples=value)
 
 
 @pytest.mark.parametrize(
@@ -53,7 +53,7 @@ def test_drop_outliers_rejects_invalid_min_samples(value):
 def test_handle_outliers_min_samples_boundary(min_samples, evaluated):
     frame = pd.DataFrame({"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0]})
 
-    result = stats.handle_outliers(frame, "v", hierarchy_cols=["g"], min_samples=min_samples)
+    result = _stats.handle_outliers(frame, "v", hierarchy_cols=["g"], min_samples=min_samples)
 
     assert bool(result["v"].isna().iloc[-1]) is evaluated
 
@@ -66,7 +66,7 @@ def test_min_samples_counts_only_non_null_observations():
         }
     )
 
-    result = stats.fill_missing(frame, "v", hierarchy_cols=["g"], min_samples=2)
+    result = _stats.fill_missing(frame, "v", hierarchy_cols=["g"], min_samples=2)
 
     assert result.loc[2, "v"] == 2.0
     assert pd.isna(result.loc[4, "v"])
@@ -83,7 +83,7 @@ def test_outlier_methods_warn_and_return_an_unchanged_copy_without_hierarchy(
     original = frame.copy(deep=True)
 
     with caplog.at_level(logging.WARNING, logger="bynat.cleaning.Cleaning"):
-        result = getattr(stats, method_name)(frame, "v", hierarchy_cols=hierarchy_cols)
+        result = getattr(_stats, method_name)(frame, "v", hierarchy_cols=hierarchy_cols)
 
     assert result is not frame
     pd.testing.assert_frame_equal(result, original)
@@ -95,11 +95,11 @@ def test_outlier_methods_raise_keyerror_for_a_missing_named_hierarchy(method_nam
     frame = pd.DataFrame({"g": ["a", "a"], "v": [1.0, 2.0]})
 
     with pytest.raises(KeyError, match="missing_hierarchy"):
-        getattr(stats, method_name)(frame, "v", hierarchy_cols=["missing_hierarchy"])
+        getattr(_stats, method_name)(frame, "v", hierarchy_cols=["missing_hierarchy"])
 
 
 def test_outlier_masks_skips_missing_target_columns():
     df = pd.DataFrame({"g": ["a"] * 10, "val": [10.0] * 10})
-    result = stats.handle_outliers(df, "missing_col", hierarchy_cols=["g"])
+    result = _stats.handle_outliers(df, "missing_col", hierarchy_cols=["g"])
     pd.testing.assert_frame_equal(result, df)
 

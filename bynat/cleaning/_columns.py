@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pandas as pd
 
-from ._common import FrameT, like
+from ._internal import FrameT, like
 
 __all__ = [
     "align_lat_lng",

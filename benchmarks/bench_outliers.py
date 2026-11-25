@@ -7,7 +7,7 @@ import pandas as pd
 from _common import best_of, print_table
 from reference_impls import _legacy_drop_outliers, _legacy_handle_outliers
 
-from bynat.cleaning import stats
+from bynat.cleaning import _stats
 
 HIERARCHY = ["country", "title", "company"]
 
@@ -38,8 +38,8 @@ def main():
         frame = make_frame(size)
 
         for name, current_func, legacy_func in (
-            ("handle", stats.handle_outliers, _legacy_handle_outliers),
-            ("drop", stats.drop_outliers, _legacy_drop_outliers),
+            ("handle", _stats.handle_outliers, _legacy_handle_outliers),
+            ("drop", _stats.drop_outliers, _legacy_drop_outliers),
         ):
             current, current_time = best_of(lambda: current_func(frame, "salary", "bonus", hierarchy_cols=HIERARCHY))
             legacy, legacy_time = best_of(

@@ -1,56 +1,32 @@
 """
 `pandas.DataFrame` subclasses: `BaseData`, `JsonFile`, and `CsvFile`.
 
-They are thin wrappers over the functions in the `columns`, `text`, `stats`,
-`enrich`, and `io` modules, which the `df.bynat` accessor shares. Both APIs
-accept `inplace=True` for the transformations that support it, and
-`JsonFile` / `CsvFile` load data directly from disk.
+They are thin wrappers over the private `_columns`, `_text`, and `_stats`
+modules and the `enrich` and `io` packages, whose functions the `df.bynat`
+accessor shares. Both APIs accept `inplace=True` for the transformations that
+support it, and `JsonFile` / `CsvFile` load data directly from disk.
 """
 
 import os
 from collections.abc import Callable, Iterable
-from typing import Any, Self, TypeVar
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
 
 from bynat.caching import CacheManager
-from bynat.profiling import profile as _profile_core
+from bynat.profiling import profile
 
-from . import columns, io, stats, text
-from ._outputs import is_basedata_type
-from .enrich import currency, geocode, nlp, translate
+from . import _columns
+from . import _stats
+from . import _text
+from . import io
+from ._internal import is_basedata_type
+from ._internal import shares_doc as _shares_doc
+from .enrich import _currency, _geocode, _nlp, _translate
 from .enrich.providers import Geocoder, RateSource, Translator
 
 __all__ = ['BaseData', 'JsonFile', 'CsvFile']
-
-F = TypeVar('F', bound=Callable[..., Any])
-
-
-def _shares_doc(func: Callable[..., Any]) -> Callable[[F], F]:
-    """
-    Reuse a shared implementation's docstring on a `BaseData` method.
-
-    The decorator assigns the implementation's cleaned docstring to the
-    method's `__doc__` at import time. `tools/sync_docs.py` writes the same
-    text as a literal docstring in `base.py` so editors and type checkers can
-    see it without running the decorator, and `tests/cross_cutting/contracts/
-    test_doc_drift.py` fails when the two drift apart.
-
-    Args:
-        func (Callable): Shared implementation whose docstring is copied.
-
-    Returns:
-        Callable: Decorator that assigns the docstring and returns the method
-        unchanged.
-    """
-    def decorate(method: F) -> F:
-        """Assign the shared docstring to `method` and return it unchanged."""
-        method.__doc__ = (func.__doc__ or "").rstrip()
-
-        return method
-
-    return decorate
 
 
 class BaseData(pd.DataFrame):
@@ -239,7 +215,7 @@ class BaseData(pd.DataFrame):
         return pd.DataFrame(self)
 
 
-    @_shares_doc(columns.drop_by_substring)
+    @_shares_doc(_columns.drop_by_substring)
     def drop_by_substring(self, substring: str, inplace: bool = False) -> Self | None:
         """
         Drop all columns that contain a specific substring within their names.
@@ -273,10 +249,10 @@ class BaseData(pd.DataFrame):
                 df.drop_by_substring("user")
         ```
         """
-        return self._finish(columns.drop_by_substring(self, substring), inplace)
+        return self._finish(_columns.drop_by_substring(self, substring), inplace)
 
 
-    @_shares_doc(columns.drop_CLASS_columns)
+    @_shares_doc(_columns.drop_CLASS_columns)
     def drop_CLASS_columns(self, inplace: bool = False) -> Self | None:
         """
         Drop all columns that contain the substring "__CLASS__" from the data.
@@ -306,10 +282,10 @@ class BaseData(pd.DataFrame):
                 df.drop_CLASS_columns()
         ```
         """
-        return self._finish(columns.drop_CLASS_columns(self), inplace)
+        return self._finish(_columns.drop_CLASS_columns(self), inplace)
 
 
-    @_shares_doc(columns.rename_by_substring)
+    @_shares_doc(_columns.rename_by_substring)
     def rename_by_substring(self, old_substring: str, new_substring: str, inplace: bool = False) -> Self | None:
         """
         Rename columns by replacing a specific substring with a new one.
@@ -341,10 +317,10 @@ class BaseData(pd.DataFrame):
                 df.rename_by_substring("display_name", "name")
         ```
         """
-        return self._finish(columns.rename_by_substring(self, old_substring, new_substring), inplace)
+        return self._finish(_columns.rename_by_substring(self, old_substring, new_substring), inplace)
 
 
-    @_shares_doc(columns.rename_all_DOTS)
+    @_shares_doc(_columns.rename_all_DOTS)
     def rename_all_DOTS(self, unified_separator: str = "_", inplace: bool = False) -> Self | None:
         """
         Rename columns by replacing all occurrences of dots ('.') with a unified separator.
@@ -374,10 +350,10 @@ class BaseData(pd.DataFrame):
                 df.rename_all_DOTS(unified_separator = "_")
         ```
         """
-        return self._finish(columns.rename_all_DOTS(self, unified_separator), inplace)
+        return self._finish(_columns.rename_all_DOTS(self, unified_separator), inplace)
 
 
-    @_shares_doc(columns.reorder_columns)
+    @_shares_doc(_columns.reorder_columns)
     def reorder_columns(self, *first_cols, inplace: bool = False) -> Self | None:
         """
         Reorder the dataframe by moving a specified list of columns to the front.
@@ -411,10 +387,10 @@ class BaseData(pd.DataFrame):
                 df.reorder_columns("id", "timestamp")
         ```
         """
-        return self._finish(columns.reorder_columns(self, *first_cols), inplace)
+        return self._finish(_columns.reorder_columns(self, *first_cols), inplace)
 
 
-    @_shares_doc(columns.melt_transform_pivot)
+    @_shares_doc(_columns.melt_transform_pivot)
     def melt_transform_pivot(
         self,
         id_vars: list | str,
@@ -495,7 +471,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        result = columns.melt_transform_pivot(
+        result = _columns.melt_transform_pivot(
             self,
             id_vars,
             value_vars = value_vars,
@@ -510,7 +486,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(columns.move_column)
+    @_shares_doc(_columns.move_column)
     def move_column(self, col_to_move: str, col_target: str, position: str = "after", inplace: bool = False) -> Self | None:
         """
         Move a specific column to a new position relative to a target column.
@@ -547,10 +523,10 @@ class BaseData(pd.DataFrame):
                 df.move_column("user_id", "user_name", position="before")
         ```
         """
-        return self._finish(columns.move_column(self, col_to_move, col_target, position), inplace)
+        return self._finish(_columns.move_column(self, col_to_move, col_target, position), inplace)
 
 
-    @_shares_doc(columns.align_lat_lng)
+    @_shares_doc(_columns.align_lat_lng)
     def align_lat_lng(self, inplace: bool = False) -> Self | None:
         """
         Standardize the coordinate order by moving the 'longitude' column
@@ -582,10 +558,10 @@ class BaseData(pd.DataFrame):
                 df.align_lat_lng()
         ```
         """
-        return self._finish(columns.align_lat_lng(self), inplace)
+        return self._finish(_columns.align_lat_lng(self), inplace)
 
 
-    @_shares_doc(text.extract_keywords)
+    @_shares_doc(_text.extract_keywords)
     def extract_keywords(
             self,
             *source_cols,
@@ -658,7 +634,7 @@ class BaseData(pd.DataFrame):
                 df.extract_keywords("comments", "tags", categories=["urgent", "review"])
         ```
         """
-        result = text.extract_keywords(
+        result = _text.extract_keywords(
             self,
             *source_cols,
             remove_extracted = remove_extracted,
@@ -668,7 +644,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(columns.split_list_objects)
+    @_shares_doc(_columns.split_list_objects)
     def split_list_objects(
             self,
             source_col: str,
@@ -747,7 +723,7 @@ class BaseData(pd.DataFrame):
                 df.split_list_objects("attributes", explode_rows=True, cartesian_explode=True, colors=[0, 1], sizes=[2, 3])
         ```
         """
-        result = columns.split_list_objects(
+        result = _columns.split_list_objects(
             self,
             source_col,
             remove_source_col = remove_source_col,
@@ -758,7 +734,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(translate.impute_by_language)
+    @_shares_doc(_translate.impute_by_language)
     def impute_by_language(
             self,
             reference_col: str,
@@ -818,11 +794,11 @@ class BaseData(pd.DataFrame):
                 df.impute_by_language("city_id", "city_name", target_lang="ar")
         ```
         """
-        result = translate.impute_by_language(self, reference_col, *target_cols, target_lang = target_lang)
+        result = _translate.impute_by_language(self, reference_col, *target_cols, target_lang = target_lang)
         return self._finish(result, inplace)
 
 
-    @_shares_doc(translate.translate_conditional_column)
+    @_shares_doc(_translate.translate_conditional_column)
     def translate_conditional_column(
         self,
         partition_col: str,
@@ -904,7 +880,7 @@ class BaseData(pd.DataFrame):
                 )
         ```
         """
-        result = translate.translate_conditional_column(
+        result = _translate.translate_conditional_column(
             self,
             partition_col,
             detect_col,
@@ -921,7 +897,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(translate.translate_categorical_column)
+    @_shares_doc(_translate.translate_categorical_column)
     def translate_categorical_column(
             self,
             target_col: str,
@@ -982,7 +958,7 @@ class BaseData(pd.DataFrame):
                 df.translate_categorical_column("product_category", target_lang="fr")
         ```
         """
-        result = translate.translate_categorical_column(
+        result = _translate.translate_categorical_column(
             self,
             target_col,
             target_lang = target_lang,
@@ -993,7 +969,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(text.truncate_after_substring)
+    @_shares_doc(_text.truncate_after_substring)
     def truncate_after_substring(self, regex: bool = True, inplace: bool = False, **target_cols_and_substrings) -> Self | None:
         """
         Remove specific substrings and everything following them from target columns.
@@ -1036,10 +1012,10 @@ class BaseData(pd.DataFrame):
                 'company': ['Tech Corp', 'Data Inc']
         ```
         """
-        return self._finish(text.truncate_after_substring(self, regex = regex, **target_cols_and_substrings), inplace)
+        return self._finish(_text.truncate_after_substring(self, regex = regex, **target_cols_and_substrings), inplace)
 
 
-    @_shares_doc(geocode.fill_missing_coordinates)
+    @_shares_doc(_geocode.fill_missing_coordinates)
     def fill_missing_coordinates(
         self,
         *fallback_cols: str,
@@ -1106,7 +1082,7 @@ class BaseData(pd.DataFrame):
             ImportError: If the default provider's optional `geopy` dependency
                 is not installed and no `provider` is given.
         """
-        result = geocode.fill_missing_coordinates(
+        result = _geocode.fill_missing_coordinates(
             self,
             *fallback_cols,
             lat_col = lat_col,
@@ -1120,7 +1096,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(currency.convert_to_usd)
+    @_shares_doc(_currency.convert_to_usd)
     def convert_to_usd(
         self,
         *target_cols,
@@ -1182,7 +1158,7 @@ class BaseData(pd.DataFrame):
                 installed, or if the default provider's optional `yfinance`
                 dependency is not installed and no `provider` is given.
         """
-        result = currency.convert_to_usd(
+        result = _currency.convert_to_usd(
             self,
             *target_cols,
             country_col = country_col,
@@ -1195,7 +1171,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(stats.handle_outliers)
+    @_shares_doc(_stats.handle_outliers)
     def handle_outliers(
         self,
         *target_cols,
@@ -1245,7 +1221,7 @@ class BaseData(pd.DataFrame):
             in place and the statistics dataframe is returned when
             `get_hierarchical_stats=True`, otherwise None.
         """
-        outcome = stats.handle_outliers(
+        outcome = _stats.handle_outliers(
             self,
             *target_cols,
             hierarchy_cols = hierarchy_cols,
@@ -1255,7 +1231,7 @@ class BaseData(pd.DataFrame):
         return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
 
-    @_shares_doc(stats.drop_outliers)
+    @_shares_doc(_stats.drop_outliers)
     def drop_outliers(
         self,
         *target_cols,
@@ -1304,7 +1280,7 @@ class BaseData(pd.DataFrame):
             in place and the statistics dataframe is returned when
             `get_hierarchical_stats=True`, otherwise None.
         """
-        outcome = stats.drop_outliers(
+        outcome = _stats.drop_outliers(
             self,
             *target_cols,
             hierarchy_cols = hierarchy_cols,
@@ -1314,7 +1290,7 @@ class BaseData(pd.DataFrame):
         return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
 
-    @_shares_doc(stats.fill_missing)
+    @_shares_doc(_stats.fill_missing)
     def fill_missing(
         self,
         *target_cols,
@@ -1394,7 +1370,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        outcome = stats.fill_missing(
+        outcome = _stats.fill_missing(
             self,
             *target_cols,
             strategy = strategy,
@@ -1407,7 +1383,7 @@ class BaseData(pd.DataFrame):
 
 
 
-    @_shares_doc(stats.fill_missing_from)
+    @_shares_doc(_stats.fill_missing_from)
     def fill_missing_from(
         self,
         dataset: Any,
@@ -1527,7 +1503,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        outcome = stats.fill_missing_from(
+        outcome = _stats.fill_missing_from(
             self,
             dataset,
             *target_cols,
@@ -1541,7 +1517,7 @@ class BaseData(pd.DataFrame):
         )
         return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
-    @_shares_doc(stats.get_hierarchical_stats)
+    @_shares_doc(_stats.get_hierarchical_stats)
     def get_hierarchical_stats(
         self,
         *target_cols,
@@ -1632,7 +1608,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        return stats.get_hierarchical_stats(
+        return _stats.get_hierarchical_stats(
             self,
             *target_cols,
             strategy = strategy,
@@ -1716,21 +1692,21 @@ class BaseData(pd.DataFrame):
         ```
         """
         if is_basedata_type(output_type):
-            summary_frame = _profile_core(
+            summary_frame = profile(
                 self,
                 *columns,
                 output_type=pd.DataFrame,
             )
             return output_type(data=summary_frame)
 
-        return _profile_core(
+        return profile(
             self,
             *columns,
             output_type=output_type,
         )
 
 
-    @_shares_doc(text.categorize_by_reference)
+    @_shares_doc(_text.categorize_by_reference)
     def categorize_by_reference(
         self,
         *source_cols: str,
@@ -1803,7 +1779,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        result = text.categorize_by_reference(
+        result = _text.categorize_by_reference(
             self,
             *source_cols,
             target_col = target_col,
@@ -1813,7 +1789,7 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(nlp.extract_entities_nlp)
+    @_shares_doc(_nlp.extract_entities_nlp)
     def extract_entities_nlp(
         self,
         *source_cols,
@@ -1922,7 +1898,7 @@ class BaseData(pd.DataFrame):
                 "extract_entities_nlp() got an unexpected keyword argument "
                 "'noisey_terms'; did you mean 'noisy_terms'?"
             )
-        result = nlp.extract_entities_nlp(
+        result = _nlp.extract_entities_nlp(
             self,
             *source_cols,
             lexicon_source = lexicon_source,

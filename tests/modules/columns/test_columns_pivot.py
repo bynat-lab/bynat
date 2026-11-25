@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from bynat.cleaning import BaseData, columns
+from bynat.cleaning import BaseData, _columns
 
 pytestmark = pytest.mark.unit
 
@@ -192,4 +192,4 @@ def test_melt_transform_pivot_rejects_invalid_arguments(kwargs, exception, messa
     frame = pd.DataFrame({"id": [1, 2], "left": ["a", "b"], "right": ["c", "d"]})
 
     with pytest.raises(exception, match=message):
-        columns.melt_transform_pivot(frame, **kwargs)
+        _columns.melt_transform_pivot(frame, **kwargs)

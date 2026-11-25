@@ -3,7 +3,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from bynat.cleaning import columns, stats, text
+from bynat.cleaning import _columns, _stats, _text
 from tests.modules.enrichment.helpers import DictTranslator, install_langdetect
 
 pytestmark = pytest.mark.property
@@ -88,7 +88,7 @@ def list_object_frames(draw, min_rows=1, max_rows=20):
 @given(df=numeric_hierarchy_frames(), strategy=st.sampled_from(["median", "mean", "mode"]))
 def test_fill_missing_properties(df, strategy):
     original = df.copy(deep=True)
-    result = stats.fill_missing(df, "metric", hierarchy_cols=["region", "sub"], strategy=strategy, fallback_global=True)
+    result = _stats.fill_missing(df, "metric", hierarchy_cols=["region", "sub"], strategy=strategy, fallback_global=True)
 
     pd.testing.assert_frame_equal(df, original)
     assert result is not df
@@ -97,7 +97,7 @@ def test_fill_missing_properties(df, strategy):
     assert len(result) == len(df)
     assert list(result.columns) == list(df.columns)
 
-    result2 = stats.fill_missing(result, "metric", hierarchy_cols=["region", "sub"], strategy=strategy, fallback_global=True)
+    result2 = _stats.fill_missing(result, "metric", hierarchy_cols=["region", "sub"], strategy=strategy, fallback_global=True)
     pd.testing.assert_frame_equal(result2, result)
 
 
@@ -110,7 +110,7 @@ def test_fill_missing_from_properties(target_df, ref_df, strategy):
     target_orig = target_df.copy(deep=True)
     ref_orig = ref_df.copy(deep=True)
 
-    result = stats.fill_missing_from(
+    result = _stats.fill_missing_from(
         target_df,
         ref_df,
         "metric",
@@ -128,7 +128,7 @@ def test_fill_missing_from_properties(target_df, ref_df, strategy):
     assert len(result) == len(target_df)
     assert list(result.columns) == list(target_df.columns)
 
-    result2 = stats.fill_missing_from(
+    result2 = _stats.fill_missing_from(
         result,
         ref_df,
         "metric",
@@ -142,7 +142,7 @@ def test_fill_missing_from_properties(target_df, ref_df, strategy):
 @given(df=outlier_frames())
 def test_handle_outliers_properties(df):
     original = df.copy(deep=True)
-    result = stats.handle_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
+    result = _stats.handle_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
 
     pd.testing.assert_frame_equal(df, original)
     assert result is not df
@@ -151,14 +151,14 @@ def test_handle_outliers_properties(df):
     assert len(result) == len(df)
     assert list(result.columns) == list(df.columns)
 
-    run_repeat = stats.handle_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
+    run_repeat = _stats.handle_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
     pd.testing.assert_frame_equal(run_repeat, result)
 
 
 @given(df=outlier_frames())
 def test_drop_outliers_properties(df):
     original = df.copy(deep=True)
-    result = stats.drop_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
+    result = _stats.drop_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
 
     pd.testing.assert_frame_equal(df, original)
     assert result is not df
@@ -167,7 +167,7 @@ def test_drop_outliers_properties(df):
     assert result.index.isin(df.index).all()
     assert list(result.columns) == list(df.columns)
 
-    run_repeat = stats.drop_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
+    run_repeat = _stats.drop_outliers(df, "measure", hierarchy_cols=["grp"], min_samples=3)
     pd.testing.assert_frame_equal(run_repeat, result)
 
 
@@ -187,7 +187,7 @@ def test_rename_by_substring_properties(col_names, row_count):
     )
     original = df.copy(deep=True)
     substr = col_names[0][:2]
-    result = columns.rename_by_substring(df, substr, "NEW")
+    result = _columns.rename_by_substring(df, substr, "NEW")
 
     pd.testing.assert_frame_equal(df, original)
     assert result is not df
@@ -213,7 +213,7 @@ def test_reorder_columns_properties(col_names, row_count):
     original = df.copy(deep=True)
     reordered_spec = list(reversed(col_names))
 
-    result = columns.reorder_columns(df, *reordered_spec)
+    result = _columns.reorder_columns(df, *reordered_spec)
 
     pd.testing.assert_frame_equal(df, original)
     assert result is not df
@@ -222,14 +222,14 @@ def test_reorder_columns_properties(col_names, row_count):
     assert set(result.columns) == set(df.columns)
     assert list(result.columns) == reordered_spec
 
-    result2 = columns.reorder_columns(result, *reordered_spec)
+    result2 = _columns.reorder_columns(result, *reordered_spec)
     pd.testing.assert_frame_equal(result2, result)
 
 
 @given(df=text_frames(), delim=st.sampled_from(["--", "/", "|", "_"]))
 def test_truncate_after_substring_properties(df, delim):
     original = df.copy(deep=True)
-    result = text.truncate_after_substring(df, regex=False, title=delim)
+    result = _text.truncate_after_substring(df, regex=False, title=delim)
 
     pd.testing.assert_frame_equal(df, original)
     assert result is not df
@@ -237,7 +237,7 @@ def test_truncate_after_substring_properties(df, delim):
     assert len(result) == len(df)
     assert list(result.columns) == list(df.columns)
 
-    result2 = text.truncate_after_substring(result, regex=False, title=delim)
+    result2 = _text.truncate_after_substring(result, regex=False, title=delim)
     pd.testing.assert_frame_equal(result2, result)
 
 
@@ -245,7 +245,7 @@ def test_truncate_after_substring_properties(df, delim):
 def test_split_list_objects_properties(df):
     original = df.copy(deep=True)
 
-    result_joined = columns.split_list_objects(
+    result_joined = _columns.split_list_objects(
         df, "items", first=0, second=1
     )
     pd.testing.assert_frame_equal(df, original)
@@ -255,7 +255,7 @@ def test_split_list_objects_properties(df):
     assert "first" in result_joined.columns
     assert "second" in result_joined.columns
 
-    result_exploded = columns.split_list_objects(
+    result_exploded = _columns.split_list_objects(
         df, "items", explode_rows=True, first=[0, 1]
     )
     pd.testing.assert_frame_equal(df, original)

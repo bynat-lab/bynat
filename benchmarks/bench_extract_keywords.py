@@ -7,7 +7,7 @@ import pandas as pd
 from _common import best_of, print_table
 from reference_impls import _legacy_extract_keywords
 
-from bynat.cleaning import text
+from bynat.cleaning import _text
 
 KEYWORDS = [
     "python", "java", "c++", ".net", "sql", "excel", "data analyst", "data",
@@ -36,7 +36,7 @@ def main():
         for remove in (False, True):
             label = f"{size:>9,} rows remove={remove}"
             current, current_time = best_of(
-                lambda: text.extract_keywords(frame, "title", "body", remove_extracted=remove, skill=KEYWORDS)
+                lambda: _text.extract_keywords(frame, "title", "body", remove_extracted=remove, skill=KEYWORDS)
             )
             legacy_time = None
 

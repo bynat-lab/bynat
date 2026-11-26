@@ -1,6 +1,5 @@
 """Internal helpers for the cleaning package. Not part of the public API."""
 
-from .docs import shares_doc
 from .frames import FrameT, like
 from .hierarchy import (
     HIERARCHICAL_STATS_COLUMNS,
@@ -41,7 +40,6 @@ __all__ = [
     "like",
     "normalize_hierarchy",
     "require_positive_int",
-    "shares_doc",
     "try_import",
     "validate_output_type",
 ]

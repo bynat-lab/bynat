@@ -1,5 +1,4 @@
-"""
-Public entry point for DataFrame data quality profiling.
+"""Public entry point for DataFrame data quality profiling.
 
 This module exposes :func:`profile`, which validates its inputs, delegates the
 computation to :mod:`bynat.profiling._builders`, and returns the report models
@@ -21,8 +20,7 @@ def profile(
     *columns: Any,
     output_type: Any = None,
 ) -> Any:
-    """
-    Generate a structured, non-mutating data quality profile report for a DataFrame.
+    """Generate a structured data quality profile for a DataFrame.
 
     Computes dataset-wide metrics (row count, column count, total cells, missing
     cell count and proportion, duplicate row count and proportion using

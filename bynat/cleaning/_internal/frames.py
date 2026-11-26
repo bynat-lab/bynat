@@ -10,8 +10,7 @@ FrameT = TypeVar("FrameT", bound = pd.DataFrame)
 
 
 def like(df: FrameT, data: pd.DataFrame) -> FrameT:
-    """
-    Return `data` as `df`'s frame type, carrying `df`'s metadata.
+    """Return `data` as `df`'s frame type, carrying `df`'s metadata.
 
     A plain `pandas.DataFrame` is returned unchanged; any other frame type is
     rebuilt through its `_constructor` and finalized with `df`, so pandas

@@ -16,8 +16,7 @@ def build_engine_url(
     db_driver: str | None,
     fast_executemany: bool,
 ) -> tuple[str, dict[str, Any]]:
-    """
-    Build the SQLAlchemy engine URL and engine keyword arguments.
+    """Build the SQLAlchemy engine URL and engine keyword arguments.
 
     Handles three URL styles: SQLite (only `db_name` is required, and
     `":memory:"` targets an in-memory database), SQL Server (`mssql` or

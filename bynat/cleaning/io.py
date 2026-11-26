@@ -25,8 +25,7 @@ def read_json(
     json_file_path: str | os.PathLike,
     key: str | None = None,
 ) -> pd.DataFrame:
-    """
-    Read a JSON file into a plain `pandas.DataFrame`.
+    """Read a JSON file into a plain `pandas.DataFrame`.
 
     The payload is flattened with `pandas.json_normalize`, as `JsonFile`
     does. Use the `df.bynat` accessor on the result for bynat methods.
@@ -72,8 +71,7 @@ def read_json(
 
 
 def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFrame:
-    """
-    Read a CSV file into a plain `pandas.DataFrame`.
+    """Read a CSV file into a plain `pandas.DataFrame`.
 
     Args:
         csv_file_path (str | os.PathLike): Path to the CSV file.
@@ -109,8 +107,7 @@ def save_to_json(
     force_ascii: bool = False,
     indent: int = 4
 ) -> None:
-    """
-    Save the dataframe to a JSON file only when content has changed.
+    """Save the dataframe to a JSON file only when content has changed.
 
     Notes:
         Before writing, the method compares the current dataframe payload to
@@ -128,6 +125,7 @@ def save_to_json(
         created.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         file_path (str | os.PathLike): Destination JSON file path.
         orient (str): JSON orientation passed to `pandas.DataFrame.to_json`.
             Defaults to `"records"`.
@@ -140,13 +138,10 @@ def save_to_json(
         indent (int): Indentation width used when writing to disk. Defaults
             to 4.
 
-    Returns:
-        None. Nothing is written when an existing non-append file already
-        holds identical content.
-
     Raises:
         ValueError: If `file_path` is empty, or if `append=True` and the
             existing file cannot be read with the given `orient`.
+
     """
     file_path = os.fspath(file_path).strip() if file_path is not None else ""
 
@@ -178,8 +173,7 @@ def save_to_sql(
     if_exists: IfExists = 'append',
     index: bool = False
 ) -> None:
-    """
-    Save the dataframe to a SQL database table using SQLAlchemy.
+    """Save the dataframe to a SQL database table using SQLAlchemy.
 
     Notes:
         The method supports standard SQLAlchemy URL styles and includes
@@ -193,6 +187,7 @@ def save_to_sql(
         is disposed of after the write, whether it succeeds or fails.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         table_name (str): The name of the SQL table to write to.
         database_type (str): SQLAlchemy dialect/driver, for example
             `"postgresql+psycopg2"`, `"mysql+pymysql"`, `"mssql+pyodbc"`,
@@ -215,9 +210,6 @@ def save_to_sql(
             Options: 'fail', 'replace', 'append'. Defaults to 'append'.
         index (bool): Whether to write the DataFrame index as a SQL column.
             Defaults to False.
-
-    Returns:
-        None
 
     Raises:
         ValueError: If `table_name` or `database_type` is empty, if
@@ -242,8 +234,8 @@ def save_to_sql(
             index=False
         )
     ```
-    """
 
+    """
     db_type = str(database_type or '').strip().lower()
     db_user = str(database_user or '').strip()
     db_pass = str(database_password or '').strip()

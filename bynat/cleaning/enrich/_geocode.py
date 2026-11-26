@@ -27,9 +27,7 @@ def fill_missing_coordinates(
     provider: Geocoder | None = None,
     cache_manager: CacheManager,
 ) -> FrameT:
-    """
-    Fill missing latitude and longitude values by geocoding fallback location
-    text.
+    """Fill missing latitude and longitude values by geocoding fallback location text.
 
     Notes:
         The method builds a location query from the supplied fallback
@@ -52,6 +50,8 @@ def fill_missing_coordinates(
         query column is always removed before returning.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
+        cache_manager: Optional `CacheManager`; a shared manager is resolved when omitted.
         *fallback_cols: Ordered columns used to build the geocoding query.
             Names that do not exist in `df` are ignored.
         lat_col (str): Latitude column name.
@@ -72,17 +72,15 @@ def fill_missing_coordinates(
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with completed
-        coordinates; the input is not modified and existing valid coordinates
-        are preserved. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with completed coordinates; the input is not modified
+        and existing valid coordinates are preserved.
 
     Raises:
         ValueError: If `save_every` is not a positive integer.
         ImportError: If the default provider's optional `geopy` dependency
             is not installed and no `provider` is given.
-    """
 
+    """
     require_positive_int(save_every, "save_every")
 
     required_cols = [lat_col, long_col]
@@ -133,13 +131,35 @@ def fill_missing_coordinates(
     active: dict[str, Any] = {}
 
     def start(count: int) -> None:
+        """Create the geocoder provider for this run.
+
+        Args:
+            count (int): Number of locations to process, used for logging.
+        """
         logger.info("preparing %s locations to be geocoded...", count)
         active["provider"] = provider if provider is not None else NominatimGeocoder(user_agent = user_agent)
 
     def is_cached(cache: dict, query: str) -> bool:
+        """Check whether a query is already cached.
+
+        Args:
+            cache (dict): Cached coordinates keyed by query.
+            query (str): Location query to check.
+
+        Returns:
+            bool: True when a usable cached result exists.
+        """
         return query in cache and not (retry_not_found and cache[query] is None)
 
     def geocode(query: str) -> tuple[float, float] | None:
+        """Resolve a query to coordinates, trying fallback queries.
+
+        Args:
+            query (str): Location query.
+
+        Returns:
+            tuple[float, float] | None: Coordinates, or None when unresolved.
+        """
         current_search = query
 
         while current_search:

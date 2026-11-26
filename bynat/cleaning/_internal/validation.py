@@ -6,8 +6,7 @@ __all__ = ["require_positive_int"]
 
 
 def require_positive_int(value: Any, arg_name: str) -> None:
-    """
-    Validate integer parameters that control sampling or cache checkpointing.
+    """Validate integer parameters that control sampling or cache checkpointing.
 
     Args:
         value (Any): Value to validate.

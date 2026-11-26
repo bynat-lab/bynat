@@ -18,8 +18,7 @@ __all__: list[str] = []
 
 
 def _method_signature(func: Callable) -> inspect.Signature:
-    """
-    The accessor-facing signature: `self` replaces the frame, no `cache_manager`.
+    """The accessor-facing signature: `self` replaces the frame, no `cache_manager`.
 
     Args:
         func (Callable): Shared implementation function.
@@ -105,8 +104,7 @@ def _frame_method(
 
     The generated method's `__signature__` and `__doc__` come from the shared
     function, so `inspect.signature` and `help` show the accessor-facing
-    signature. `tools/sync_docs.py` reads these factory calls to generate
-    `accessor.pyi`.
+    signature.
 
     Args:
         func (Callable): Shared implementation whose first parameter is the
@@ -138,6 +136,16 @@ def _frame_method(
     if inplace:
         @functools.wraps(func)
         def method(self: "BynatAccessor", *args: Any, **kwargs: Any) -> Any:
+            """Run an in-place transformation on the wrapped frame.
+
+            Args:
+                self (BynatAccessor): The accessor wrapping the frame.
+                *args: Positional arguments for the shared function.
+                **kwargs: Keyword arguments for the shared function.
+
+            Returns:
+                Any: The shared result, or None after in-place mutation.
+            """
             if keyword_only:
                 flag = kwargs.pop('inplace', False)
             elif position >= 0 and len(args) > position:
@@ -161,6 +169,16 @@ def _frame_method(
     else:
         @functools.wraps(func)
         def method(self: "BynatAccessor", *args: Any, **kwargs: Any) -> Any:
+            """Run a transformation on the wrapped frame.
+
+            Args:
+                self (BynatAccessor): The accessor wrapping the frame.
+                *args: Positional arguments for the shared function.
+                **kwargs: Keyword arguments for the shared function.
+
+            Returns:
+                Any: The shared function's result.
+            """
             return func(self._obj, *args, **kwargs)
 
     method.__signature__ = signature  # type: ignore[attr-defined]
@@ -198,6 +216,16 @@ def _cached_frame_method(
     if inplace:
         @functools.wraps(func)
         def method(self: "BynatAccessor", *args: Any, **kwargs: Any) -> Any:
+            """Run a cached in-place transformation on the wrapped frame.
+
+            Args:
+                self (BynatAccessor): The accessor wrapping the frame.
+                *args: Positional arguments for the shared function.
+                **kwargs: Keyword arguments for the shared function.
+
+            Returns:
+                Any: None after the wrapped frame is mutated in place.
+            """
             if keyword_only:
                 flag = kwargs.pop('inplace', False)
             elif position >= 0 and len(args) > position:
@@ -217,6 +245,16 @@ def _cached_frame_method(
     else:
         @functools.wraps(func)
         def method(self: "BynatAccessor", *args: Any, **kwargs: Any) -> Any:
+            """Run a cached transformation on the wrapped frame.
+
+            Args:
+                self (BynatAccessor): The accessor wrapping the frame.
+                *args: Positional arguments for the shared function.
+                **kwargs: Keyword arguments for the shared function.
+
+            Returns:
+                Any: The shared function's result.
+            """
             return func(self._obj, *args, cache_manager = self.cache_manager, **kwargs)
 
     method.__signature__ = signature  # type: ignore[attr-defined]

@@ -1,3 +1,5 @@
+"""Expose the caching API: CacheManager and shared cache helpers."""
+
 from .manager import (
     CACHE_DIR_ENV_VAR,
     DEFAULT_CACHE_DIR,

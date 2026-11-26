@@ -22,7 +22,15 @@ def register_manager_type(manager_type: type) -> None:
 
 
 def shared_manager_for(cache_dir: str | PathLike | None, manager_type: type) -> Any:
-    """Build or return the process-wide manager for one cache directory."""
+    """Build or return the process-wide manager for one cache directory.
+
+    Args:
+        cache_dir (str | PathLike | None): Cache directory or None for the default.
+        manager_type (type): Manager class instantiated for a new directory.
+
+    Returns:
+        Any: The shared manager for the resolved cache directory.
+    """
     probe = manager_type(cache_dir)
 
     with _shared_managers_lock:
@@ -30,7 +38,14 @@ def shared_manager_for(cache_dir: str | PathLike | None, manager_type: type) -> 
 
 
 def _manager_class() -> type:
-    """Return the registered manager class, failing clearly if not registered."""
+    """Return the registered manager class.
+
+    Returns:
+        type: The registered `CacheManager` class.
+
+    Raises:
+        RuntimeError: If no manager class has been registered.
+    """
     if _manager_type is None:
         raise RuntimeError("CacheManager has not been registered with the cache registry")
 

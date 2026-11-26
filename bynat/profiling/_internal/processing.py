@@ -8,8 +8,7 @@ import pandas as pd
 __all__ = ["clean_scalar", "detect_column_kind"]
 
 def clean_scalar(val: Any) -> Any:
-    """
-    Normalize a scalar or container value into a native, JSON-safe Python primitive.
+    """Normalize a value into a native, JSON-safe Python primitive.
 
     Converts NumPy scalars, pandas timestamps/timedeltas, floating-point ``NaN``
     or infinity values, and nested containers into standard Python types
@@ -76,8 +75,7 @@ def clean_scalar(val: Any) -> Any:
 
 
 def detect_column_kind(series: pd.Series) -> tuple[str, str]:
-    """
-    Classify a pandas Series into a broad analytical kind and a fine-grained inferred type.
+    """Classify a Series into a broad kind and a fine-grained type.
 
     Inspects both the declared pandas ``dtype`` and the non-null values (via
     ``pandas.api.types.infer_dtype``) to determine how the column should be

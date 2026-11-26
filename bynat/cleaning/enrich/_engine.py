@@ -44,8 +44,7 @@ def cached_map(
     action: str = "fetch",
     label: str = "values",
 ) -> Any:
-    """
-    Resolve the unique values of `series` through a persistent cache.
+    """Resolve the unique values of `series` through a persistent cache.
 
     Every enrichment method follows the same loop: take the unique non-null
     values, skip the cached ones, fetch the rest, checkpoint the cache every
@@ -91,12 +90,23 @@ def cached_map(
 
     Raises:
         TypeError: If neither `fetch` nor `fetch_many` is provided.
+
+        ValueError: If `fetch_many` returns a chunk of the wrong length.
     """
     bucket_names = (bucket,) if isinstance(bucket, str) else tuple(bucket)
     caches = {name: cache_manager.get_column_cache(func_name, name) for name in bucket_names}
     view = caches[bucket_names[0]] if isinstance(bucket, str) else caches
 
     def in_every_bucket(_view: Any, value: Any) -> bool:
+        """Check that a value is cached in every configured bucket.
+
+        Args:
+            _view (Any): Unused view kept for the cached-map callback protocol.
+            value (Any): Value whose cache key is checked.
+
+        Returns:
+            bool: True when the key exists in every bucket.
+        """
         value_key = key(value)
         return all(value_key in cache for cache in caches.values())
 

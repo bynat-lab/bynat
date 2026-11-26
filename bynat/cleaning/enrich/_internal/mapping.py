@@ -23,17 +23,29 @@ def rate_limited_map(
     max_workers: int = 1,
     min_interval: float = 0.0,
 ) -> list:
-    """
-    Call `func` on every item and return results in input order, with an
-    exception in place of each failed call.
+    """Call `func` on every item and return results with failures kept in place.
 
-    At most `max_workers` calls run at once, and call starts are spaced at
-    least `min_interval` seconds apart across all workers.
+    Args:
+        func (Callable[[Any], Any]): Called once per item.
+        items (Sequence[Any]): Input values, processed in order.
+        max_workers (int): Maximum concurrent calls. Defaults to 1.
+        min_interval (float): Minimum seconds between call starts. Defaults to 0.0.
+
+    Returns:
+        list: One result per input item, with exceptions returned as values.
     """
     lock = threading.Lock()
     next_start = time.monotonic()
 
     def call(item: Any) -> Any:
+        """Call `func` on one item after the rate-limit delay.
+
+        Args:
+            item (Any): Input value.
+
+        Returns:
+            Any: The function result or the exception it raised.
+        """
         nonlocal next_start
 
         if min_interval > 0:
@@ -58,7 +70,17 @@ def rate_limited_map(
 
 
 def translate_all(provider: Any, texts: Sequence[str], target_lang: str) -> list[Any]:
-    """Translate texts with a provider's batch method or its rate-limited `translate`."""
+    """Translate texts with a provider's batch method or its rate-limited `translate`.
+
+    Args:
+        provider (Any): Provider exposing `translate` and optionally
+            `translate_batch`.
+        texts (Sequence[str]): Texts to translate.
+        target_lang (str): Target language code.
+
+    Returns:
+        list[Any]: One translation per input text, in input order.
+    """
     translate_batch = getattr(provider, "translate_batch", None)
 
     if callable(translate_batch):

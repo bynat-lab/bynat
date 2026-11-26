@@ -7,8 +7,7 @@ __all__ = ["import_optional", "try_import"]
 
 
 def import_optional(module_name: str, distribution: str, feature: str) -> ModuleType:
-    """
-    Import a feature dependency only when the feature is used.
+    """Import a feature dependency only when the feature is used.
 
     Args:
         module_name (str): Importable module to load.
@@ -32,8 +31,7 @@ def import_optional(module_name: str, distribution: str, feature: str) -> Module
 
 
 def try_import(module_name: str) -> ModuleType | None:
-    """
-    Import an optional module, or return None when it is not installed.
+    """Import an optional module, or return None when it is not installed.
 
     Args:
         module_name (str): Importable module to load.

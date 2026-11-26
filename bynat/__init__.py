@@ -1,5 +1,4 @@
-"""
-bynat: reusable pandas cleaning and enrichment utilities.
+"""bynat: reusable pandas cleaning and enrichment utilities.
 
 Importing `bynat` registers the `df.bynat` DataFrame accessor.
 """

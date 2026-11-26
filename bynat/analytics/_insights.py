@@ -1,5 +1,4 @@
-"""
-Private core logic for the analytics package.
+"""Private core logic for the analytics package.
 
 This module implements the computations behind the public
 :class:`bynat.analytics.analyzer.Analyzer` methods: categorical distributions,
@@ -40,8 +39,7 @@ def build_categorical_distribution(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Build distribution counts for a categorical column.
+    """Build distribution counts for a categorical column.
 
     Rows are counted with `value_counts()` and returned in descending count
     order. With `show_others=True` the rows beyond `top_n` are collapsed into a
@@ -123,8 +121,7 @@ def build_numerical_aggregation(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Aggregate a numeric column by category.
+    """Aggregate a numeric column by category.
 
     Rows with a null `y_col` are dropped before grouping, and the groups are
     returned sorted by aggregated value in descending order. Numeric results
@@ -226,8 +223,7 @@ def build_time_series(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Build a time-series aggregation from a date/datetime column.
+    """Build a time-series aggregation from a date/datetime column.
 
     The date column is parsed with `pd.to_datetime(errors="coerce")` and rows
     whose date is missing or unparseable are dropped. Timezone-aware values are
@@ -349,8 +345,7 @@ def build_kpi_value(
     filters: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Compute a single KPI metric card.
+    """Compute a single KPI metric card.
 
     With `agg_func="count"` the value is the number of filtered rows and
     `column` is only used as the default title. Otherwise the value is
@@ -430,8 +425,7 @@ def build_bins(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Create histogram bins for a numeric column.
+    """Create histogram bins for a numeric column.
 
     The column is coerced with `pd.to_numeric(errors="coerce")` and nulls are
     dropped, so non-numeric text is ignored rather than raising. Bins come from

@@ -31,9 +31,7 @@ def convert_to_usd(
     provider: RateSource | None = None,
     cache_manager: CacheManager,
 ) -> FrameT:
-    """
-    Convert numeric salary-like columns into USD using country currency codes
-    and year-based exchange rates.
+    """Convert salary-like columns to USD using country and year rates.
 
     Notes:
         Currency codes and exchange rates are cached to reduce repeated
@@ -55,6 +53,8 @@ def convert_to_usd(
         (a warning is logged for the first two).
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
+        cache_manager: Optional `CacheManager`; a shared manager is resolved when omitted.
         *target_cols: Numeric columns to convert. Names that do not exist in
             `df` are ignored.
         country_col (str): Column containing the country name used to infer
@@ -73,14 +73,13 @@ def convert_to_usd(
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with converted values; the input
-        is not modified. With `inplace=True`, the receiver is mutated in place and None
-        is returned.
+        A new dataframe with converted values; the input is not modified.
 
     Raises:
         ImportError: If the optional `pycountry` or `Babel` dependency is not
             installed, or if the default provider's optional `yfinance`
             dependency is not installed and no `provider` is given.
+
     """
     required_cols = [country_col, year_col]
     if not all(col in df.columns for col in required_cols):
@@ -117,6 +116,14 @@ def convert_to_usd(
     current_year = time.localtime().tm_year
 
     def find_currency(country_name: str) -> str | None:
+        """Resolve the first ISO currency code for a country name.
+
+        Args:
+            country_name (str): Country name to search.
+
+        Returns:
+            str | None: Currency code, or None when no country matches.
+        """
         try:
             country = pycountry.countries.search_fuzzy(country_name)[0]
 

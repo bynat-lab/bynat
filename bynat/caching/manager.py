@@ -29,8 +29,7 @@ DEFAULT_CACHE_DIR = "Settings/Cache Data/Automated"
 
 
 def resolve_cache_dir(cache_dir: str | PathLike | None) -> str | PathLike:
-    """
-    Resolve the cache directory without creating anything.
+    """Resolve the cache directory without creating anything.
 
     Resolution order: `cache_dir` when it is not None, otherwise the
     `BYNAT_CACHE_DIR` environment variable when it is set and non-empty,
@@ -51,9 +50,7 @@ def resolve_cache_dir(cache_dir: str | PathLike | None) -> str | PathLike:
 
 
 class CacheManager:
-    """
-    Manage SQLite-backed caches for function-level and column-level
-    operations.
+    """Manage SQLite-backed caches for function-level and column-level operations.
 
     Notes:
         Each function's entries are stored in a shared SQLite database inside
@@ -72,8 +69,7 @@ class CacheManager:
     """
 
     def __init__(self, cache_dir: str | PathLike | None = None) -> None:
-        """
-        Initialize the cache manager and resolve its storage directory.
+        """Initialize the cache manager and resolve its storage directory.
 
         Relative paths are resolved from the current working directory. Absolute
         paths are used as provided. User home markers (`~`) and environment
@@ -98,8 +94,7 @@ class CacheManager:
         self._baselines: dict[str, dict] = {}
 
     def load_function_cache(self, func_name: str) -> dict:
-        """
-        Load a function cache from SQLite into memory on first access.
+        """Load a function cache from SQLite into memory on first access.
 
         The SQLite backend is created on first public access for any function.
         Before reading, any legacy JSON cache for the function is migrated into
@@ -133,8 +128,7 @@ class CacheManager:
         return self.caches[func_name]
 
     def get_column_cache(self, func_name: str, col_name: str) -> dict:
-        """
-        Return a nested cache bucket for a specific function and column.
+        """Return a nested cache bucket for a specific function and column.
 
         Args:
             func_name (str): Parent function cache name.
@@ -160,8 +154,7 @@ class CacheManager:
         return func_cache[col_name]
 
     def save_function_cache(self, func_name: str) -> None:
-        """
-        Persist newly added, changed, or removed entries of a function cache to SQLite.
+        """Persist newly added, changed, or removed entries of a function cache to SQLite.
 
         The live in-memory cache is diffed against the deep baseline snapshot
         captured at load time (``_baselines[func_name]``). Entries that were
@@ -189,12 +182,10 @@ class CacheManager:
                 An unknown name starts an empty live cache, so saving without a
                 prior load writes nothing.
 
-        Returns:
-            None. Failures are logged, not raised.
-
         Raises:
             TypeError: If `func_name` is not a string.
             ValueError: If `func_name` is empty or contains path separators.
+
         """
         func_name = validate_cache_key(func_name, "func_name")
 
@@ -207,20 +198,17 @@ class CacheManager:
             self._baselines[func_name] = copy.deepcopy(live_cache)
 
     def delete_column_cache(self, func_name: str, col_name: str) -> None:
-        """
-        Remove a nested cache bucket from a function cache and save the result.
+        """Remove a nested cache bucket from a function cache and save the result.
 
         Args:
             func_name (str): Parent function cache name.
             col_name (str): Nested cache key to remove.
 
-        Returns:
-            None. An `INFO` message is logged whether the bucket existed.
-
         Raises:
             TypeError: If `func_name` or `col_name` is not a string.
             ValueError: If `func_name` or `col_name` is empty or contains
                 path separators.
+
         """
         col_name = validate_cache_key(col_name, "col_name")
         func_cache = self.load_function_cache(func_name)
@@ -235,8 +223,7 @@ class CacheManager:
 
 
 def shared_cache_manager(cache_dir: str | PathLike | None = None) -> CacheManager:
-    """
-    Return one process-wide `CacheManager` per resolved cache directory.
+    """Return one process-wide `CacheManager` per resolved cache directory.
 
     The `df.bynat` accessor uses this so pandas operations never build a new
     manager; every frame that targets the same directory shares one instance.

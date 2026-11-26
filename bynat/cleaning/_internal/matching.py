@@ -19,14 +19,19 @@ _WHITESPACE = re.compile(r'\s+')
 
 
 def is_ascii_word_char(char: str) -> bool:
-    """Match `\\w` for an ASCII character."""
+    r"""Match `\w` for an ASCII character.
+
+    Args:
+        char (str): Single character to test.
+
+    Returns:
+        bool: True for an ASCII letter, digit, or underscore.
+    """
     return char.isalnum() or char == '_'
 
 
 def first_literal_matches(texts: pd.Index | np.ndarray, keywords: Sequence[str]) -> list[int | None]:
-    """
-    Return, for each text, the index of the highest-priority keyword that
-    occurs as a case-insensitive whole word, or None.
+    """Return each text's highest-priority whole-word keyword index.
 
     One zero-width alternation finds every candidate start position, so
     overlapping keywords are all seen while each text is scanned once. Pure
@@ -94,10 +99,7 @@ def first_literal_matches(texts: pd.Index | np.ndarray, keywords: Sequence[str])
 
 
 def first_regex_matches(texts: pd.Index | np.ndarray, patterns: Sequence[re.Pattern]) -> pd.Series:
-    """
-    Return the first capture group of the highest-priority matching pattern
-    for each text, or NaN, using `Series.str.extract` semantics.
-    """
+    """Return the first capture group of each text's best pattern."""
     found = pd.Series(np.nan, index = range(len(texts)), dtype = object)
     unresolved = pd.Series(texts, dtype = object)
 
@@ -120,7 +122,16 @@ def first_regex_matches(texts: pd.Index | np.ndarray, patterns: Sequence[re.Patt
 
 
 def apply_removal_patterns(series: pd.Series, patterns: Sequence[re.Pattern]) -> pd.Series:
-    """Apply removal patterns and whitespace cleanup once per unique text."""
+    """Return `series` with every pattern match replaced by None.
+
+    Args:
+        series (pd.Series): Text values to filter.
+        patterns (Sequence[re.Pattern]): Compiled patterns; a match marks a value
+            for removal.
+
+    Returns:
+        pd.Series: The input values with matched entries set to None.
+    """
     text = series.astype(str)
     uniques = text.unique()
     cleaned = {}

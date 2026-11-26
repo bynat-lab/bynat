@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def apply_filters(dataframe: pd.DataFrame, filters: dict[str, Any] | None = None) -> pd.DataFrame:
-    """
-    Filter a dataframe using equality, membership, and operator predicates.
+    """Filter a dataframe using equality, membership, and operator predicates.
 
     Notes:
         - Scalar values apply equality filtering.
@@ -103,8 +102,7 @@ def apply_filters(dataframe: pd.DataFrame, filters: dict[str, Any] | None = None
 
 
 def apply_computed_rules(dataframe: pd.DataFrame, rules: list[dict[str, Any]] | None = None) -> pd.DataFrame:
-    """
-    Apply dynamic post-processing rules to a dataframe.
+    """Apply dynamic post-processing rules to a dataframe.
 
     Notes:
         Supported rule styles:

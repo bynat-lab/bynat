@@ -28,9 +28,7 @@ def extract_keywords(
     use_regex: bool = False,
     **target_cols_and_keywords: Any
 ) -> FrameT:
-    """
-    Search for keywords or regular expressions across source columns and extract them into new target columns.
-    Matches are case-insensitive and are formatted to Title Case in the target column.
+    """Extract case-insensitive keyword matches into Title Case columns.
 
     Notes:
         - **Keyword Priority**: Keywords are extracted based on list order. The first item in the list has the highest precedence.
@@ -57,6 +55,7 @@ def extract_keywords(
         - The standalone function never modifies `df`.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         *source_cols: Variable number of column names to search within. Column
             names that do not exist in `df` are ignored.
         remove_extracted (bool): If True, removes the matched keywords from the
@@ -72,9 +71,7 @@ def extract_keywords(
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with the extracted columns; the
-        input is not modified. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with the extracted columns; the input is not modified.
 
     Example:
     ```
@@ -91,8 +88,8 @@ def extract_keywords(
         Usage:
             df.extract_keywords("comments", "tags", categories=["urgent", "review"])
     ```
-    """
 
+    """
     sources = list(source_cols)
     valid_sources = [col for col in sources if col in df.columns]
 
@@ -183,8 +180,7 @@ def extract_keywords(
 
 
 def truncate_after_substring(df: FrameT, regex: bool = True, **target_cols_and_substrings: Any) -> FrameT:
-    """
-    Remove specific substrings and everything following them from target columns.
+    """Remove specific substrings and everything following them from target columns.
 
     Each named column is processed independently. The first occurrence of each
     substring cuts the text, and the remaining text is stripped of surrounding
@@ -192,6 +188,7 @@ def truncate_after_substring(df: FrameT, regex: bool = True, **target_cols_and_s
     keyword arguments an unchanged copy of `df` is returned.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         regex (bool): Passed to `pandas.Series.str.split`. When True,
             substring values are interpreted as regular expressions.
             Defaults to True.
@@ -203,9 +200,7 @@ def truncate_after_substring(df: FrameT, regex: bool = True, **target_cols_and_s
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with truncated columns; the
-        input is not modified. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with truncated columns; the input is not modified.
 
     Example:
     ```
@@ -223,8 +218,8 @@ def truncate_after_substring(df: FrameT, regex: bool = True, **target_cols_and_s
             'title': ['Software Engineer', 'Data Analyst']
             'company': ['Tech Corp', 'Data Inc']
     ```
-    """
 
+    """
     if not target_cols_and_substrings:
         return df.copy()
 
@@ -254,8 +249,7 @@ def categorize_by_reference(
     reference: dict,
     default_category: str = 'Other'
 ) -> FrameT:
-    """
-    Categorize text data into broader groups based on a reference lexicon dictionary.
+    """Categorize text into broader groups using a reference lexicon.
 
     This method scans one or more source text columns for specific keywords defined in a
     lexicon dictionary. If a match is found, the dictionary's key (the category)
@@ -280,6 +274,7 @@ def categorize_by_reference(
         - The standalone function never modifies `df`.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         *source_cols (str): Source columns containing the raw text to search.
             Names that do not exist in `df` are ignored.
         target_col (str): The new or existing column where categories will be saved.
@@ -294,9 +289,7 @@ def categorize_by_reference(
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with the category column; the
-        input is not modified. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with the category column; the input is not modified.
 
     Raises:
         ImportError: If the optional `pyahocorasick` dependency is not
@@ -317,6 +310,7 @@ def categorize_by_reference(
             reference = reference
         )
     ```
+
     """
     sources = list(source_cols)
     valid_sources = [col for col in sources if col in df.columns]

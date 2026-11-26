@@ -14,8 +14,7 @@ __all__ = [
 
 
 def dedupe_key(value: Any) -> Any:
-    """
-    Return a hashable stand-in for unhashable values such as lists and dicts.
+    """Return a hashable stand-in for unhashable values such as lists and dicts.
 
     Sets are sorted by their string form, NumPy arrays become lists, and
     lists/dicts/tuples are serialized with `json.dumps(sort_keys=True,
@@ -39,8 +38,7 @@ def dedupe_key(value: Any) -> Any:
 
 
 def cache_value_key(value: Any) -> str:
-    """
-    Convert a cache lookup value into a stable JSON object key.
+    """Convert a cache lookup value into a stable JSON object key.
 
     Integers and integral floats collapse to the same string (`1` and `1.0`
     both become `"1"`), so a value cached before a save/load round trip is
@@ -62,9 +60,7 @@ def cache_value_key(value: Any) -> str:
 
 
 def cache_has_value(cache: dict, value: Any) -> bool:
-    """
-    Check whether a cache contains a value under either the normalized JSON
-    key or the raw in-memory key.
+    """Check whether a cache holds a value under either key form.
 
     The normalized key is tested first, so a value written by a previous run
     is found; the raw key is a fallback for caches written in memory by an
@@ -87,9 +83,7 @@ def cache_has_value(cache: dict, value: Any) -> bool:
 
 
 def cache_lookup_value(cache: dict, value: Any) -> Any:
-    """
-    Return a cached value using normalized JSON keys with a fallback for
-    older raw in-memory cache keys, or the original value when absent.
+    """Return a cached value, falling back to legacy in-memory keys.
 
     Args:
         cache (dict): Cache bucket to read.

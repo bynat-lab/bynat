@@ -20,8 +20,7 @@ __all__ = [
 
 @runtime_checkable
 class Translator(Protocol):
-    """
-    Translate one text into `target_lang`.
+    """Translate one text into `target_lang`.
 
     A provider may also define `translate_batch(texts, target_lang)`
     returning one translation per text; it is then used instead of calling
@@ -43,8 +42,7 @@ class Translator(Protocol):
 
 @runtime_checkable
 class Geocoder(Protocol):
-    """
-    Resolve a location query to `(latitude, longitude)`, or None when not found.
+    """Resolve a location query to `(latitude, longitude)`, or None when not found.
 
     Notes:
         A `None` return value is cached as a not-found result by
@@ -59,10 +57,7 @@ class Geocoder(Protocol):
 
 @runtime_checkable
 class RateSource(Protocol):
-    """
-    Return the mean exchange rate of one USD in `currency` for each year
-    between `start_year` and `end_year` inclusive. Years without data are
-    left out.
+    """Return mean USD exchange rates by year for one currency.
 
     Notes:
         The returned mapping is keyed by integer year. A rate is expressed as
@@ -71,13 +66,12 @@ class RateSource(Protocol):
     """
 
     def yearly_rates(self, currency: str, start_year: int, end_year: int) -> Mapping[int, float]:
-        """Return the mean rate per year in the inclusive range; years without data are omitted."""
+        """Return mean exchange rates for each year in a range."""
         ...
 
 
 class GoogleTranslatorProvider:
-    """
-    Default `Translator`, backed by `deep_translator.GoogleTranslator`.
+    """Default `Translator`, backed by `deep_translator.GoogleTranslator`.
 
     `GoogleTranslator` keeps per-request state on the instance, so each
     worker thread gets its own translator. Up to four requests run at once,
@@ -99,8 +93,7 @@ class GoogleTranslatorProvider:
     min_interval = 0.2
 
     def __init__(self, feature: str = "translation") -> None:
-        """
-        Import `deep_translator` and prepare per-thread translators.
+        """Import `deep_translator` and prepare per-thread translators.
 
         Args:
             feature (str): Feature name used in the `ImportError` message
@@ -113,8 +106,7 @@ class GoogleTranslatorProvider:
         self._local = threading.local()
 
     def translate(self, text: str, target_lang: str) -> str | None:
-        """
-        Translate one text into `target_lang`.
+        """Translate one text into `target_lang`.
 
         One `GoogleTranslator` instance is created per target language per
         thread and reused for later calls.
@@ -138,8 +130,7 @@ class GoogleTranslatorProvider:
 
 
 class NominatimGeocoder:
-    """
-    Default `Geocoder`, backed by geopy's Nominatim with a rate limiter.
+    """Default `Geocoder`, backed by geopy's Nominatim with a rate limiter.
 
     Raises:
         ImportError: On construction if the optional `geopy` dependency is
@@ -152,8 +143,7 @@ class NominatimGeocoder:
         min_delay_seconds: float = 1,
         feature: str = "fill_missing_coordinates",
     ) -> None:
-        """
-        Build a rate-limited Nominatim geolocator.
+        """Build a rate-limited Nominatim geolocator.
 
         Args:
             user_agent (str): User agent sent to Nominatim. Its usage policy
@@ -175,8 +165,7 @@ class NominatimGeocoder:
         self._geocode = rate_limiter.RateLimiter(geolocator.geocode, min_delay_seconds = min_delay_seconds)
 
     def geocode(self, query: str) -> tuple[float, float] | None:
-        """
-        Resolve one location query.
+        """Resolve one location query.
 
         Args:
             query (str): Location text to resolve.
@@ -194,8 +183,7 @@ class NominatimGeocoder:
 
 
 class YFinanceRateSource:
-    """
-    Default `RateSource`, backed by Yahoo Finance history through `yfinance`.
+    """Default `RateSource`, backed by Yahoo Finance history through `yfinance`.
 
     One `Ticker(...).history` download covers the whole year range, and the
     yearly means are computed from its daily closes.
@@ -206,8 +194,7 @@ class YFinanceRateSource:
     """
 
     def __init__(self, feature: str = "convert_to_usd") -> None:
-        """
-        Import `yfinance`.
+        """Import `yfinance`.
 
         Args:
             feature (str): Feature name used in the `ImportError` message
@@ -220,8 +207,7 @@ class YFinanceRateSource:
         self._yfinance = import_optional("yfinance", "yfinance", feature)
 
     def yearly_rates(self, currency: str, start_year: int, end_year: int) -> dict[int, float]:
-        """
-        Return the mean daily close of `currency` per USD for each year.
+        """Return the mean daily close of `currency` per USD for each year.
 
         Downloads one history range covering `start_year` through
         `end_year` and averages the daily closes per calendar year. Years

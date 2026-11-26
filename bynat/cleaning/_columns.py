@@ -21,8 +21,7 @@ __all__ = [
 
 
 def drop_by_substring(df: FrameT, substring: str) -> FrameT:
-    """
-    Drop all columns that contain a specific substring within their names.
+    """Drop all columns that contain a specific substring within their names.
 
     Columns are matched with a plain ``substring in col`` test, so the value is
     literal text rather than a regular expression. A column whose name does not
@@ -30,17 +29,12 @@ def drop_by_substring(df: FrameT, substring: str) -> FrameT:
     `df` is returned rather than `df` itself.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         substring (str): The text to search for; any column containing this
             string will be removed.
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe without the matching columns;
-        the input is not modified. With `inplace=True`, the receiver is mutated in place
-        and None is returned.
+        A new dataframe without the matching columns; the input is not modified.
 
     Example:
     ```
@@ -52,8 +46,8 @@ def drop_by_substring(df: FrameT, substring: str) -> FrameT:
         Usage:
             df.drop_by_substring("user")
     ```
-    """
 
+    """
     columns_to_drop = [col for col in df.columns if substring in col]
 
     if not columns_to_drop:
@@ -63,22 +57,16 @@ def drop_by_substring(df: FrameT, substring: str) -> FrameT:
 
 
 def drop_CLASS_columns(df: FrameT) -> FrameT:
-    """
-    Drop all columns that contain the substring "__CLASS__" from the data.
+    """Drop all columns that contain the substring "__CLASS__" from the data.
 
     Equivalent to `drop_by_substring(df, "__CLASS__")`; the marker is matched
     literally.
 
     Args:
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
+        df: The source dataframe. The standalone function never modifies it.
 
     Returns:
-        With `inplace=False` (default), a new dataframe without the matching columns;
-        the input is not modified. With `inplace=True`, the receiver is mutated in place
-        and None is returned.
+        A new dataframe without the matching columns; the input is not modified.
 
     Example:
     ```
@@ -90,30 +78,24 @@ def drop_CLASS_columns(df: FrameT) -> FrameT:
         Usage:
             df.drop_CLASS_columns()
     ```
-    """
 
+    """
     return drop_by_substring(df, "__CLASS__")
 
 
 def rename_by_substring(df: FrameT, old_substring: str, new_substring: str) -> FrameT:
-    """
-    Rename columns by replacing a specific substring with a new one.
+    """Rename columns by replacing a specific substring with a new one.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         old_substring (str): The text to search for within the column names.
             Matched literally and replaced everywhere it occurs.
         new_substring (str): The text to replace the old substring with.
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with renamed columns;
-        the input is not modified. Columns without the substring are kept
-        unchanged, and when no column name contains `old_substring` a copy of
-        the input is returned. With `inplace=True`, the receiver is mutated in
-        place and None is returned.
+        A new dataframe with renamed columns; the input is not modified. Columns
+        without the substring are kept unchanged, and when no column name
+        contains `old_substring` a copy of the input is returned.
 
     Example:
     ```
@@ -125,8 +107,8 @@ def rename_by_substring(df: FrameT, old_substring: str, new_substring: str) -> F
         Usage:
             df.rename_by_substring("display_name", "name")
     ```
-    """
 
+    """
     columns_to_rename = {
         col: col.replace(old_substring, new_substring)
         for col in df.columns
@@ -140,22 +122,16 @@ def rename_by_substring(df: FrameT, old_substring: str, new_substring: str) -> F
 
 
 def rename_all_DOTS(df: FrameT, unified_separator: str = "_") -> FrameT:
-    """
-    Rename columns by replacing all occurrences of dots ('.') with a unified separator.
+    """Replace dots in column names with a unified separator.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         unified_separator (str): The new string to replace dots with.
             Defaults to "_".
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with renamed columns;
-        the input is not modified. Column names without a dot are kept
-        unchanged. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with renamed columns; the input is not modified. Column
+        names without a dot are kept unchanged.
 
     Example:
     ```
@@ -167,19 +143,19 @@ def rename_all_DOTS(df: FrameT, unified_separator: str = "_") -> FrameT:
         Usage:
             df.rename_all_DOTS(unified_separator = "_")
     ```
-    """
 
+    """
     return rename_by_substring(df, ".", unified_separator)
 
 
 def reorder_columns(df: FrameT, *first_cols: Any) -> FrameT:
-    """
-    Reorder the dataframe by moving a specified list of columns to the front.
+    """Reorder the dataframe by moving a specified list of columns to the front.
 
     Any columns not mentioned in `first_cols` will be appended to the end
     preserving their original relative order.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         first_cols (tuple): Column names that should appear first. Names that
             are not present in `df.columns` are ignored.
         inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
@@ -188,11 +164,9 @@ def reorder_columns(df: FrameT, *first_cols: Any) -> FrameT:
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with reordered columns;
-        the input is not modified. Unlisted columns keep their relative order
-        at the end, and when none of `first_cols` exist a copy of the input is
-        returned. With `inplace=True`, the receiver is mutated in place and None
-        is returned.
+        A new dataframe with reordered columns; the input is not modified.
+        Unlisted columns keep their relative order at the end, and when none of
+        `first_cols` exist a copy of the input is returned.
 
     Example:
     ```
@@ -204,8 +178,8 @@ def reorder_columns(df: FrameT, *first_cols: Any) -> FrameT:
         Usage:
             df.reorder_columns("id", "timestamp")
     ```
-    """
 
+    """
     ordered = [col for col in first_cols if col in df.columns]
 
     if not ordered:
@@ -228,9 +202,7 @@ def melt_transform_pivot(
     pivot_columns: list | str | None = None,
     **kwargs: Any
 ) -> FrameT:
-    """
-    Reshape selected columns to long format, transform their values, and
-    pivot them back to wide format.
+    """Reshape, transform, and pivot selected columns back to wide form.
 
     Notes:
         This helper is useful when the same vectorized operation should be
@@ -245,6 +217,7 @@ def melt_transform_pivot(
         The standalone function never modifies `df`.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         id_vars (list | str): Column(s) to use as identifier variables.
         value_vars (list | str | None): Column(s) to unpivot. If None, uses all columns
             that are not set as `id_vars`.
@@ -270,9 +243,7 @@ def melt_transform_pivot(
             False.
 
     Returns:
-        With `inplace=False` (default), a new, reshaped dataframe; the input is
-        not modified. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new, reshaped dataframe; the input is not modified.
 
     Raises:
         TypeError: If a column argument has an invalid type, if `aggfunc`
@@ -294,8 +265,8 @@ def melt_transform_pivot(
             transform_func=lambda s: s.str.upper()
         )
     ```
-    """
 
+    """
     if isinstance(id_vars, str):
         id_vars = [id_vars]
 
@@ -492,24 +463,18 @@ def melt_transform_pivot(
 
 
 def move_column(df: FrameT, col_to_move: str, col_target: str, position: str = "after") -> FrameT:
-    """
-    Move a specific column to a new position relative to a target column.
+    """Move a specific column to a new position relative to a target column.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         col_to_move (str): The name of the column you want to relocate.
         col_target (str): The reference column where the move will happen.
         position (str): Whether to place the column "after" or "before" the
             target column. Defaults to "after".
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with the column moved;
-        the input is not modified. If either column is absent, an unchanged
-        copy is returned. With `inplace=True`, the receiver is mutated in place
-        and None is returned.
+        A new dataframe with the column moved; the input is not modified. If
+        either column is absent, an unchanged copy is returned.
 
     Raises:
         ValueError: If the `position` argument is not 'after' or 'before'.
@@ -526,8 +491,8 @@ def move_column(df: FrameT, col_to_move: str, col_target: str, position: str = "
         Usage:
             df.move_column("user_id", "user_name", position="before")
     ```
-    """
 
+    """
     if col_to_move not in df.columns or col_target not in df.columns:
         return df.copy()
 
@@ -545,9 +510,7 @@ def move_column(df: FrameT, col_to_move: str, col_target: str, position: str = "
 
 
 def align_lat_lng(df: FrameT) -> FrameT:
-    """
-    Standardize the coordinate order by moving the 'longitude' column
-    immediately after the 'latitude' column.
+    """Place the longitude column immediately after the latitude column.
 
     .. note::
     This method strictly expects the column names to be exactly **'latitude'**
@@ -555,16 +518,12 @@ def align_lat_lng(df: FrameT) -> FrameT:
     (e.g., 'lat' or 'LONG'), the alignment will not occur.
 
     Args:
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
+        df: The source dataframe. The standalone function never modifies it.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with aligned coordinate
-        columns; the input is not modified, and when either column is absent an
-        unchanged copy is returned. With `inplace=True`, the receiver is
-        mutated in place and None is returned.
+        A new dataframe with aligned coordinate columns; the input is not
+        modified, and when either column is absent an unchanged copy is
+        returned.
 
     Example:
     ```
@@ -574,8 +533,8 @@ def align_lat_lng(df: FrameT) -> FrameT:
         Usage:
             df.align_lat_lng()
     ```
-    """
 
+    """
     return move_column(df, col_to_move = "longitude", col_target = "latitude", position = "after")
 
 
@@ -587,8 +546,7 @@ def split_list_objects(
     cartesian_explode: bool = False,
     **target_cols_and_indices: Any
 ) -> FrameT:
-    """
-    Extract specific elements from lists stored within a column into new columns.
+    """Extract specific elements from lists stored within a column into new columns.
 
     This method allows you to pull items out of list-like objects by their index.
     It can either join multiple indices into a string, explode them into parallel
@@ -611,6 +569,7 @@ def split_list_objects(
           unchanged copy.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         source_col (str): The name of the column containing list-like objects.
         remove_source_col (bool): If True, deletes the original source column after
             extraction. Defaults to False.
@@ -628,9 +587,7 @@ def split_list_objects(
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with the extracted columns; the
-        input is not modified. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with the extracted columns; the input is not modified.
 
     Example:
     ```
@@ -655,8 +612,8 @@ def split_list_objects(
             # Extract and explode generating all combinations (Cartesian Product)
             df.split_list_objects("attributes", explode_rows=True, cartesian_explode=True, colors=[0, 1], sizes=[2, 3])
     ```
-    """
 
+    """
     if source_col not in df.columns:
         return df.copy()
 

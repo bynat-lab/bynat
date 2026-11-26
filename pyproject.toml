@@ -46,6 +46,7 @@ sql = [
 dev = [
     "cosmic-ray",
     "hypothesis",
+    "interrogate==1.7.0",
     "mypy",
     "pandas-stubs",
     "pytest",
@@ -61,17 +62,40 @@ include = ["bynat*"]
 
 [tool.setuptools.package-data]
 bynat = ["py.typed"]
-"bynat._accessors" = ["*.pyi"]
 
 [tool.ruff]
 target-version = "py311"
+preview = true
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP"]
-ignore = ["E501"]
+select = ["E", "F", "W", "I", "UP", "D", "DOC"]
+# E251/E302/E303/E305 conflict with the repo style once preview is enabled.
+# DOC502 cannot see exceptions propagated from callees, which are part of the contract.
+ignore = ["E501", "E251", "E302", "E303", "E305", "D203", "D213", "DOC502", "W391"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
+"tests/**" = ["D", "DOC"]
+"tools/**" = ["D", "DOC"]
+"benchmarks/**" = ["D", "DOC"]
+
+[tool.interrogate]
+ignore-init-method = false
+ignore-init-module = false
+ignore-property-decorators = false
+ignore-setters = false
+ignore-overloaded-functions = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-nested-functions = false
+ignore-nested-classes = false
+ignore-module = false
+style = "google"
+fail-under = 100
 
 [tool.mypy]
 python_version = "3.11"

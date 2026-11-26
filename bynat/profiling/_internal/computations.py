@@ -16,8 +16,7 @@ __all__ = ["compute_numeric_stats",
 ]
 
 def compute_numeric_stats(series: pd.Series) -> dict[str, Any]:
-    """
-    Compute descriptive statistics for a numeric column.
+    """Compute descriptive statistics for a numeric column.
 
     Calculates central tendency, dispersion, quartiles, zero-value prevalence,
     and 1.5*IQR outlier counts over all non-null numeric values in ``series``.
@@ -120,8 +119,7 @@ def compute_numeric_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def compute_categorical_stats(series: pd.Series) -> dict[str, Any]:
-    """
-    Compute descriptive statistics for a categorical or string column.
+    """Compute descriptive statistics for a categorical or string column.
 
     Determines the most frequent value (mode), its frequency and proportion
     among non-null values, and character length statistics when all non-null
@@ -194,8 +192,7 @@ def compute_categorical_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def compute_boolean_stats(series: pd.Series) -> dict[str, Any]:
-    """
-    Compute descriptive statistics for a boolean column.
+    """Compute descriptive statistics for a boolean column.
 
     Counts the number of ``True`` and ``False`` values and calculates the
     proportion of non-null values that are ``True``.
@@ -231,8 +228,7 @@ def compute_boolean_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def compute_datetime_stats(series: pd.Series) -> dict[str, Any]:
-    """
-    Compute descriptive statistics for a datetime or date column.
+    """Compute descriptive statistics for a datetime or date column.
 
     Identifies the earliest and latest timestamps (formatted as ISO-8601 strings)
     and computes the time span between them in fractional days.
@@ -282,8 +278,7 @@ def compute_datetime_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def compute_other_stats(series: pd.Series) -> dict[str, Any]:
-    """
-    Compute descriptive statistics for mixed-type, object, or untyped empty columns.
+    """Compute descriptive statistics for mixed or untyped columns.
 
     Finds the most frequent non-null value and its frequency/proportion, using
     :func:`_dedupe_key` as a fallback when elements are unhashable
@@ -330,8 +325,7 @@ def compute_other_stats(series: pd.Series) -> dict[str, Any]:
 
 
 def compute_distinct_count(series: pd.Series) -> int:
-    """
-    Count the number of unique non-null values in a Series.
+    """Count the number of unique non-null values in a Series.
 
     Uses ``series.nunique(dropna=True)`` for hashable elements and falls back
     to :func:`_dedupe_key` when the Series contains unhashable objects
@@ -353,8 +347,7 @@ def compute_distinct_count(series: pd.Series) -> int:
 
 
 def compute_duplicate_rows(df: pd.DataFrame) -> int:
-    """
-    Count duplicate rows in a DataFrame using ``keep='first'`` semantics.
+    """Count duplicate rows in a DataFrame using ``keep='first'`` semantics.
 
     The first occurrence of each unique row is treated as canonical and not
     counted; every subsequent identical row is counted as a duplicate. If the

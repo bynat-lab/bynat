@@ -36,8 +36,7 @@ def handle_outliers(
     min_samples: int = 5,
     get_hierarchical_stats: bool = False
 ) -> Any:
-    """
-    Replace outlier values with missing values using hierarchical IQR rules.
+    """Replace outlier values with missing values using hierarchical IQR rules.
 
     Notes:
         - The method starts with the full grouping hierarchy and progressively
@@ -55,6 +54,7 @@ def handle_outliers(
         - The standalone function never modifies `df`.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         *target_cols: Numeric columns to evaluate for outliers. Names that do
             not exist in `df` are ignored.
         hierarchy_cols (list): Ordered grouping columns used to define peer
@@ -71,13 +71,9 @@ def handle_outliers(
             False.
 
     Returns:
-        With `inplace=False` (default), a new cleaned dataframe, or
-        `(cleaned_dataframe, statistics)` when `get_hierarchical_stats=True`;
-        the input is not modified. With `inplace=True`, the receiver is mutated
-        in place and the statistics dataframe is returned when
-        `get_hierarchical_stats=True`, otherwise None.
+        A new cleaned dataframe, or `(cleaned_dataframe, statistics)` when
+        `get_hierarchical_stats=True`; the input is not modified.
     """
-
     hierarchical_stats = (
         _compute_hierarchical_stats(
             df,
@@ -113,8 +109,7 @@ def drop_outliers(
     min_samples: int = 5,
     get_hierarchical_stats: bool = False
 ) -> Any:
-    """
-    Remove rows that contain outlier values based on hierarchical IQR rules.
+    """Remove rows that contain outlier values based on hierarchical IQR rules.
 
     Notes:
         - This method shares the same grouping logic as `handle_outliers`, but
@@ -131,6 +126,7 @@ def drop_outliers(
         - The standalone function never modifies `df`.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         *target_cols: Numeric columns to inspect for outliers. Names that do
             not exist in `df` are ignored.
         hierarchy_cols (list): Ordered grouping columns used to define peer
@@ -147,13 +143,9 @@ def drop_outliers(
             False.
 
     Returns:
-        With `inplace=False` (default), a new filtered dataframe, or
-        `(filtered_dataframe, statistics)` when `get_hierarchical_stats=True`;
-        the input is not modified. With `inplace=True`, the receiver is mutated
-        in place and the statistics dataframe is returned when
-        `get_hierarchical_stats=True`, otherwise None.
+        A new filtered dataframe, or `(filtered_dataframe, statistics)` when
+        `get_hierarchical_stats=True`; the input is not modified.
     """
-
     hierarchical_stats = (
         _compute_hierarchical_stats(
             df,
@@ -194,8 +186,7 @@ def fill_missing(
     fallback_global: bool = False,
     get_hierarchical_stats: bool = False
 ) -> Any:
-    """
-    Impute missing values by progressively relaxing a grouping hierarchy.
+    """Impute missing values by progressively relaxing a grouping hierarchy.
 
     Notes:
         - Supported strategies are `median`, `mean`, and `mode`. The method
@@ -214,6 +205,7 @@ def fill_missing(
             itself, so this method does not prevent leakage from a test set.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         *target_cols: Columns whose missing values should be filled. Names that
             do not exist in `df` are ignored.
         strategy (str): Aggregation strategy to use. Supported values are
@@ -242,11 +234,8 @@ def fill_missing(
             False.
 
     Returns:
-        With `inplace=False` (default), a new imputed dataframe, or
-        `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
-        the input is not modified. With `inplace=True`, the receiver is mutated
-        in place and the statistics dataframe is returned when
-        `get_hierarchical_stats=True`, otherwise None.
+        A new imputed dataframe, or `(imputed_dataframe, statistics)` when
+        `get_hierarchical_stats=True`; the input is not modified.
 
     Raises:
         ValueError: If `strategy` is not one of the supported values, or if
@@ -262,6 +251,7 @@ def fill_missing(
             hierarchy_cols=["country", "title", "company_name"]
         )
     ```
+
     """
     if not isinstance(min_samples, int) or isinstance(min_samples, bool) or min_samples < 1:
         raise ValueError("min_samples must be an integer greater than or equal to 1.")
@@ -392,8 +382,7 @@ def fill_missing_from(
     fallback_global: bool = False,
     get_hierarchical_stats: bool = False,
 ) -> Any:
-    """
-    Impute missing values using statistics calculated from a reference dataset.
+    """Impute missing values using statistics calculated from a reference dataset.
 
     Statistics are computed exclusively from `dataset` to avoid statistical
     leakage from `df`, making this suitable for train/test workflows. The
@@ -429,6 +418,7 @@ def fill_missing_from(
         - The standalone function never modifies `df`, and `dataset` is never modified.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         dataset (pd.DataFrame | BaseData): Reference dataset used to compute
             imputation statistics. Must not be empty and is never modified.
         *target_cols: Columns in `df` whose missing values should be filled.
@@ -461,12 +451,8 @@ def fill_missing_from(
             False.
 
     Returns:
-        With `inplace=False` (default), a new imputed dataframe, or
-        `(imputed_dataframe, statistics)` when `get_hierarchical_stats=True`;
-        neither `df` nor `dataset` is modified. With `inplace=True`, the
-        receiver is mutated in place, `dataset` is still not modified, and the
-        statistics dataframe is returned when `get_hierarchical_stats=True`,
-        otherwise None.
+        A new imputed dataframe, or `(imputed_dataframe, statistics)` when
+        `get_hierarchical_stats=True`; neither `df` nor `dataset` is modified.
 
     Raises:
         ValueError: If `dataset` is missing or empty, contains duplicate column
@@ -497,6 +483,7 @@ def fill_missing_from(
             hierarchy_cols=["country"],
         )
     ```
+
     """
     if dataset is None:
         raise ValueError("Reference dataset is required and cannot be None.")
@@ -723,8 +710,7 @@ def get_hierarchical_stats(
     hierarchy_cols: list | str | None = None,
     output_type: Any = None,
 ) -> Any:
-    """
-    Extract statistics for each progressively relaxed hierarchy level.
+    """Extract statistics for each progressively relaxed hierarchy level.
 
     The full valid hierarchy is aggregated first, then its last grouping
     column is removed for each subsequent level. No global level is added,
@@ -757,6 +743,7 @@ def get_hierarchical_stats(
     Null hierarchy values remain valid grouping keys.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         *target_cols: Target columns from which statistics are extracted.
             Columns that are not present are ignored; if none are valid,
             an empty result is returned.
@@ -787,6 +774,8 @@ def get_hierarchical_stats(
             hierarchy column. Construction errors from an explicitly
             requested `output_type` propagate unchanged.
 
+        AssertionError: If emitted statistics contain duplicate logical keys.
+
     Examples:
     ```
         default_stats = df.get_hierarchical_stats(
@@ -805,6 +794,7 @@ def get_hierarchical_stats(
             output_type=dict,
         )
     ```
+
     """
     validate_output_type(output_type)
     default_output = output_type is None

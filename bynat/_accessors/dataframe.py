@@ -31,8 +31,7 @@ __all__ = ['BynatAccessor']
 
 
 def profile(df: pd.DataFrame, *columns: Any, output_type: Any = None) -> Any:
-    """
-    Generate a structured, non-mutating data quality profile report for a DataFrame.
+    """Generate a structured data quality profile for a DataFrame.
 
     Computes dataset-wide metrics (row count, column count, total cells, missing
     cell count and proportion, duplicate row count and proportion using
@@ -123,8 +122,7 @@ def profile(df: pd.DataFrame, *columns: Any, output_type: Any = None) -> Any:
 
 
 def _reject_inplace(method_name: str, kwargs: dict[str, Any]) -> None:
-    """
-    Reject the reserved `inplace` keyword on non-mutating analytics methods.
+    """Reject the reserved `inplace` keyword on non-mutating analytics methods.
 
     Args:
         method_name (str): Accessor method name used in the error message.
@@ -148,8 +146,7 @@ def _get_categorical_distribution(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Return distribution counts for a categorical column.
+    """Return distribution counts for a categorical column.
 
     Rows are counted with `value_counts()` and returned in descending
     count order. With `show_others=True` the rows beyond `top_n` are
@@ -166,6 +163,7 @@ def _get_categorical_distribution(
           so `orient` changes the shape of every row mapping.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         x_col (str): Categorical column to aggregate.
         top_n (int | None): Optional limit for top categories. Defaults to
             None (no limit).
@@ -184,6 +182,10 @@ def _get_categorical_distribution(
         dict[str, Any]: Response object with a `"data"` key containing the
         serialized distribution rows, plus any `kwargs` entries.
 
+
+    Raises:
+        TypeError: If `df` is not a `pandas.DataFrame`.
+
     Example:
     ```
         analyzer.get_categorical_distribution(
@@ -192,6 +194,8 @@ def _get_categorical_distribution(
             filters={"contract_type": "Permanent"}
         )
     ```
+
+
     """
     _reject_inplace("get_categorical_distribution", kwargs)
     if not isinstance(df, pd.DataFrame):
@@ -222,8 +226,7 @@ def _get_numerical_aggregation(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Aggregate a numeric column by category.
+    """Aggregate a numeric column by category.
 
     Rows with a null `y_col` are dropped before grouping, and the groups
     are returned sorted by aggregated value in descending order. Numeric
@@ -242,6 +245,7 @@ def _get_numerical_aggregation(
           the recomputed `"Others"` value.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         x_col (str): Grouping column.
         y_col (str): Numeric column to aggregate.
         agg_func (str): Aggregation function name (for example: `mean`,
@@ -264,6 +268,12 @@ def _get_numerical_aggregation(
     Returns:
         dict[str, Any]: Response object with a `"data"` key containing the
         serialized aggregation rows, plus any `kwargs` entries.
+
+
+
+    Raises:
+        TypeError: If `df` is not a `pandas.DataFrame`.
+
     """
     _reject_inplace("get_numerical_aggregation", kwargs)
     if not isinstance(df, pd.DataFrame):
@@ -295,8 +305,7 @@ def _get_time_series(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Build a time-series aggregation from a date/datetime column.
+    """Build a time-series aggregation from a date/datetime column.
 
     The date column is parsed with `pd.to_datetime(errors="coerce")` and
     rows whose date is missing or unparseable are dropped. timezone-aware
@@ -319,6 +328,7 @@ def _get_time_series(
         returns `{"data": []}` and is logged as a warning.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         date_col (str): Source datetime/date column used for time bucketing.
         time_period (str): Time bucket granularity. Defaults to `"M"`.
         num_col (str | None): Optional numeric column for non-count
@@ -336,6 +346,12 @@ def _get_time_series(
     Returns:
         dict[str, Any]: Response object with a `"data"` key containing the
         serialized time-series rows, plus any `kwargs` entries.
+
+
+
+    Raises:
+        TypeError: If `df` is not a `pandas.DataFrame`.
+
     """
     _reject_inplace("get_time_series", kwargs)
     if not isinstance(df, pd.DataFrame):
@@ -362,8 +378,7 @@ def _get_kpi_value(
     filters: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Compute a single KPI metric.
+    """Compute a single KPI metric.
 
     With `agg_func="count"` the value is the number of filtered rows and
     `column` is only used as the default title. Otherwise the value is
@@ -374,6 +389,7 @@ def _get_kpi_value(
     non-zero, and other numeric values are converted to `int`.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         column (str): Source column used when `agg_func` is not `count`.
             Also the default card title.
         agg_func (str): Aggregation function name; `count` uses row count.
@@ -390,6 +406,12 @@ def _get_kpi_value(
     Returns:
         dict[str, Any]: KPI payload containing `"data"`, `"title"`, and
         any additional metadata.
+
+
+
+    Raises:
+        TypeError: If `df` is not a `pandas.DataFrame`.
+
     """
     _reject_inplace("get_kpi_value", kwargs)
     if not isinstance(df, pd.DataFrame):
@@ -414,8 +436,7 @@ def _get_bins(
     orient: str = "records",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Create histogram bins for a numeric column.
+    """Create histogram bins for a numeric column.
 
     The column is coerced with `pd.to_numeric(errors="coerce")` and nulls
     are dropped, so non-numeric text is ignored rather than raising. Bins
@@ -429,6 +450,7 @@ def _get_bins(
           is logged as a warning.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         col (str): Numeric source column.
         bins (int): Number of histogram bins. Defaults to 10.
         filters (dict[str, Any] | None): Optional filters applied before binning.
@@ -442,6 +464,12 @@ def _get_bins(
     Returns:
         dict[str, Any]: Response object with a `"data"` key containing the
         serialized histogram rows, plus any `kwargs` entries.
+
+
+
+    Raises:
+        TypeError: If `df` is not a `pandas.DataFrame`.
+
     """
     _reject_inplace("get_bins", kwargs)
     if not isinstance(df, pd.DataFrame):
@@ -467,8 +495,7 @@ def _save_to_json(
     force_ascii: bool = False,
     indent: int = 4,
 ) -> None:
-    """
-    Save the dataframe to a JSON file only when content has changed.
+    """Save the dataframe to a JSON file only when content has changed.
 
     Notes:
         Before writing, the method compares the current dataframe payload to
@@ -486,6 +513,7 @@ def _save_to_json(
         created.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         file_path (str | os.PathLike): Destination JSON file path.
         orient (str): JSON orientation passed to `pandas.DataFrame.to_json`.
             Defaults to `"records"`.
@@ -498,13 +526,10 @@ def _save_to_json(
         indent (int): Indentation width used when writing to disk. Defaults
             to 4.
 
-    Returns:
-        None. Nothing is written when an existing non-append file already
-        holds identical content.
-
     Raises:
         ValueError: If `file_path` is empty, or if `append=True` and the
             existing file cannot be read with the given `orient`.
+
     """
     file_path = os.fspath(file_path).strip() if file_path is not None else ""
 
@@ -537,8 +562,7 @@ def _save_to_sql(
     if_exists: IfExists = 'append',
     index: bool = False,
 ) -> None:
-    """
-    Save the dataframe to a SQL database table using SQLAlchemy.
+    """Save the dataframe to a SQL database table using SQLAlchemy.
 
     Notes:
         The method supports standard SQLAlchemy URL styles and includes
@@ -552,6 +576,7 @@ def _save_to_sql(
         is disposed of after the write, whether it succeeds or fails.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         table_name (str): The name of the SQL table to write to.
         database_type (str): SQLAlchemy dialect/driver, for example
             `"postgresql+psycopg2"`, `"mysql+pymysql"`, `"mssql+pyodbc"`,
@@ -574,9 +599,6 @@ def _save_to_sql(
             Options: 'fail', 'replace', 'append'. Defaults to 'append'.
         index (bool): Whether to write the DataFrame index as a SQL column.
             Defaults to False.
-
-    Returns:
-        None
 
     Raises:
         ValueError: If `table_name` or `database_type` is empty, if
@@ -601,6 +623,7 @@ def _save_to_sql(
             index=False
         )
     ```
+
     """
     db_type = str(database_type or '').strip().lower()
     db_user = str(database_user or '').strip()
@@ -640,8 +663,7 @@ def _save_to_sql(
 
 @pd.api.extensions.register_dataframe_accessor("bynat")
 class BynatAccessor:
-    """
-    bynat cleaning, enrichment, and export methods for any `pandas.DataFrame`.
+    """bynat cleaning, enrichment, and export methods for any `pandas.DataFrame`.
 
     Every transformation returns a new DataFrame and leaves the original
     untouched by default. The in-place capable transformations accept
@@ -669,8 +691,7 @@ class BynatAccessor:
     """
 
     def __init__(self, pandas_obj: pd.DataFrame, cache_manager: CacheManager | None = None) -> None:
-        """
-        Bind the accessor to a frame and an optional cache manager.
+        """Bind the accessor to a frame and an optional cache manager.
 
         pandas constructs the accessor with only the frame; the cache manager
         is supplied by `with_cache(...)`. A None manager is resolved lazily to
@@ -694,8 +715,7 @@ class BynatAccessor:
         return self._cache_manager
 
     def with_cache(self, cache: str | os.PathLike | CacheManager | None) -> "BynatAccessor":
-        """
-        Return an accessor for the same frame that caches in another place.
+        """Return an accessor for the same frame that caches in another place.
 
         Args:
             cache (str | os.PathLike | CacheManager | None): A cache directory
@@ -709,8 +729,7 @@ class BynatAccessor:
         return BynatAccessor(self._obj, cache_manager = manager)
 
     def clear_cache_for_column(self, func_name: str, target_col: str) -> None:
-        """
-        Delete a cached column bucket for one of the cached methods.
+        """Delete a cached column bucket for one of the cached methods.
 
         Args:
             func_name (str): Name of the cached method.

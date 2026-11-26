@@ -14,19 +14,14 @@ script makes that check reproducible and offline:
 3. import ``bynat`` from a directory outside the checkout and assert that the
    imported package, its distribution metadata, and its public package files
    all come from the installed wheel rather than any source tree;
-4. copy the complete ``tests/`` tree, the development tooling
-   ``tools/sync_docs.py``, and the source artifacts the doc-drift test reads
-   into a scratch test root, then run the full suite, the four target
-   verification files, and an installed-distribution smoke test against the
-   installed wheel.
+4. copy the complete ``tests/`` tree and the development tooling
+   ``benchmarks/reference_impls.py`` into a scratch test root, then run the
+   full suite, the four target verification files, and an installed-
+   distribution smoke test against the installed wheel.
 
-The doc-drift test reads source files (``bynat/py.typed``,
-``bynat/cleaning/base.py``, ``bynat/_accessors/dataframe.py``, and
-``bynat/_accessors/dataframe.pyi``). Those files are copied into the scratch
-test root without ``__init__.py``, so they form a PEP 420 namespace portion
-that never shadows the regular ``bynat`` package installed in the venv
-site-packages; the test still compares the source artifacts with the installed
-modules.
+The installed wheel is checked for its ``bynat/py.typed`` marker and its
+accessor package files, which must resolve from the venv site-packages
+rather than any source tree.
 
 Usage:
     python tools/verify_installed_wheel.py [--python PATH] [--keep]
@@ -73,22 +68,14 @@ TOP_LEVEL_EXPORTS = {
     "read_json",
 }
 CLEANING_EXPORTS = {"BaseData", "CsvFile", "JsonFile"}
-PACKAGE_DATA = ("bynat/py.typed", "bynat/_accessors/dataframe.pyi")
+PACKAGE_DATA = ("bynat/py.typed",)
 ACCESSOR_PACKAGE_FILES = (
     "bynat/_accessors/__init__.py",
     "bynat/_accessors/_binding.py",
     "bynat/_accessors/dataframe.py",
-    "bynat/_accessors/dataframe.pyi",
 )
 
-TEST_TOOLING = ("tools/sync_docs.py", "benchmarks/reference_impls.py")
-
-DOC_DRIFT_SOURCE_FILES = (
-    "bynat/py.typed",
-    "bynat/cleaning/base.py",
-    "bynat/_accessors/dataframe.py",
-    "bynat/_accessors/dataframe.pyi",
-)
+TEST_TOOLING = ("benchmarks/reference_impls.py",)
 
 SOURCE_COPY_IGNORE = shutil.ignore_patterns(
     ".git",
@@ -518,10 +505,6 @@ def _prepare_test_root(scratch: Path, source_root: Path) -> Path:
         if Path(relative).parent != Path("."):
             (testroot / Path(relative).parent).mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source_root / relative, testroot / relative)
-    for relative in DOC_DRIFT_SOURCE_FILES:
-        destination = testroot / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source_root / relative, destination)
     smoke_dir = testroot / "smoke"
     smoke_dir.mkdir()
     (smoke_dir / "test_installed_distribution_smoke.py").write_text(SMOKE_TEST, encoding="utf-8")

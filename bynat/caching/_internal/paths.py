@@ -11,8 +11,7 @@ __all__ = [
 
 
 def normalize_cache_dir(cache_dir: str | PathLike) -> tuple[str, str]:
-    """
-    Validate and normalize an already-resolved cache directory.
+    """Validate and normalize an already-resolved cache directory.
 
     Relative paths are resolved from the current working directory. Absolute
     paths are used as provided. User home markers (`~`) and environment
@@ -49,8 +48,7 @@ def normalize_cache_dir(cache_dir: str | PathLike) -> tuple[str, str]:
 
 
 def validate_cache_key(key: str, key_name: str) -> str:
-    """
-    Validate a cache key before using it in file paths or dictionaries.
+    """Validate a cache key before using it in file paths or dictionaries.
 
     Args:
         key (str): Cache key value to validate.
@@ -78,8 +76,7 @@ def validate_cache_key(key: str, key_name: str) -> str:
 
 
 def legacy_json_path(cache_dir_path: str, func_name: str) -> str:
-    """
-    Build the legacy JSON cache-file path for a specific function name.
+    """Build the legacy JSON cache-file path for a specific function name.
 
     Args:
         cache_dir_path (str): Absolute path of the cache directory.

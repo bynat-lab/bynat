@@ -17,8 +17,7 @@ __all__ = [
 
 
 def is_basedata_type(output_type: Any) -> bool:
-    """
-    Check whether a type is BaseData or a BaseData subclass without importing it.
+    """Check whether a type is BaseData or a BaseData subclass without importing it.
 
     Inspects the class MRO to identify BaseData ancestry without creating a
     dependency from lower-level cleaning modules to the facade layer.
@@ -34,8 +33,7 @@ def is_basedata_type(output_type: Any) -> bool:
 
 
 def validate_output_type(output_type: Any) -> None:
-    """
-    Validate the generic tabular output types supported by this package.
+    """Validate the generic tabular output types supported by this package.
 
     Args:
         output_type (Any): Candidate output type.
@@ -57,8 +55,7 @@ def validate_output_type(output_type: Any) -> None:
 
 
 def convert_output(data: pd.DataFrame, output_type: Any) -> Any:
-    """
-    Convert a dataframe to a supported output type without schema coupling.
+    """Convert a dataframe to a supported output type without schema coupling.
 
     Args:
         data (pd.DataFrame): Frame to convert.
@@ -79,8 +76,7 @@ def convert_output(data: pd.DataFrame, output_type: Any) -> Any:
 
 
 def constructor_accepts_data(output_type: Any) -> bool:
-    """
-    Return whether a constructor signature can bind the keyword ``data``.
+    """Return whether a constructor signature can bind the keyword ``data``.
 
     Args:
         output_type (Any): Candidate constructor.
@@ -97,8 +93,7 @@ def constructor_accepts_data(output_type: Any) -> bool:
 
 
 def convert_default_output(data: pd.DataFrame, output_type: Any) -> Any:
-    """
-    Use a custom default constructor only when its signature accepts data.
+    """Use a custom default constructor only when its signature accepts data.
 
     `pandas.DataFrame` and any constructor that cannot bind `data=` are
     returned as the plain frame; otherwise the frame is converted through

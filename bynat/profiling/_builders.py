@@ -1,5 +1,4 @@
-"""
-Private core logic for non-mutating DataFrame data quality profiling.
+"""Private core logic for non-mutating DataFrame data quality profiling.
 
 This module implements the profiling algorithm behind
 :func:`bynat.profiling.profile`: dataset-level quality metrics and per-column
@@ -45,8 +44,7 @@ _STATS_BY_KIND = {
 
 
 def resolve_columns(df: pd.DataFrame, columns: Sequence[Any]) -> list[Any]:
-    """
-    Determine which column labels to profile and validate that they exist.
+    """Determine which column labels to profile and validate that they exist.
 
     Accepts the same forms as the public ``*columns`` argument: either
     individual labels (``('col1', 'col2')``) or a single collection
@@ -80,8 +78,7 @@ def resolve_columns(df: pd.DataFrame, columns: Sequence[Any]) -> list[Any]:
 
 
 def build_column_profile(series: pd.Series, name: Any, row_count: int) -> ColumnProfile:
-    """
-    Build the data quality profile for a single column.
+    """Build the data quality profile for a single column.
 
     Detects the column kind, counts non-null and missing values, computes
     cardinality, and selects the kind-specific statistics function. Columns
@@ -126,8 +123,7 @@ def build_dataset_profile(
     frame: pd.DataFrame,
     column_profiles: Sequence[ColumnProfile],
 ) -> DatasetProfile:
-    """
-    Build the dataset-level data quality summary.
+    """Build the dataset-level data quality summary.
 
     Aggregates missing counts, empty columns, and dtype distribution from the
     already-built column profiles, and computes duplicate rows and memory usage
@@ -175,8 +171,7 @@ def build_dataset_profile(
 
 
 def build_report(df: pd.DataFrame, columns: Sequence[Any]) -> ProfileReport:
-    """
-    Build the complete data quality report for a DataFrame.
+    """Build the complete data quality report for a DataFrame.
 
     Resolves the columns to profile, builds a :class:`ColumnProfile` for each
     one by position (so duplicate column names are preserved in

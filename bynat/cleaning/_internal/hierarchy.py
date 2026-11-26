@@ -24,9 +24,7 @@ HIERARCHICAL_STATS_COLUMNS = (
 
 
 def left_merge_aligned(frame: pd.DataFrame, right: pd.DataFrame, on: list) -> pd.DataFrame:
-    """
-    Left-merge `right` onto the `on` columns of `frame` and return the result
-    indexed like `frame`.
+    """Left-merge `right` onto `frame` and preserve its index.
 
     A left merge preserves the row order of the left frame, so the merged rows
     are re-labelled positionally. This works for named, duplicate, and
@@ -59,8 +57,7 @@ def hierarchical_outlier_masks(
     hierarchy_cols: Sequence[Any],
     min_samples: int,
 ) -> Iterator[tuple[Any, np.ndarray]]:
-    """
-    Yield `(target_col, outlier_mask)` for every target and hierarchy level.
+    """Yield `(target_col, outlier_mask)` for every target and hierarchy level.
 
     The full hierarchy is evaluated first, then its last column is dropped at
     each level. A row is judged only at the most specific level where its

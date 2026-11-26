@@ -1,6 +1,5 @@
-"""Verify that literal docstrings and the accessor stub match implementations."""
+"""Verify runtime contracts for the public bynat API."""
 
-import ast
 import importlib
 import inspect
 from pathlib import Path
@@ -10,30 +9,8 @@ import pytest
 
 from bynat._accessors import BynatAccessor
 from bynat.cleaning import BaseData
-from tools.sync_docs import check
 
 pytestmark = pytest.mark.integration
-
-
-ROOT = Path(__file__).resolve().parents[3]
-
-
-def test_docstrings_and_stubs_are_in_sync():
-    """Fail with actionable instructions if BaseData docstrings or dataframe.pyi drift."""
-    problems = check()
-    assert not problems, (
-        "Docstrings or dataframe.pyi are out of sync with shared implementation functions:\n"
-        + "\n".join(f"  - {p}" for p in problems)
-        + "\n\nFix by running:\n  python tools/sync_docs.py"
-    )
-
-
-def test_package_typing_artifacts_exist():
-    """Ensure py.typed marker and accessor stub exist for PEP 561 compliance."""
-    assert (ROOT / "bynat" / "py.typed").is_file(), "bynat/py.typed marker missing"
-    assert (ROOT / "bynat" / "_accessors" / "dataframe.pyi").is_file(), (
-        "bynat/_accessors/dataframe.pyi missing"
-    )
 
 
 def test_runtime_inspect_signature_and_help_preserved():
@@ -134,35 +111,3 @@ def test_package_modules_declare_valid_all_and_remove_legacy_shims():
     for removed_shim in ("bynat.cleaning.Cleaning", "bynat.caching.Caching"):
         with pytest.raises(ModuleNotFoundError):
             importlib.import_module(removed_shim)
-
-
-def _stub_parameter_names(path):
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    class_def = next(
-        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "BynatAccessor"
-    )
-    stubs = {}
-    for node in class_def.body:
-        if not isinstance(node, ast.FunctionDef) or node.name == "__init__":
-            continue
-        if any(isinstance(decorator, ast.Name) and decorator.id == "property" for decorator in node.decorator_list):
-            continue
-        names = [argument.arg for argument in node.args.posonlyargs + node.args.args]
-        if node.args.vararg is not None:
-            names.append(node.args.vararg.arg)
-        names.extend(argument.arg for argument in node.args.kwonlyargs)
-        if node.args.kwarg is not None:
-            names.append(node.args.kwarg.arg)
-        stubs[node.name] = names
-    return stubs
-
-
-def test_accessor_stub_matches_runtime_signatures():
-    stubs = _stub_parameter_names(ROOT / "bynat" / "_accessors" / "dataframe.pyi")
-    assert stubs
-
-    for name, stub_names in stubs.items():
-        runtime_names = list(inspect.signature(getattr(BynatAccessor, name)).parameters)
-        assert runtime_names == stub_names, f"{name}: runtime {runtime_names} != stub {stub_names}"
-
-

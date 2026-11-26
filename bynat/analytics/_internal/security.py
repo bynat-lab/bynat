@@ -8,8 +8,7 @@ _BLOCKED_TOKENS = ("__", "@", "import", "lambda", ";")
 
 
 def is_safe_expression(expression: Any) -> bool:
-    """
-    Perform a lightweight safety check for dynamic eval expressions.
+    """Perform a lightweight safety check for dynamic eval expressions.
 
     Notes:
         This is a guardrail, not a full sandbox. It blocks clearly risky

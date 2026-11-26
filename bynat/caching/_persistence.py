@@ -1,5 +1,4 @@
-"""
-Private core logic for loading and saving function caches through SQLite.
+"""Private core logic for loading and saving function caches through SQLite.
 
 This module holds the orchestration that sits between the public
 :class:`bynat.caching.manager.CacheManager` and the lower-level
@@ -24,8 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_cache(storage: SQLiteStorage, func_name: str) -> dict:
-    """
-    Load one function's cache state from SQLite, migrating legacy JSON first.
+    """Load one function's cache state from SQLite, migrating legacy JSON first.
 
     Creates the SQLite schema when missing, imports the function's legacy
     `<func_name>_cache.json` file when present (at most once), then rebuilds
@@ -63,8 +61,7 @@ def persist_cache(
     live_cache: dict,
     baseline: dict | None,
 ) -> bool:
-    """
-    Persist the difference between a live cache and its baseline to SQLite.
+    """Persist the difference between a live cache and its baseline to SQLite.
 
     Serialization happens first via :func:`compute_cache_diff`; additions,
     changes, and removals are then applied together in one transaction by

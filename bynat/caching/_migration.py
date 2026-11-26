@@ -24,8 +24,7 @@ def migrate_legacy_json_cache(
     initialize_fn: Callable[[], None] | None = None,
     connect_fn: Callable[[], sqlite3.Connection] | None = None,
 ) -> None:
-    """
-    Import one legacy JSON cache into SQLite, without changing the API.
+    """Import one legacy JSON cache into SQLite, without changing the API.
 
     The JSON file is read only to migrate it, at most once: the source file
     name is recorded in `migration_metadata` inside the same transaction, and
@@ -54,9 +53,10 @@ def migrate_legacy_json_cache(
             connection factory. Defaults to None.
 
     Raises:
-        sqlite3.Error: If schema initialization or the import transaction
+        sqlite3.OperationalError: If schema initialization or the import transaction
             fails for a reason other than a lock that the retry loop could
             not clear.
+
     """
     source_name = os.path.basename(file_path)
 

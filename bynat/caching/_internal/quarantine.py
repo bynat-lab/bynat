@@ -8,8 +8,7 @@ __all__ = ["quarantine_corrupt_cache_file"]
 
 
 def quarantine_corrupt_cache_file(file_path: str) -> str | None:
-    """
-    Move a corrupt cache file aside without overwriting a quarantine.
+    """Move a corrupt cache file aside without overwriting a quarantine.
 
     A unique `.<name>.corrupt.<timestamp>.<uuid>` path is reserved with
     `os.open(..., O_CREAT | O_EXCL)` and the source is then moved onto it, so

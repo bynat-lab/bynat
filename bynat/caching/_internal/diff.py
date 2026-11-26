@@ -11,8 +11,7 @@ def compute_cache_diff(
     live_cache: dict,
     baseline: dict,
 ) -> tuple[list[tuple[str, str, str, str, str]], list[tuple[str, str, str]]]:
-    """
-    Diff a live function cache against its baseline snapshot.
+    """Diff a live function cache against its baseline snapshot.
 
     Entries that were newly added, or whose value differs from the baseline,
     become prepared rows with the value serialized by `json.dumps`. Every

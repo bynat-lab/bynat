@@ -31,9 +31,7 @@ def extract_entities_nlp(
     cache_manager: CacheManager,
     **target_cols_and_json_keys: Any
 ) -> FrameT:
-    """
-    Extract entities from free text by matching against a cached lexicon with
-    spaCy tokenization and lemmatization.
+    """Extract cached lexicon entities from text with spaCy lemmatization.
 
     Notes:
         Terms are loaded from a JSON file or dictionary, grouped by target
@@ -68,6 +66,8 @@ def extract_entities_nlp(
         continues.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
+        cache_manager: Optional `CacheManager`; a shared manager is resolved when omitted.
         *source_cols: Text columns whose combined content will be searched.
         lexicon_source (str | os.PathLike | dict): Path to a lexicon JSON
             file or a preloaded dictionary with equivalent structure.
@@ -97,9 +97,8 @@ def extract_entities_nlp(
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with extracted entity-list
-        columns; the input is not modified. With `inplace=True`, the receiver is mutated
-        in place and None is returned.
+        A new dataframe with extracted entity-list columns; the input is not
+        modified.
 
     Raises:
         ValueError: If `disable` contains a required spaCy component, a
@@ -121,8 +120,8 @@ def extract_entities_nlp(
             basic_skills=["skills", "technologies"]
         )
     ```
-    """
 
+    """
     if "noisey_terms" in target_cols_and_json_keys:
         raise TypeError(
             "extract_entities_nlp() got an unexpected keyword argument "
@@ -207,6 +206,11 @@ def extract_entities_nlp(
     active: dict[str, Any] = {}
 
     def start(count: int) -> None:
+        """Load the spaCy model and build the lexicon matcher.
+
+        Args:
+            count (int): Number of texts to process, used for logging.
+        """
         spacy = import_optional("spacy", "spacy", "extract_entities_nlp")
         matcher_module = import_optional(
             "spacy.matcher", "spacy", "extract_entities_nlp"
@@ -254,6 +258,14 @@ def extract_entities_nlp(
         logger.info("Extracting smart entities from %s rows simultaneously...", count)
 
     def extract(texts: list) -> list:
+        """Extract lexicon entities from a batch of texts.
+
+        Args:
+            texts (list): Texts to process.
+
+        Returns:
+            list: One entity mapping per input text.
+        """
         nlp = active["nlp"]
         matcher = active["matcher"]
         outcomes: list[Any] = []

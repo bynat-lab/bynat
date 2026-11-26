@@ -1,5 +1,4 @@
-"""
-Data quality profile report data structures.
+"""Data quality profile report data structures.
 
 This module owns the structured report models returned by
 :func:`bynat.profiling.profile`: :class:`DatasetProfile`,
@@ -19,8 +18,7 @@ __all__ = ["ProfileReport", "DatasetProfile", "ColumnProfile"]
 
 @dataclass
 class DatasetProfile(Mapping[str, Any]):
-    """
-    Dataset-level data quality summary metrics for a profiled DataFrame.
+    """Dataset-level data quality summary metrics for a profiled DataFrame.
 
     Implements the :class:`collections.abc.Mapping` protocol so fields can be
     accessed both as attributes (``dataset.row_count``) and by key
@@ -64,8 +62,7 @@ class DatasetProfile(Mapping[str, Any]):
     dtype_counts: dict[str, int]
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the dataset profile into a plain Python dictionary.
+        """Convert the dataset profile into a plain Python dictionary.
 
         Returns:
             dict[str, Any]: Dictionary containing all :class:`DatasetProfile`
@@ -74,8 +71,7 @@ class DatasetProfile(Mapping[str, Any]):
         return asdict(self)
 
     def __getitem__(self, item: str) -> Any:
-        """
-        Retrieve a dataset metric by its field name.
+        """Retrieve a dataset metric by its field name.
 
         Args:
             item (str): Name of the :class:`DatasetProfile` attribute.
@@ -92,17 +88,15 @@ class DatasetProfile(Mapping[str, Any]):
             raise KeyError(item) from None
 
     def __iter__(self) -> Iterator[str]:
-        """
-        Iterate over the field names of the dataset profile.
+        """Iterate over the field names of the dataset profile.
 
         Returns:
-            Iterator[str]: An iterator yielding each attribute name in declaration order.
+            Iterator[str]: An iterator over the attribute names.
         """
         return iter(asdict(self))
 
     def __len__(self) -> int:
-        """
-        Return the number of fields in the dataset profile.
+        """Return the number of fields in the dataset profile.
 
         Returns:
             int: Total number of :class:`DatasetProfile` attributes (10).
@@ -112,8 +106,7 @@ class DatasetProfile(Mapping[str, Any]):
 
 @dataclass
 class ColumnProfile(Mapping[str, Any]):
-    """
-    Data quality metrics and descriptive statistics for a single DataFrame column.
+    """Data quality metrics and descriptive statistics for a single DataFrame column.
 
     Implements the :class:`collections.abc.Mapping` protocol so fields can be
     accessed both as attributes (``col_profile.missing_count``) and by key
@@ -170,8 +163,7 @@ class ColumnProfile(Mapping[str, Any]):
     stats: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the column profile into a plain Python dictionary.
+        """Convert the column profile into a plain Python dictionary.
 
         Returns:
             dict[str, Any]: Dictionary containing all :class:`ColumnProfile`
@@ -180,8 +172,7 @@ class ColumnProfile(Mapping[str, Any]):
         return asdict(self)
 
     def __getitem__(self, item: str) -> Any:
-        """
-        Retrieve a column profile field by its attribute name.
+        """Retrieve a column profile field by its attribute name.
 
         Args:
             item (str): Name of the :class:`ColumnProfile` attribute.
@@ -198,17 +189,15 @@ class ColumnProfile(Mapping[str, Any]):
             raise KeyError(item) from None
 
     def __iter__(self) -> Iterator[str]:
-        """
-        Iterate over the field names of the column profile.
+        """Iterate over the field names of the column profile.
 
         Returns:
-            Iterator[str]: An iterator yielding each attribute name in declaration order.
+            Iterator[str]: An iterator over the field names.
         """
         return iter(asdict(self))
 
     def __len__(self) -> int:
-        """
-        Return the number of fields in the column profile.
+        """Return the number of fields in the column profile.
 
         Returns:
             int: Total number of :class:`ColumnProfile` attributes (11).
@@ -218,8 +207,7 @@ class ColumnProfile(Mapping[str, Any]):
 
 @dataclass
 class ProfileReport(Mapping[str, Any]):
-    """
-    Complete data quality report for a DataFrame.
+    """Complete data quality report for a DataFrame.
 
     Combines dataset-wide summary metrics (:attr:`dataset`) and per-column
     profiles (:attr:`columns` and :attr:`column_list`). Implements the
@@ -249,8 +237,7 @@ class ProfileReport(Mapping[str, Any]):
     column_list: list[ColumnProfile] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize the full profile report to a nested dictionary of Python primitives.
+        """Serialize the full profile report to a nested dictionary of Python primitives.
 
         Returns:
             dict[str, Any]: A dictionary with two top-level keys:
@@ -264,8 +251,7 @@ class ProfileReport(Mapping[str, Any]):
         }
 
     def to_dataframe(self) -> pd.DataFrame:
-        """
-        Convert per-column quality profiles into a tabular ``pandas.DataFrame``.
+        """Convert per-column quality profiles into a tabular ``pandas.DataFrame``.
 
         Each row in the returned DataFrame represents one profiled column from
         :attr:`column_list` (preserving duplicate column names if present).
@@ -298,8 +284,7 @@ class ProfileReport(Mapping[str, Any]):
         return pd.DataFrame(rows)
 
     def __getitem__(self, key: str) -> Any:
-        """
-        Retrieve a top-level section of the report by key (``'dataset'`` or ``'columns'``).
+        """Retrieve a top-level report section by key.
 
         Args:
             key (str): Section name, either ``'dataset'`` or ``'columns'``.
@@ -317,18 +302,16 @@ class ProfileReport(Mapping[str, Any]):
         raise KeyError(key)
 
     def __iter__(self) -> Iterator[str]:
-        """
-        Iterate over the top-level mapping keys of the report.
+        """Iterate over the top-level mapping keys of the report.
 
-        Returns:
-            Iterator[str]: Yields ``'dataset'`` and ``'columns'``.
+        Yields:
+            str: Each top-level report key in turn.
         """
         yield "dataset"
         yield "columns"
 
     def __len__(self) -> int:
-        """
-        Return the number of top-level sections in the report mapping.
+        """Return the number of top-level sections in the report mapping.
 
         Returns:
             int: Always ``2`` (``'dataset'`` and ``'columns'``).
@@ -336,8 +319,7 @@ class ProfileReport(Mapping[str, Any]):
         return 2
 
     def __repr__(self) -> str:
-        """
-        Return a concise human-readable summary string of the profile report.
+        """Return a concise human-readable summary string of the profile report.
 
         Returns:
             str: Summary displaying row count, column count, missing cell count

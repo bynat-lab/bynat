@@ -35,14 +35,41 @@ def _translate_cached(
     func_name: str,
     reject: Callable[[Any], bool],
 ) -> dict:
-    """Translate the uncached unique values of a series and return the cache bucket."""
+    """Translate cached values and return the resolver mapping.
+
+    Args:
+        values (pd.Series): Unique values to translate.
+        target_col (str): Cache bucket suffix for the target column.
+        target_lang (str): Language code passed to the provider.
+        save_every (int): Values between cache checkpoints.
+        provider (Translator | None): Optional translation provider.
+        cache_manager (CacheManager): Manager that owns the cache.
+        func_name (str): Cache function name.
+        reject (Callable[[Any], bool]): Marks values that must not be translated.
+
+    Returns:
+        dict: Mapping from source value to translated value.
+    """
     active: dict[str, Any] = {}
 
     def start(count: int) -> None:
+        """Create the translator provider for this run.
+
+        Args:
+            count (int): Number of values to translate, used for logging.
+        """
         logger.info("preparing %s values to be translated...", count)
         active["provider"] = provider if provider is not None else GoogleTranslatorProvider(func_name)
 
     def fetch_many(chunk: list) -> list:
+        """Translate one chunk of values.
+
+        Args:
+            chunk (list): Values to translate.
+
+        Returns:
+            list: One translation or skip marker per input value.
+        """
         translations = translate_all(active["provider"], [str(value) for value in chunk], target_lang)
 
         return [
@@ -71,9 +98,7 @@ def impute_by_language(
     *target_cols: Any,
     target_lang: str = 'en'
 ) -> FrameT:
-    """
-    Impute missing or inconsistent values in target columns based on a reference column
-    and a preferred language.
+    """Impute target values from a reference column and preferred language.
 
     Notes:
         - **Dependencies**: This method requires the `langdetect` library.
@@ -89,6 +114,7 @@ def impute_by_language(
             with no valid target column is returned unchanged.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         reference_col (str): The column used as a key (e.g., 'category_slug').
         *target_cols: One or more columns to be updated/imputed (e.g., 'category_name').
             Names that do not exist in `df` are skipped.
@@ -99,9 +125,7 @@ def impute_by_language(
             False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with imputed columns; the input
-        is not modified. With `inplace=True`, the receiver is mutated in place and None
-        is returned.
+        A new dataframe with imputed columns; the input is not modified.
 
     Raises:
         ImportError: If the optional `langdetect` dependency is not
@@ -122,6 +146,7 @@ def impute_by_language(
         Usage:
             df.impute_by_language("city_id", "city_name", target_lang="ar")
     ```
+
     """
     if reference_col not in df.columns:
         return df.copy()
@@ -193,8 +218,7 @@ def translate_conditional_column(
     provider: Translator | None = None,
     cache_manager: CacheManager,
 ) -> FrameT:
-    """
-    Conditionally translate values in a target column based on language detection of a sample.
+    """Translate a target column when sampled text is in another language.
 
     This method groups data by `partition_col`, samples text from `detect_col` to determine
     if the language matches `target_lang`. If the percentage of matches is below the
@@ -208,6 +232,8 @@ def translate_conditional_column(
     required columns is missing an unchanged copy is returned.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
+        cache_manager: Optional `CacheManager`; a shared manager is resolved when omitted.
         partition_col (str): The column used to group or partition the data (e.g., 'category' or 'group_id').
         detect_col (str): The column used to sample text for language detection.
         target_col (str): The column containing the values that need translation.
@@ -226,15 +252,9 @@ def translate_conditional_column(
             unseeded sampling. Defaults to 0.
         provider (Translator | None): Translation provider. Defaults to
             Google Translate through `deep-translator`.
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with translated values; the
-        input is not modified. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with translated values; the input is not modified.
 
     Raises:
         ValueError: If `threshold` is not between 0.0 and 1.0.
@@ -259,8 +279,8 @@ def translate_conditional_column(
                 threshold=0.7
             )
     ```
-    """
 
+    """
     if not (0.0 <= threshold <= 1.0):
         raise ValueError("The 'threshold' parameter must be a float between 0.0 and 1.0")
 
@@ -355,8 +375,7 @@ def translate_categorical_column(
     provider: Translator | None = None,
     cache_manager: CacheManager,
 ) -> FrameT:
-    """
-    Translate all unique categories in a specific column using an automated translator.
+    """Translate all unique categories in one column automatically.
 
     This method optimizes performance and API usage by translating only unique
     values (categories) and utilizing a caching mechanism to avoid re-translating
@@ -370,6 +389,8 @@ def translate_categorical_column(
         that came back empty is left untranslated and uncached.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
+        cache_manager: Optional `CacheManager`; a shared manager is resolved when omitted.
         target_col (str): The name of the column containing categorical text to translate.
         target_lang (str): The ISO language code for the target language.
             Defaults to 'en'.
@@ -377,15 +398,9 @@ def translate_categorical_column(
             Defaults to 1000.
         provider (Translator | None): Translation provider. Defaults to
             Google Translate through `deep-translator`.
-        inplace (bool): `BaseData` methods and the `df.bynat` accessor only; the
-            standalone function has no such parameter and always returns a new
-            frame. When True, the receiver is mutated in place. Defaults to
-            False.
 
     Returns:
-        With `inplace=False` (default), a new dataframe with translated values; the
-        input is not modified. With `inplace=True`, the receiver is mutated in place and
-        None is returned.
+        A new dataframe with translated values; the input is not modified.
 
     Raises:
         ValueError: If `save_every` is not a positive integer.
@@ -406,8 +421,8 @@ def translate_categorical_column(
         Usage:
             df.translate_categorical_column("product_category", target_lang="fr")
     ```
-    """
 
+    """
     if target_col not in df.columns:
         return df.copy()
 

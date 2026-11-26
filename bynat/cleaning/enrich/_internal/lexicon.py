@@ -6,7 +6,15 @@ __all__ = ["lexicon_terms"]
 
 
 def lexicon_terms(lexicon_data: Any, keys_to_match: list) -> set[str]:
-    """Collect lowercase terms found under any of the requested lexicon keys."""
+    """Collect lowercase terms found under any of the requested lexicon keys.
+
+    Args:
+        lexicon_data (Any): Nested dict/list lexicon payload.
+        keys_to_match (list): Keys whose values are collected as terms.
+
+    Returns:
+        set[str]: Lowercase terms found under the requested keys.
+    """
     extracted_terms = set()
 
     stack = [(lexicon_data, False)]

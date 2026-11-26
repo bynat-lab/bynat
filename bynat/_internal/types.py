@@ -6,8 +6,7 @@ __all__ = ['is_named_type_from_module']
 
 
 def is_named_type_from_module(value: Any, class_name: str, module_name: str) -> bool:
-    """
-    Check whether a value is a class named `class_name` from `module_name`.
+    """Check whether a value is a class named `class_name` from `module_name`.
 
     The class MRO is inspected so subclasses are recognised without importing
     the owning module from a lower-level helper. No module name is hard-coded

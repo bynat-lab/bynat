@@ -1,4 +1,4 @@
-"""Reusable, application-independent DataFrame analytics helpers for categorical distributions, numerical aggregations, time-series bucketing, single-metric KPI cards, and histogram binning."""
+"""Provide reusable, application-independent DataFrame analytics helpers."""
 
 from typing import Any
 
@@ -16,8 +16,7 @@ __all__ = ["Analyzer"]
 
 
 class Analyzer:
-    """
-    Provide reusable analytics helpers for dashboard and API responses.
+    """Provide reusable analytics helpers for dashboard and API responses.
 
     Notes:
         The analyzer holds a defensive copy of the source data, so its methods
@@ -37,19 +36,16 @@ class Analyzer:
     """
 
     def __init__(self, dataframe: pd.DataFrame) -> None:
-        """
-        Initialize the analyzer with a defensive copy of source data.
+        """Initialize the analyzer with a defensive copy of source data.
 
         Args:
             dataframe (pd.DataFrame): Input dataset used by analytics methods.
                 It is copied, so later changes to the caller's frame are not
                 seen by the analyzer.
 
-        Returns:
-            None
-
         Raises:
             TypeError: If `dataframe` is not a `pandas.DataFrame`.
+
         """
         if not isinstance(dataframe, pd.DataFrame):
             raise TypeError("dataframe must be a pandas DataFrame.")
@@ -65,8 +61,7 @@ class Analyzer:
         orient: str = "records",
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """
-        Return distribution counts for a categorical column.
+        """Return distribution counts for a categorical column.
 
         Rows are counted with `value_counts()` and returned in descending
         count order. With `show_others=True` the rows beyond `top_n` are
@@ -134,8 +129,7 @@ class Analyzer:
         orient: str = "records",
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """
-        Aggregate a numeric column by category.
+        """Aggregate a numeric column by category.
 
         Rows with a null `y_col` are dropped before grouping, and the groups
         are returned sorted by aggregated value in descending order. Numeric
@@ -202,8 +196,7 @@ class Analyzer:
         orient: str = "records",
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """
-        Build a time-series aggregation from a date/datetime column.
+        """Build a time-series aggregation from a date/datetime column.
 
         The date column is parsed with `pd.to_datetime(errors="coerce")` and
         rows whose date is missing or unparseable are dropped. timezone-aware
@@ -264,8 +257,7 @@ class Analyzer:
         filters: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """
-        Compute a single KPI metric.
+        """Compute a single KPI metric.
 
         With `agg_func="count"` the value is the number of filtered rows and
         `column` is only used as the default title. Otherwise the value is
@@ -311,8 +303,7 @@ class Analyzer:
         orient: str = "records",
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """
-        Create histogram bins for a numeric column.
+        """Create histogram bins for a numeric column.
 
         The column is coerced with `pd.to_numeric(errors="coerce")` and nulls
         are dropped, so non-numeric text is ignored rather than raising. Bins

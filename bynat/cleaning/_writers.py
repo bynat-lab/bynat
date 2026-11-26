@@ -29,7 +29,21 @@ def write_json(
     force_ascii: bool = False,
     indent: int = 4,
 ) -> None:
-    """Write a dataframe payload to JSON, comparing or appending when needed."""
+    """Write a dataframe payload to JSON, comparing or appending when needed.
+
+    Args:
+        df (pd.DataFrame): Source dataframe; it is never modified.
+        file_path (str): Destination JSON file path.
+        orient (JsonOrient): JSON orientation. Defaults to `"records"`.
+        append (bool): Append to an existing file and drop duplicates when True.
+            Defaults to False.
+        force_ascii (bool): Escape non-ASCII characters when True. Defaults to False.
+        indent (int): Indentation width. Defaults to 4.
+
+    Raises:
+        ValueError: If appending to a file that cannot be read with the given
+            orientation.
+    """
     export_df = df.copy()
 
     for col in export_df.select_dtypes(include = ['datetime', 'datetimetz']).columns:

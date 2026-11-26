@@ -145,10 +145,10 @@ def test_accessor_analytics_signatures_match_analyzer(method_name):
 
 
 @pytest.mark.parametrize("method_name", ANALYTICS_METHODS)
-def test_accessor_analytics_docstrings_match_analyzer(method_name):
-    assert inspect.getdoc(getattr(BynatAccessor, method_name)) == inspect.getdoc(
-        getattr(Analyzer, method_name)
-    )
+def test_accessor_analytics_docstring_summaries_match_analyzer(method_name):
+    accessor_summary = inspect.getdoc(getattr(BynatAccessor, method_name)).splitlines()[0]
+    analyzer_summary = inspect.getdoc(getattr(Analyzer, method_name)).splitlines()[0]
+    assert accessor_summary == analyzer_summary
 
 
 @pytest.mark.parametrize("inplace_value", [True, False], ids=["true", "false"])

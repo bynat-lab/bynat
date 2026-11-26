@@ -1,3 +1,5 @@
+"""Compute per-column statistics used by the profiling report."""
+
 from typing import Any
 
 import pandas as pd

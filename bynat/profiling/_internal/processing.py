@@ -1,3 +1,5 @@
+"""Normalize scalars and classify pandas column types for profiling."""
+
 import datetime
 import math
 from typing import Any

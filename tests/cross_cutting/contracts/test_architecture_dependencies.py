@@ -17,15 +17,18 @@ PACKAGE_ROOT = REPO_ROOT / "bynat"
 PERMITTED_CROSS_PACKAGE: dict[str, frozenset[str]] = {
     "bynat": frozenset({"bynat.cleaning", "bynat.caching", "bynat.analytics",
                         "bynat.profiling", "bynat._accessors", "bynat.cleaning.io"}),
-    "_accessors": frozenset({"bynat.analytics",
-                             "bynat.cleaning._columns", "bynat.cleaning.io", "bynat.cleaning._stats",
-                             "bynat.cleaning._text", "bynat.cleaning._internal",
+    "_accessors": frozenset({"bynat._internal", "bynat.analytics._insights",
+                             "bynat.caching._registry", "bynat.cleaning._columns",
+                             "bynat.cleaning._stats", "bynat.cleaning._text",
+                             "bynat.cleaning._writers",
                              "bynat.cleaning.enrich._currency", "bynat.cleaning.enrich._geocode",
                              "bynat.cleaning.enrich._nlp", "bynat.cleaning.enrich._translate",
-                             "bynat.caching", "bynat.profiling", "bynat.profiling.profile"}),
-    "cleaning": frozenset({"bynat.caching", "bynat.caching._internal", "bynat.profiling",
-                           "bynat.profiling.profile", "bynat._internal", "bynat.cleaning._internal",
-                           "bynat.cleaning._columns", "bynat.cleaning._stats", "bynat.cleaning._text",
+                             "bynat.profiling._builders"}),
+    "cleaning": frozenset({"bynat.caching", "bynat.profiling", "bynat.profiling.profile",
+                           "bynat._internal",
+                           "bynat.cleaning._internal", "bynat.cleaning._columns",
+                           "bynat.cleaning._readers", "bynat.cleaning._writers",
+                           "bynat.cleaning._stats", "bynat.cleaning._text",
                            "bynat.cleaning.enrich._currency", "bynat.cleaning.enrich._geocode",
                            "bynat.cleaning.enrich._nlp", "bynat.cleaning.enrich._translate",
                            "bynat.cleaning.enrich._engine", "bynat.cleaning.enrich._internal",
@@ -36,18 +39,31 @@ PERMITTED_CROSS_PACKAGE: dict[str, frozenset[str]] = {
 }
 
 PRIVATE_IMPORT_EXCEPTIONS: dict[tuple[str, str], frozenset[str]] = {
+    ("bynat._accessors.dataframe", "bynat._internal"): frozenset({"is_named_type_from_module"}),
+    ("bynat._accessors.dataframe", "bynat.analytics._insights"): frozenset({
+        "build_bins", "build_categorical_distribution", "build_kpi_value",
+        "build_numerical_aggregation", "build_time_series",
+    }),
+    ("bynat._accessors.dataframe", "bynat.caching._registry"): frozenset({
+        "CacheManager", "resolve_cache_manager",
+    }),
     ("bynat._accessors.dataframe", "bynat.cleaning._columns"): frozenset({"_columns"}),
     ("bynat._accessors.dataframe", "bynat.cleaning._stats"): frozenset({"_stats"}),
     ("bynat._accessors.dataframe", "bynat.cleaning._text"): frozenset({"_text"}),
-    ("bynat._accessors.dataframe", "bynat.cleaning.io"): frozenset({"io"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning._writers"): frozenset({"write_json", "write_sql"}),
     ("bynat._accessors.dataframe", "bynat.cleaning.enrich._currency"): frozenset({"_currency"}),
     ("bynat._accessors.dataframe", "bynat.cleaning.enrich._geocode"): frozenset({"_geocode"}),
     ("bynat._accessors.dataframe", "bynat.cleaning.enrich._nlp"): frozenset({"_nlp"}),
     ("bynat._accessors.dataframe", "bynat.cleaning.enrich._translate"): frozenset({"_translate"}),
-    ("bynat.cleaning.enrich._engine", "bynat.caching._internal"): frozenset({"cache_value_key"}),
-    ("bynat.cleaning.enrich._translate", "bynat.caching._internal"): frozenset({"cache_has_value", "cache_lookup_value"}),
-    ("bynat._accessors.dataframe", "bynat.cleaning._internal"): frozenset({"is_basedata_type"}),
-    ("bynat.cleaning.io", "bynat._internal"): frozenset({"dedupe_key"}),
+    ("bynat._accessors.dataframe", "bynat.profiling._builders"): frozenset({
+        "ProfileReport", "build_report",
+    }),
+    ("bynat.cleaning._internal.outputs", "bynat._internal"): frozenset({"is_named_type_from_module"}),
+    ("bynat.cleaning._writers", "bynat._internal"): frozenset({"dedupe_key"}),
+    ("bynat.cleaning.enrich._engine", "bynat._internal"): frozenset({"cache_value_key"}),
+    ("bynat.cleaning.enrich._translate", "bynat._internal"): frozenset({
+        "cache_has_value", "cache_lookup_value",
+    }),
     ("bynat.profiling._internal.computations", "bynat._internal"): frozenset({"dedupe_key"}),
 }
 

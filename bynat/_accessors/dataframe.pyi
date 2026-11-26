@@ -9,9 +9,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from bynat.caching import CacheManager
+from bynat.caching._registry import CacheManager
 from bynat.cleaning.enrich.providers import Geocoder, RateSource, Translator
-from bynat.cleaning.io import IfExists, JsonOrient
 
 __all__ = ['BynatAccessor']
 
@@ -1662,7 +1661,7 @@ class BynatAccessor:
         """
         ...
 
-    def save_to_json(self, file_path: str | os.PathLike, orient: JsonOrient='records', append: bool=False, force_ascii: bool=False, indent: int=4) -> None:
+    def save_to_json(self, file_path: str | os.PathLike, orient: str='records', append: bool=False, force_ascii: bool=False, indent: int=4) -> None:
         """
         Save the dataframe to a JSON file only when content has changed.
 
@@ -1704,7 +1703,7 @@ class BynatAccessor:
         """
         ...
 
-    def save_to_sql(self, table_name: str, database_type: str, database_user: str, database_password: str, database_host: str, database_port: str, database_name: str, database_driver: str | None=None, columns_types: dict | None=None, chunk_size: int | None=None, fast_executemany: bool=False, if_exists: IfExists='append', index: bool=False) -> None:
+    def save_to_sql(self, table_name: str, database_type: str, database_user: str, database_password: str, database_host: str, database_port: str, database_name: str, database_driver: str | None=None, columns_types: dict | None=None, chunk_size: int | None=None, fast_executemany: bool=False, if_exists: str='append', index: bool=False) -> None:
         """
         Save the dataframe to a SQL database table using SQLAlchemy.
 

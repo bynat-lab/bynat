@@ -59,12 +59,12 @@ def test_save_to_json_append_keeps_existing_rows_with_list_columns(tmp_path):
 
 
 def test_save_to_json_append_deduplicates_plain_columns_without_json_keys(tmp_path, monkeypatch):
-    import bynat.cleaning.io as cleaning
+    import bynat.cleaning._writers as writers
 
     file_path = tmp_path / "out.json"
     BaseData({"a": [1, 2], "b": ["x", "y"]}, cache_dir=tmp_path).save_to_json(file_path)
 
-    monkeypatch.setattr(cleaning, "_dedupe_key", lambda value: pytest.fail("fast path expected"))
+    monkeypatch.setattr(writers, "_dedupe_key", lambda value: pytest.fail("fast path expected"))
     BaseData({"a": [2, 3], "b": ["y", "z"]}, cache_dir=tmp_path).save_to_json(file_path, append=True)
 
     assert json.loads(file_path.read_text(encoding="utf-8")) == [

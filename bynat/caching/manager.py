@@ -3,11 +3,12 @@
 import copy
 import logging
 import os
-import threading
 from os import PathLike
 
+from . import _registry as _cache_registry
 from ._internal import normalize_cache_dir, validate_cache_key
 from ._persistence import load_cache, persist_cache
+from ._registry import register_manager_type, shared_manager_for
 from ._storage import SQLiteStorage
 
 __all__ = [
@@ -233,10 +234,6 @@ class CacheManager:
             logger.info("No cache found for column '%s' in '%s'", col_name, func_name)
 
 
-_shared_managers: dict[str, CacheManager] = {}
-_shared_managers_lock = threading.Lock()
-
-
 def shared_cache_manager(cache_dir: str | PathLike | None = None) -> CacheManager:
     """
     Return one process-wide `CacheManager` per resolved cache directory.
@@ -260,7 +257,10 @@ def shared_cache_manager(cache_dir: str | PathLike | None = None) -> CacheManage
         TypeError: If `cache_dir` is not a string or path-like object.
         ValueError: If `cache_dir` is empty after normalization.
     """
-    probe = CacheManager(cache_dir)
+    return shared_manager_for(cache_dir, CacheManager)
 
-    with _shared_managers_lock:
-        return _shared_managers.setdefault(probe.cache_dir_path, probe)
+
+# Make the class reachable through the private registry path (no module-level
+# import of manager.py there, so the import order stays acyclic).
+_cache_registry.CacheManager = CacheManager
+register_manager_type(CacheManager)

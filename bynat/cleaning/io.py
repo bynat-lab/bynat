@@ -1,15 +1,13 @@
 """JSON and SQL export helpers, and the JSON/CSV loaders."""
 
-import json
 import logging
 import os
 from typing import Any, Literal
 
 import pandas as pd
 
-from bynat._internal import dedupe_key as _dedupe_key
-
-from ._internal import build_engine_url, import_optional
+from ._readers import load_json_payload, normalize_records, read_csv_records
+from ._writers import write_json, write_sql
 
 __all__ = [
     "IfExists",
@@ -62,8 +60,7 @@ def read_json(
     if not os.path.isfile(path):
         raise FileNotFoundError(f"JSON file not found: {path}")
 
-    with open(path, encoding = "utf-8") as file:
-        raw_data = json.load(file)
+    raw_data = load_json_payload(path)
 
     if key:
         if not isinstance(raw_data, dict):
@@ -74,7 +71,7 @@ def read_json(
 
         raw_data = raw_data[key]
 
-    return pd.json_normalize(raw_data)
+    return normalize_records(raw_data)
 
 
 def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFrame:
@@ -104,7 +101,7 @@ def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFra
     if not os.path.isfile(path):
         raise FileNotFoundError(f"CSV file not found: {path}")
 
-    return pd.read_csv(path, **read_kwargs)
+    return read_csv_records(path, **read_kwargs)
 
 
 def save_to_json(
@@ -159,80 +156,14 @@ def save_to_json(
     if not file_path:
         raise ValueError("file_path cannot be empty.")
 
-    export_df = df.copy()
-
-    for col in export_df.select_dtypes(include = ['datetime', 'datetimetz']).columns:
-        export_df[col] = export_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-    is_append_successful = False
-    new_rows_count = len(export_df)
-
-    duplicates_removed = 0
-
-    if os.path.exists(file_path):
-        if append:
-            try:
-                existing_df = pd.read_json(file_path, orient = orient)
-
-            except ValueError as e:
-                # Overwriting here would silently destroy the existing file.
-                raise ValueError(
-                    f"Cannot append to '{file_path}': it is not readable as orient='{orient}' JSON."
-                ) from e
-
-            combined_df = pd.concat([existing_df, export_df], ignore_index = True)
-
-            initial_count = len(combined_df)
-
-            try:
-                duplicate_mask = combined_df.duplicated()
-
-            except TypeError:
-                # Lists and dicts are unhashable, so compare object columns by a JSON key.
-                dedupe_view = combined_df.copy(deep = False)
-
-                for col in dedupe_view.select_dtypes(include = 'object').columns:
-                    dedupe_view[col] = dedupe_view[col].map(_dedupe_key)
-
-                duplicate_mask = dedupe_view.duplicated()
-
-            combined_df = combined_df[~duplicate_mask].reset_index(drop = True)
-            duplicates_removed = initial_count - len(combined_df)
-
-            export_df = combined_df
-            is_append_successful = True
-
-        else:
-            try:
-                json_str = export_df.to_json(orient = orient, force_ascii = force_ascii)
-                current_data = json.loads(json_str)
-
-                with open(file_path, encoding = 'utf-8') as f:
-                    existing_data = json.load(f)
-
-                if current_data == existing_data:
-                    logger.info("[SKIP] No changes detected. '%s' is already up to date.", os.path.basename(file_path))
-
-                    return None
-
-            except Exception as e:
-                logger.warning("Could not read existing file for comparison (%s). Overwriting...", e)
-
-    output_dir = os.path.dirname(file_path)
-
-    if output_dir:
-        os.makedirs(output_dir, exist_ok = True)
-
-    export_df.to_json(file_path, orient = orient, force_ascii = force_ascii, indent = indent)
-
-    if is_append_successful:
-        logger.info("[APPEND] Added %s new rows. Removed %s duplicates. Total jobs: %s.", new_rows_count, duplicates_removed, len(export_df))
-
-    else:
-        logger.info("[OVERWRITE] Save completed successfully! Total rows: %s.", len(export_df))
-
-    return None
-
+    write_json(
+        df,
+        file_path,
+        orient = orient,
+        append = append,
+        force_ascii = force_ascii,
+        indent = indent,
+    )
 
 def save_to_sql(
     df: pd.DataFrame,
@@ -334,42 +265,19 @@ def save_to_sql(
     if not db_type:
         raise ValueError("database_type cannot be empty.")
 
-    engine_url, engine_kwargs = build_engine_url(
-        db_type = db_type,
-        db_user = db_user,
-        db_pass = db_pass,
-        db_host = db_host,
-        db_port = db_port,
-        db_name = db_name,
-        db_driver = db_driver,
-        fast_executemany = fast_executemany,
+    write_sql(
+        df,
+        table_name,
+        db_type,
+        db_user,
+        db_pass,
+        db_host,
+        db_port,
+        db_name,
+        db_driver,
+        columns_types,
+        chunk_size,
+        fast_executemany,
+        if_exists,
+        index,
     )
-
-    sqlalchemy = import_optional("sqlalchemy", "SQLAlchemy", "save_to_sql")
-
-    export_df = df.copy()
-
-    # Normalize timezone-aware datetimes for SQL drivers that do not accept timezone-aware pandas dtypes.
-    for col in export_df.select_dtypes(include = ['datetimetz']).columns:
-        export_df[col] = export_df[col].dt.tz_localize(None)
-
-    engine = sqlalchemy.create_engine(engine_url, **engine_kwargs)
-
-    try:
-        logger.info("Pushing data to SQL table '%s' at %s...", table_name, db_host)
-
-        export_df.to_sql(
-            table_name,
-            con = engine,
-            if_exists = if_exists,
-            index = index,
-            dtype = columns_types,
-            chunksize = chunk_size if chunk_size else None
-        )
-
-        logger.info("Database save completed successfully!")
-
-    finally:
-        engine.dispose()
-
-    return None

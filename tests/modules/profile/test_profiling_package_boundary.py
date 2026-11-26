@@ -73,4 +73,4 @@ def test_profiling_private_dedupe_key_is_bound_to_canonical_internal_helper():
     computations = importlib.import_module("bynat.profiling._internal.computations")
 
     assert computations.dedupe_key is internal.dedupe_key
-    assert computations.dedupe_key.__module__ == "bynat._internal.values"
+    assert computations.dedupe_key.__module__ == "bynat._internal.keys"

@@ -4,8 +4,8 @@ import logging
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any
 
+from bynat._internal import cache_value_key
 from bynat.caching import CacheManager
-from bynat.caching._internal import cache_value_key
 
 from ._internal import unique_values
 

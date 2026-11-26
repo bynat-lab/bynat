@@ -65,14 +65,14 @@ def test_internal_dedupe_key_returns_hashable_keys_for_unhashable_values():
 
 
 def test_internal_dedupe_key_is_canonical_and_bound_by_consumers():
-    values_module = importlib.import_module("bynat._internal.values")
-    cleaning_io = importlib.import_module("bynat.cleaning.io")
+    keys_module = importlib.import_module("bynat._internal.keys")
+    cleaning_writers = importlib.import_module("bynat.cleaning._writers")
     profiling_computations = importlib.import_module("bynat.profiling._internal.computations")
 
-    assert internal.dedupe_key is values_module.dedupe_key
-    assert cleaning_io._dedupe_key is internal.dedupe_key
+    assert internal.dedupe_key is keys_module.dedupe_key
+    assert cleaning_writers._dedupe_key is internal.dedupe_key
     assert profiling_computations.dedupe_key is internal.dedupe_key
-    assert internal.dedupe_key.__module__ == "bynat._internal.values"
+    assert internal.dedupe_key.__module__ == "bynat._internal.keys"
 
 
 def test_internal_dedupe_key_has_no_duplicate_definitions():
@@ -81,7 +81,19 @@ def test_internal_dedupe_key_has_no_duplicate_definitions():
         for name in _function_definitions(path, {"dedupe_key", "_dedupe_key"}):
             definitions.append(f"{path.relative_to(PACKAGE_ROOT).as_posix()}::{name}")
 
-    assert definitions == ["_internal/values.py::dedupe_key"]
+    assert definitions == ["_internal/keys.py::dedupe_key"]
+
+
+def test_internal_cache_key_helpers_are_canonical_and_bound_by_consumers():
+    engine = importlib.import_module("bynat.cleaning.enrich._engine")
+    translate = importlib.import_module("bynat.cleaning.enrich._translate")
+
+    assert internal.cache_value_key(1.0) == "1"
+    assert internal.cache_has_value({"1": "x"}, 1) is True
+    assert internal.cache_lookup_value({"1": "x"}, 1) == "x"
+    assert engine.cache_value_key is internal.cache_value_key
+    assert translate.cache_has_value is internal.cache_has_value
+    assert translate.cache_lookup_value is internal.cache_lookup_value
 
 
 def test_internal_dedupe_key_is_not_reexported_by_cleaning_internal():
@@ -93,10 +105,15 @@ def test_internal_dedupe_key_is_not_reexported_by_cleaning_internal():
 
 
 def test_internal_modules_declare_explicit_all():
-    values_module = importlib.import_module("bynat._internal.values")
+    keys_module = importlib.import_module("bynat._internal.keys")
 
-    assert internal.__all__ == ["dedupe_key"]
-    assert values_module.__all__ == ["dedupe_key"]
+    assert internal.__all__ == [
+        "cache_has_value", "cache_lookup_value", "cache_value_key", "dedupe_key",
+        "is_named_type_from_module",
+    ]
+    assert keys_module.__all__ == [
+        "dedupe_key", "cache_value_key", "cache_has_value", "cache_lookup_value",
+    ]
 
 
 def test_internal_package_dependency_direction_is_stdlib_and_numpy_only():
@@ -107,4 +124,4 @@ def test_internal_package_dependency_direction_is_stdlib_and_numpy_only():
                 module_name,
             )
         for module_name in _relative_imports(path):
-            assert module_name == "values", (path.name, module_name)
+            assert module_name in {"keys", "types"}, (path.name, module_name)

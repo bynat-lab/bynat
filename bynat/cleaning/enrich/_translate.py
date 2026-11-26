@@ -7,8 +7,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from bynat._internal import cache_has_value, cache_lookup_value
 from bynat.caching import CacheManager
-from bynat.caching._internal import cache_has_value, cache_lookup_value
 
 from .._internal import FrameT, import_optional, require_positive_int
 from ._engine import SKIP, cached_map

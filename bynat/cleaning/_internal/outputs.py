@@ -5,6 +5,8 @@ from typing import Any
 
 import pandas as pd
 
+from bynat._internal import is_named_type_from_module
+
 __all__ = [
     "constructor_accepts_data",
     "convert_default_output",
@@ -28,14 +30,7 @@ def is_basedata_type(output_type: Any) -> bool:
         bool: True only when `output_type` is a class whose MRO contains a
         class named `BaseData` defined in `bynat.cleaning.base`.
     """
-    if not isinstance(output_type, type):
-        return False
-
-    return any(
-        getattr(base_cls, "__name__", None) == "BaseData"
-        and getattr(base_cls, "__module__", "") == "bynat.cleaning.base"
-        for base_cls in output_type.__mro__
-    )
+    return is_named_type_from_module(output_type, "BaseData", "bynat.cleaning.base")
 
 
 def validate_output_type(output_type: Any) -> None:

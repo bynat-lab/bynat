@@ -1,14 +1,41 @@
-"""Cache-key normalization and lookup helpers."""
+"""Key normalization and lookup helpers shared across bynat packages."""
 
+import json
 from typing import Any
 
 import numpy as np
 
 __all__ = [
-    "cache_has_value",
-    "cache_lookup_value",
-    "cache_value_key",
+    'dedupe_key',
+    'cache_value_key',
+    'cache_has_value',
+    'cache_lookup_value',
 ]
+
+
+def dedupe_key(value: Any) -> Any:
+    """
+    Return a hashable stand-in for unhashable values such as lists and dicts.
+
+    Sets are sorted by their string form, NumPy arrays become lists, and
+    lists/dicts/tuples are serialized with `json.dumps(sort_keys=True,
+    default=str)`. Other values are returned unchanged.
+
+    Args:
+        value (Any): Value to normalize.
+
+    Returns:
+        Any: A hashable value usable in a `set` or `groupby` key.
+    """
+    if isinstance(value, set):
+        value = sorted(value, key = str)
+    elif isinstance(value, np.ndarray):
+        value = value.tolist()
+
+    if isinstance(value, (list, dict, tuple)):
+        return json.dumps(value, sort_keys = True, default = str)
+
+    return value
 
 
 def cache_value_key(value: Any) -> str:

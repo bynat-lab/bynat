@@ -1,5 +1,6 @@
 """Accessor analytics delegation: parity with `Analyzer`, signatures, and reserved `inplace`."""
 
+import importlib
 import inspect
 
 import pandas as pd
@@ -99,25 +100,37 @@ def test_accessor_analytics_matches_canonical_analyzer(frame, method_name, args,
     assert "inplace" not in actual
 
 
+BUILD_NAMES = {
+    "get_categorical_distribution": "build_categorical_distribution",
+    "get_numerical_aggregation": "build_numerical_aggregation",
+    "get_time_series": "build_time_series",
+    "get_kpi_value": "build_kpi_value",
+    "get_bins": "build_bins",
+}
+
+
 @pytest.mark.parametrize(("method_name", "args", "kwargs"), DELEGATION_CASES)
-def test_accessor_analytics_delegates_to_canonical_analyzer_and_forwards_arguments(
+def test_accessor_analytics_delegates_to_shared_core_and_forwards_arguments(
     frame, method_name, args, kwargs, monkeypatch
 ):
-    original = getattr(Analyzer, method_name)
+    dataframe_module = importlib.import_module("bynat._accessors.dataframe")
+    insights = importlib.import_module("bynat.analytics._insights")
+    build_name = BUILD_NAMES[method_name]
+    original = getattr(insights, build_name)
     calls = []
 
-    def spy(analyzer_self, *call_args, **call_kwargs):
-        calls.append((analyzer_self, call_args, dict(call_kwargs)))
-        return original(analyzer_self, *call_args, **call_kwargs)
+    def spy(dataframe, *call_args, **call_kwargs):
+        calls.append((dataframe, call_args, dict(call_kwargs)))
+        return original(dataframe, *call_args, **call_kwargs)
 
-    monkeypatch.setattr(Analyzer, method_name, spy)
+    monkeypatch.setattr(dataframe_module, build_name, spy)
 
     actual = getattr(frame.bynat, method_name)(*args, **kwargs)
-    expected = original(Analyzer(frame), *args, **kwargs)
+    expected = original(frame.copy(), *args, **kwargs)
 
     assert len(calls) == 1
     receiver, forwarded_args, forwarded_kwargs = calls[0]
-    assert isinstance(receiver, Analyzer) and receiver.dataframe.equals(frame)
+    assert isinstance(receiver, pd.DataFrame) and receiver.equals(frame) and receiver is not frame
     assert forwarded_args == args
     assert forwarded_kwargs == kwargs
     assert actual == expected

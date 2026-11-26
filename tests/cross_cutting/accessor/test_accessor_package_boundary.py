@@ -88,8 +88,9 @@ def test_accessor_module_imports_only_allowed_boundaries():
 
 
 def test_accessor_methods_delegate_to_functional_module_apis():
-    from bynat.cleaning import io
     from bynat.cleaning.enrich import _translate
+
+    dataframe_module = importlib.import_module("bynat._accessors.dataframe")
 
     expected = {
         "drop_by_substring": _columns.drop_by_substring,
@@ -115,22 +116,22 @@ def test_accessor_methods_delegate_to_functional_module_apis():
         "fill_missing_coordinates": _geocode.fill_missing_coordinates,
         "convert_to_usd": _currency.convert_to_usd,
         "extract_entities_nlp": _nlp.extract_entities_nlp,
-        "save_to_json": io.save_to_json,
-        "save_to_sql": io.save_to_sql,
+        "save_to_json": dataframe_module._save_to_json,
+        "save_to_sql": dataframe_module._save_to_sql,
     }
 
     for name, implementation in expected.items():
         assert getattr(BynatAccessor, name).__wrapped__ is implementation, name
 
 
-def test_accessor_profile_delegates_to_profiling_and_keeps_basedata_adaptation():
+def test_accessor_profile_owns_its_interface_and_calls_the_shared_core():
     dataframe_module = importlib.import_module("bynat._accessors.dataframe")
-    profiling_profile = importlib.import_module("bynat.profiling.profile").profile
-    from bynat.cleaning._internal import is_basedata_type
+    builders = importlib.import_module("bynat.profiling._builders")
 
     assert BynatAccessor.profile.__wrapped__ is dataframe_module.profile
-    assert dataframe_module._profiling_profile is profiling_profile
-    assert dataframe_module.is_basedata_type is is_basedata_type
+    assert dataframe_module.build_report is builders.build_report
+    assert not hasattr(dataframe_module, "_profiling_profile")
+    assert not hasattr(dataframe_module, "is_basedata_type")
 
 
 def test_functional_packages_do_not_depend_on_the_accessor_boundary():

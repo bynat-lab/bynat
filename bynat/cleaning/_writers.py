@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+from typing import Literal
 
 import pandas as pd
 
@@ -14,13 +15,16 @@ from ._internal import build_engine_url, import_optional
 # the write core moves into this private module.
 logger = logging.getLogger("bynat.cleaning.io")
 
-__all__ = ['write_json', 'write_sql']
+__all__ = ['IfExists', 'JsonOrient', 'write_json', 'write_sql']
+
+JsonOrient = Literal['split', 'records', 'index', 'columns', 'values', 'table']
+IfExists = Literal['fail', 'replace', 'append']
 
 
 def write_json(
     df: pd.DataFrame,
     file_path: str,
-    orient: str = 'records',
+    orient: JsonOrient = 'records',
     append: bool = False,
     force_ascii: bool = False,
     indent: int = 4,
@@ -115,7 +119,7 @@ def write_sql(
     columns_types: dict | None,
     chunk_size: int | None,
     fast_executemany: bool,
-    if_exists: str,
+    if_exists: IfExists,
     index: bool,
 ) -> None:
     """Write a dataframe to a SQL table through an optional SQLAlchemy engine."""

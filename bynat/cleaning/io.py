@@ -2,12 +2,12 @@
 
 import logging
 import os
-from typing import Any, Literal
+from typing import Any
 
 import pandas as pd
 
 from ._readers import load_json_payload, normalize_records, read_csv_records
-from ._writers import write_json, write_sql
+from ._writers import IfExists, JsonOrient, write_json, write_sql
 
 __all__ = [
     "IfExists",
@@ -19,9 +19,6 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-
-JsonOrient = Literal['split', 'records', 'index', 'columns', 'values', 'table']
-IfExists = Literal['fail', 'replace', 'append']
 
 
 def read_json(

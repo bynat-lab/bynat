@@ -21,7 +21,7 @@ from bynat.analytics._insights import (
 )
 from bynat.caching._registry import CacheManager, resolve_cache_manager
 from bynat.cleaning import _columns, _stats, _text
-from bynat.cleaning._writers import write_json, write_sql
+from bynat.cleaning._writers import IfExists, JsonOrient, write_json, write_sql
 from bynat.cleaning.enrich import _currency, _geocode, _nlp, _translate
 from bynat.profiling._builders import ProfileReport, build_report
 
@@ -462,7 +462,7 @@ def _get_bins(
 def _save_to_json(
     df: pd.DataFrame,
     file_path: str | os.PathLike,
-    orient: str = 'records',
+    orient: JsonOrient = 'records',
     append: bool = False,
     force_ascii: bool = False,
     indent: int = 4,
@@ -534,7 +534,7 @@ def _save_to_sql(
     columns_types: dict | None = None,
     chunk_size: int | None = None,
     fast_executemany: bool = False,
-    if_exists: str = 'append',
+    if_exists: IfExists = 'append',
     index: bool = False,
 ) -> None:
     """

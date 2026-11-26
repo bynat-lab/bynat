@@ -50,7 +50,9 @@ PRIVATE_IMPORT_EXCEPTIONS: dict[tuple[str, str], frozenset[str]] = {
     ("bynat._accessors.dataframe", "bynat.cleaning._columns"): frozenset({"_columns"}),
     ("bynat._accessors.dataframe", "bynat.cleaning._stats"): frozenset({"_stats"}),
     ("bynat._accessors.dataframe", "bynat.cleaning._text"): frozenset({"_text"}),
-    ("bynat._accessors.dataframe", "bynat.cleaning._writers"): frozenset({"write_json", "write_sql"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning._writers"): frozenset({
+        "IfExists", "JsonOrient", "write_json", "write_sql",
+    }),
     ("bynat._accessors.dataframe", "bynat.cleaning.enrich._currency"): frozenset({"_currency"}),
     ("bynat._accessors.dataframe", "bynat.cleaning.enrich._geocode"): frozenset({"_geocode"}),
     ("bynat._accessors.dataframe", "bynat.cleaning.enrich._nlp"): frozenset({"_nlp"}),

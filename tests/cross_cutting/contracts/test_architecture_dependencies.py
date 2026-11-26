@@ -18,23 +18,37 @@ PERMITTED_CROSS_PACKAGE: dict[str, frozenset[str]] = {
     "bynat": frozenset({"bynat.cleaning", "bynat.caching", "bynat.analytics",
                         "bynat.profiling", "bynat._accessors", "bynat.cleaning.io"}),
     "_accessors": frozenset({"bynat.analytics",
-                             "bynat.cleaning.columns", "bynat.cleaning.io", "bynat.cleaning.stats",
-                             "bynat.cleaning.text", "bynat.cleaning._outputs",
-                             "bynat.cleaning.enrich.currency", "bynat.cleaning.enrich.geocode",
-                             "bynat.cleaning.enrich.nlp", "bynat.cleaning.enrich.translate",
+                             "bynat.cleaning._columns", "bynat.cleaning.io", "bynat.cleaning._stats",
+                             "bynat.cleaning._text", "bynat.cleaning._internal",
+                             "bynat.cleaning.enrich._currency", "bynat.cleaning.enrich._geocode",
+                             "bynat.cleaning.enrich._nlp", "bynat.cleaning.enrich._translate",
                              "bynat.caching", "bynat.profiling", "bynat.profiling.profile"}),
-    "cleaning": frozenset({"bynat.caching", "bynat.caching._keys", "bynat.profiling",
-                           "bynat.profiling.profile", "bynat._internal"}),
-    "profiling": frozenset({"bynat._internal"}),
+    "cleaning": frozenset({"bynat.caching", "bynat.caching._internal", "bynat.profiling",
+                           "bynat.profiling.profile", "bynat._internal", "bynat.cleaning._internal",
+                           "bynat.cleaning._columns", "bynat.cleaning._stats", "bynat.cleaning._text",
+                           "bynat.cleaning.enrich._currency", "bynat.cleaning.enrich._geocode",
+                           "bynat.cleaning.enrich._nlp", "bynat.cleaning.enrich._translate",
+                           "bynat.cleaning.enrich._engine", "bynat.cleaning.enrich._internal",
+                           "bynat.cleaning.enrich.providers"}),
+    "profiling": frozenset({"bynat._internal", "bynat.profiling._builders", "bynat.profiling._internal",
+                            "bynat.profiling.report"}),
     "analytics": frozenset(), "caching": frozenset(), "_internal": frozenset(),
 }
 
 PRIVATE_IMPORT_EXCEPTIONS: dict[tuple[str, str], frozenset[str]] = {
-    ("bynat.cleaning.enrich.engine", "bynat.caching._keys"): frozenset({"cache_value_key"}),
-    ("bynat.cleaning.enrich.translate", "bynat.caching._keys"): frozenset({"cache_has_value", "cache_lookup_value"}),
-    ("bynat._accessors.dataframe", "bynat.cleaning._outputs"): frozenset({"is_basedata_type"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning._columns"): frozenset({"_columns"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning._stats"): frozenset({"_stats"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning._text"): frozenset({"_text"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning.io"): frozenset({"io"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning.enrich._currency"): frozenset({"_currency"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning.enrich._geocode"): frozenset({"_geocode"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning.enrich._nlp"): frozenset({"_nlp"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning.enrich._translate"): frozenset({"_translate"}),
+    ("bynat.cleaning.enrich._engine", "bynat.caching._internal"): frozenset({"cache_value_key"}),
+    ("bynat.cleaning.enrich._translate", "bynat.caching._internal"): frozenset({"cache_has_value", "cache_lookup_value"}),
+    ("bynat._accessors.dataframe", "bynat.cleaning._internal"): frozenset({"is_basedata_type"}),
     ("bynat.cleaning.io", "bynat._internal"): frozenset({"dedupe_key"}),
-    ("bynat.profiling.profile", "bynat._internal"): frozenset({"dedupe_key"}),
+    ("bynat.profiling._internal.computations", "bynat._internal"): frozenset({"dedupe_key"}),
 }
 
 
@@ -182,7 +196,7 @@ def test_dependency_edges_stay_within_permitted_boundaries():
     assert violations == []
     assert PERMITTED_CROSS_PACKAGE["analytics"] == frozenset() and all(
         ("bynat._accessors.dataframe", f"bynat.cleaning.enrich.{name}") in edges
-        for name in ("currency", "geocode", "nlp", "translate")
+        for name in ("_currency", "_geocode", "_nlp", "_translate")
     )
 
 

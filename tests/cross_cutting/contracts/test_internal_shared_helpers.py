@@ -67,11 +67,11 @@ def test_internal_dedupe_key_returns_hashable_keys_for_unhashable_values():
 def test_internal_dedupe_key_is_canonical_and_bound_by_consumers():
     values_module = importlib.import_module("bynat._internal.values")
     cleaning_io = importlib.import_module("bynat.cleaning.io")
-    profiling_profile = importlib.import_module("bynat.profiling.profile")
+    profiling_computations = importlib.import_module("bynat.profiling._internal.computations")
 
     assert internal.dedupe_key is values_module.dedupe_key
     assert cleaning_io._dedupe_key is internal.dedupe_key
-    assert profiling_profile._dedupe_key is internal.dedupe_key
+    assert profiling_computations.dedupe_key is internal.dedupe_key
     assert internal.dedupe_key.__module__ == "bynat._internal.values"
 
 
@@ -84,8 +84,8 @@ def test_internal_dedupe_key_has_no_duplicate_definitions():
     assert definitions == ["_internal/values.py::dedupe_key"]
 
 
-def test_internal_dedupe_key_is_not_reexported_by_cleaning_common():
-    common = importlib.import_module("bynat.cleaning._common")
+def test_internal_dedupe_key_is_not_reexported_by_cleaning_internal():
+    common = importlib.import_module("bynat.cleaning._internal")
 
     assert not hasattr(common, "dedupe_key")
     assert not hasattr(common, "_dedupe_key")

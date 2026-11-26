@@ -88,11 +88,11 @@ def test_analytics_rules_execution() -> None:
 
 
 def test_analytics_safe_expression_blocking() -> None:
-    analyzer = Analyzer(pd.DataFrame({"a": [1, 2]}))
+    from bynat.analytics._internal.security import is_safe_expression
 
     for bad in ["__import__('os')", "@df", "import os", "lambda x: x", "a + 1; b", "", "   ", None, 123]:
-        assert analyzer._is_safe_expression(bad) is False
-    assert analyzer._is_safe_expression("a + 1") is True
+        assert is_safe_expression(bad) is False
+    assert is_safe_expression("a + 1") is True
 
 
 def test_analytics_rules_malformed_logging(caplog: pytest.LogCaptureFixture) -> None:
@@ -112,3 +112,31 @@ def test_analytics_rules_malformed_logging(caplog: pytest.LogCaptureFixture) -> 
         res = analyzer.get_categorical_distribution("a", rules=bad_rules)
         assert len(res["data"]) == 2
         assert any(record.levelname == "WARNING" for record in caplog.records)
+
+
+def test_missing_requested_columns_warn_and_return_empty_payloads(caplog):
+    analyzer = Analyzer(pd.DataFrame({"present": [1, 2]}))
+
+    with caplog.at_level(logging.WARNING, logger="bynat.analytics._insights"):
+        results = [
+            analyzer.get_categorical_distribution("missing"),
+            analyzer.get_numerical_aggregation("missing", "present"),
+            analyzer.get_time_series("missing"),
+            analyzer.get_kpi_value("missing", agg_func="sum"),
+            analyzer.get_bins("missing"),
+        ]
+
+    assert results == [
+        {"data": []},
+        {"data": []},
+        {"data": []},
+        {"data": None, "title": "missing"},
+        {"data": []},
+    ]
+    assert [record.getMessage() for record in caplog.records] == [
+        "Column 'missing' not found",
+        "Columns ['missing'] not found",
+        "Column 'missing' not found",
+        "Column 'missing' not found",
+        "Column 'missing' not found",
+    ]

@@ -2,17 +2,16 @@
 Public entry point for DataFrame data quality profiling.
 
 This module exposes :func:`profile`, which validates its inputs, delegates the
-computation to the private core in :mod:`bynat.profiling._census`, and returns
-the report models defined in :mod:`bynat.profiling.report` in the requested
-output type.
+computation to :mod:`bynat.profiling._builders`, and returns the report models
+defined in :mod:`bynat.profiling.report` in the requested output type.
 """
 
 from typing import Any
 
 import pandas as pd
 
-from .report import ProfileReport
 from ._builders import build_report
+from .report import ProfileReport
 
 __all__ = ["profile"]
 

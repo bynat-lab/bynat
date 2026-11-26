@@ -17,17 +17,24 @@ from typing import Any
 
 import pandas as pd
 
-from .report import ColumnProfile, DatasetProfile, ProfileReport
 from ._internal import (
-    detect_column_kind,
-    compute_numeric_stats,
-    compute_categorical_stats,
     compute_boolean_stats,
+    compute_categorical_stats,
     compute_datetime_stats,
-    compute_other_stats,
     compute_distinct_count,
     compute_duplicate_rows,
+    compute_numeric_stats,
+    compute_other_stats,
+    detect_column_kind,
 )
+from .report import ColumnProfile, DatasetProfile, ProfileReport
+
+__all__ = [
+    "resolve_columns",
+    "build_column_profile",
+    "build_dataset_profile",
+    "build_report",
+]
 
 _STATS_BY_KIND = {
     "numeric": compute_numeric_stats,

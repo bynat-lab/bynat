@@ -22,7 +22,7 @@ def test_failed_removal_transaction_rolls_back_and_retries(tmp_path, monkeypatch
 
     del live["status"]["done"]
 
-    real_connect = manager._connect_sqlite
+    real_connect = manager._storage.connect
     state = {"commits": 0}
 
     class CommitFailingConnection:
@@ -51,12 +51,12 @@ def test_failed_removal_transaction_rolls_back_and_retries(tmp_path, monkeypatch
             return getattr(self.connection, name)
 
     monkeypatch.setattr(
-        manager, "_connect_sqlite", lambda: CommitFailingConnection(real_connect())
+        manager._storage, "connect", lambda: CommitFailingConnection(real_connect())
     )
     manager.save_function_cache("translate")
 
     assert "commit failure" in caplog.text
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'status' AND key = 'done'"
         ).fetchone() == ('"Done"',)
@@ -64,7 +64,7 @@ def test_failed_removal_transaction_rolls_back_and_retries(tmp_path, monkeypatch
 
     monkeypatch.undo()
     manager.save_function_cache("translate")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'status' AND key = 'done'"
         ).fetchone() is None
@@ -101,7 +101,7 @@ def test_corrupt_cache_is_quarantined_and_replaced_with_empty_dict(tmp_path, cap
 
     manager.get_column_cache("broken", "column")["key"] = "value"
     manager.save_function_cache("broken")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT bucket, key, value_json FROM cache_entries ORDER BY bucket, key"
         ).fetchall() == [("column", "key", '"value"')]
@@ -118,12 +118,12 @@ def test_save_unserializable_value_reports_error_without_raising(tmp_path, caplo
     assert "Could not save cache for" in caplog.text
 
     assert manager._baselines["function"] is baseline_before
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute("SELECT count(*) FROM cache_entries").fetchone() == (0,)
 
     manager.get_column_cache("function", "column")["bad"] = "now serializable"
     manager.save_function_cache("function")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'column' AND key = 'bad'"
         ).fetchone() == ('"now serializable"',)
@@ -138,7 +138,7 @@ def test_failed_db_save_keeps_baseline_and_rows_intact_for_retry(tmp_path, monke
 
     manager.get_column_cache("function", "column")["good"] = "updated"
 
-    real_connect = manager._connect_sqlite
+    real_connect = manager._storage.connect
 
     class WriteFailingConnection:
         def __init__(self, connection):
@@ -163,12 +163,12 @@ def test_failed_db_save_keeps_baseline_and_rows_intact_for_retry(tmp_path, monke
             return getattr(self.connection, name)
 
     monkeypatch.setattr(
-        manager, "_connect_sqlite", lambda: WriteFailingConnection(real_connect())
+        manager._storage, "connect", lambda: WriteFailingConnection(real_connect())
     )
     manager.save_function_cache("function")
 
     assert "Could not save cache for" in caplog.text
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'column' AND key = 'good'"
         ).fetchone() == ('"value"',)
@@ -176,7 +176,7 @@ def test_failed_db_save_keeps_baseline_and_rows_intact_for_retry(tmp_path, monke
 
     monkeypatch.undo()
     manager.save_function_cache("function")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'column' AND key = 'good'"
         ).fetchone() == ('"updated"',)
@@ -192,7 +192,7 @@ def test_save_transaction_rolls_back_on_commit_failure(tmp_path, monkeypatch, ca
 
     manager.get_column_cache("function", "column")["good"] = "updated"
 
-    real_connect = manager._connect_sqlite
+    real_connect = manager._storage.connect
     state = {"commits": 0}
 
     class CommitFailingConnection:
@@ -221,12 +221,12 @@ def test_save_transaction_rolls_back_on_commit_failure(tmp_path, monkeypatch, ca
             return getattr(self.connection, name)
 
     monkeypatch.setattr(
-        manager, "_connect_sqlite", lambda: CommitFailingConnection(real_connect())
+        manager._storage, "connect", lambda: CommitFailingConnection(real_connect())
     )
     manager.save_function_cache("function")
 
     assert "commit failure" in caplog.text
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'column' AND key = 'good'"
         ).fetchone() == ('"value"',)
@@ -234,7 +234,7 @@ def test_save_transaction_rolls_back_on_commit_failure(tmp_path, monkeypatch, ca
 
     monkeypatch.undo()
     manager.save_function_cache("function")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'column' AND key = 'good'"
         ).fetchone() == ('"updated"',)
@@ -251,7 +251,7 @@ def test_save_serialization_failure_keeps_prior_checkpoint_readable(tmp_path, ca
     manager.save_function_cache("function")
 
     assert "Could not save cache for" in caplog.text
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'column' AND key = 'good'"
         ).fetchone() == ('"value"',)

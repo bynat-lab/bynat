@@ -126,7 +126,7 @@ def test_accessor_methods_delegate_to_functional_module_apis():
 def test_accessor_profile_delegates_to_profiling_and_keeps_basedata_adaptation():
     dataframe_module = importlib.import_module("bynat._accessors.dataframe")
     profiling_profile = importlib.import_module("bynat.profiling.profile").profile
-    from bynat.cleaning._outputs import is_basedata_type
+    from bynat.cleaning._internal import is_basedata_type
 
     assert BynatAccessor.profile.__wrapped__ is dataframe_module.profile
     assert dataframe_module._profiling_profile is profiling_profile

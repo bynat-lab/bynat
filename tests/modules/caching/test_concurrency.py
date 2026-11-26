@@ -5,7 +5,11 @@ import sqlite3
 import pytest
 
 from bynat.caching import CacheManager
-from tests.modules.caching.helpers import _rows, _seed_cache_entries
+from tests.modules.caching.helpers import (
+    _migrate_legacy_cache,
+    _rows,
+    _seed_cache_entries,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
@@ -14,7 +18,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.slow]
 def _run_legacy_migration(cache_dir, func_name, start_event, result_queue):
     try:
         start_event.wait(10)
-        CacheManager(cache_dir)._migrate_legacy_json_cache(func_name)
+        _migrate_legacy_cache(CacheManager(cache_dir), func_name)
         result_queue.put("ok")
     except Exception as error:  # pragma: no cover - reported to the parent
         result_queue.put(f"{type(error).__name__}: {error}")

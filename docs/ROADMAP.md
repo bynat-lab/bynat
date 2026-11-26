@@ -105,7 +105,7 @@ This roadmap is written against the code as it is, not as it might be. Every ite
 - **Done when:** the `inplace` mutation and return behavior is documented and tested consistently, the supported class API and imports continue to work, the remaining helper modules are covered by mypy, the root API remains exactly the six public names with `df.bynat` registration, and the full test suite and mypy checks pass.
 
 #### `PERF-05`: rates through the engine (P3, S)
-- **Problem:** `convert_to_usd` resolves currency codes through `_cached_map`, but year-range rate downloads remain a dedicated loop because each fetch populates multiple `CODE_YEAR` keys.
+- **Problem:** `convert_to_usd` resolves currency codes through `cached_map`, but year-range rate downloads remain a dedicated loop because each fetch populates multiple `CODE_YEAR` keys.
 - **Plan:** revisit integration if the engine gains a multi-key store. Keep the existing dedicated download loop until that abstraction provides a clear benefit.
 - **Done when:** the existing implementation remains documented as intentional or a multi-key engine integration is implemented with equivalent results and tests.
 

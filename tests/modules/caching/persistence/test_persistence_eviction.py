@@ -90,8 +90,8 @@ def test_save_detects_nested_mutation_and_writes_only_changed_entries(tmp_path):
     cache_dir = tmp_path / "cache"
     manager = CacheManager(cache_dir)
     seed_at = "2026-01-01T00:00:00+00:00"
-    manager._initialize_sqlite()
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    manager._storage.initialize()
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         connection.execute(
             "INSERT INTO cache_entries VALUES (?, ?, ?, ?, ?)",
             ("translate", "coordinates", "home", "[1.5, 2]", seed_at),
@@ -106,7 +106,7 @@ def test_save_detects_nested_mutation_and_writes_only_changed_entries(tmp_path):
     live["status"]["nested"]["ok"] = False
     manager.save_function_cache("translate")
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         by_key = {
             row[1]: row
             for row in connection.execute(

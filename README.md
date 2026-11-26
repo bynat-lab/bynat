@@ -1035,7 +1035,7 @@ CI runs the suite on Ubuntu and Windows with Python 3.11 and 3.13, plus Ruff, my
 
 ### Type checking
 
-Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager, the cleaning helper modules (`_common`, `_outputs`, `columns`, `text`, `stats`, `io`, `enrich`), the analytics package (`analytics/__init__.py`, `analytics/analyzer.py`), the accessor boundary (`_accessors`), and the profiling package (`profiling/__init__.py`, `profiling/profile.py`, `profiling/report.py`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
+Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager and cache internals, the cleaning core, `_internal` helpers, I/O and enrichment packages, the analytics API, the accessor boundary (`_accessors`), and the profiling API, checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
 
 To bring a module into scope:
 

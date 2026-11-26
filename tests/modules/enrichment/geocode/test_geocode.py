@@ -205,7 +205,7 @@ def test_fill_missing_coordinates_shortens_queries_and_caches_misses(monkeypatch
     assert result[["lat", "lng"]].iloc[1].isna().all()
     assert result[["lat", "lng"]].iloc[2].tolist() == [48.8, 2.3]
 
-    with sqlite3.connect(frame.cache_manager._get_database_path()) as connection:
+    with sqlite3.connect(frame.cache_manager._storage.get_database_path()) as connection:
         value_json = connection.execute(
             "SELECT value_json FROM cache_entries "
             "WHERE func_name = 'fill_missing_coordinates' "

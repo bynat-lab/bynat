@@ -1,7 +1,7 @@
 """Internal helpers for the enrichment package. Not part of the public API."""
 
 from .lexicon import lexicon_terms
-from .mapping import rate_limited_map, unique_values, translate_all
+from .mapping import rate_limited_map, translate_all, unique_values
 from .nlp_options import nlp_cache_bucket, normalize_nlp_disable
 from .rates import lookback_years
 

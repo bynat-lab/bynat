@@ -4,8 +4,8 @@ import pandas as pd
 import pytest
 
 from bynat.caching import CacheManager
-from bynat.cleaning.enrich import _engine
-from bynat.cleaning.enrich._engine import SKIP, _cached_map, _rate_limited_map
+from bynat.cleaning.enrich._engine import SKIP, cached_map
+from bynat.cleaning.enrich._internal import mapping, rate_limited_map
 
 pytestmark = pytest.mark.unit
 
@@ -28,7 +28,7 @@ def test_rate_limited_map_runs_calls_concurrently():
     results = {}
 
     def run():
-        results["value"] = _rate_limited_map(call, [1, 2, 3], max_workers=3)
+        results["value"] = rate_limited_map(call, [1, 2, 3], max_workers=3)
 
     worker = threading.Thread(target=run)
     worker.start()
@@ -50,10 +50,10 @@ def test_rate_limited_map_spaces_call_starts(monkeypatch):
         sleeps.append(round(seconds, 6))
         clock["now"] += seconds
 
-    monkeypatch.setattr(_engine.time, "monotonic", lambda: clock["now"])
-    monkeypatch.setattr(_engine.time, "sleep", sleep)
+    monkeypatch.setattr(mapping.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(mapping.time, "sleep", sleep)
 
-    results = _rate_limited_map(lambda item: item, ["a", "b", "c"], max_workers=1, min_interval=0.2)
+    results = rate_limited_map(lambda item: item, ["a", "b", "c"], max_workers=1, min_interval=0.2)
 
     assert results == ["a", "b", "c"]
     assert sleeps == [0.2, 0.2]
@@ -65,7 +65,7 @@ def test_rate_limited_map_returns_exceptions_in_place():
             raise RuntimeError("boom")
         return item
 
-    results = _rate_limited_map(call, [1, 2, 3], max_workers=2)
+    results = rate_limited_map(call, [1, 2, 3], max_workers=2)
 
     assert results[0] == 1 and results[2] == 3
     assert isinstance(results[1], RuntimeError)
@@ -86,7 +86,7 @@ def test_cached_map_checkpoints_skips_and_retries_failures(monkeypatch, tmp_path
         return value.upper()
 
     series = pd.Series(["a", "b", "boom", "skip", "c", "a", None])
-    cache = _cached_map(
+    cache = cached_map(
         series, fetch, "bucket", 2, cache_manager=manager, func_name="demo", on_fetch_start=started.append
     )
 
@@ -98,7 +98,7 @@ def test_cached_map_checkpoints_skips_and_retries_failures(monkeypatch, tmp_path
     assert reloaded == {"a": "A", "b": "B", "c": "C"}
 
     started.clear()
-    _cached_map(["a", "c"], fetch, "bucket", 2, cache_manager=manager, func_name="demo", on_fetch_start=started.append)
+    cached_map(["a", "c"], fetch, "bucket", 2, cache_manager=manager, func_name="demo", on_fetch_start=started.append)
     assert started == []
 
 
@@ -111,7 +111,7 @@ def test_cached_map_multi_bucket_requires_every_bucket(tmp_path):
         fetched.extend(chunk)
         return [{"left": value * 2, "right": value * 3} for value in chunk]
 
-    caches = _cached_map(
+    caches = cached_map(
         ["x", "y"], None, ("left", "right"), 10, cache_manager=manager, func_name="demo", fetch_many=fetch_many
     )
 
@@ -128,7 +128,7 @@ def test_cached_map_batch_failure_leaves_the_chunk_uncached(tmp_path):
             raise RuntimeError("batch failed")
         return [value.upper() for value in chunk]
 
-    cache = _cached_map(
+    cache = cached_map(
         ["ok", "bad", "fine"], None, "bucket", 2, cache_manager=manager, func_name="demo", fetch_many=fetch_many
     )
 
@@ -138,7 +138,7 @@ def test_cached_map_batch_failure_leaves_the_chunk_uncached(tmp_path):
 def test_cached_map_rejects_batches_with_the_wrong_length(tmp_path):
     manager = CacheManager(tmp_path)
 
-    cache = _cached_map(
+    cache = cached_map(
         ["a", "b"], None, "bucket", 5, cache_manager=manager, func_name="demo", fetch_many=lambda chunk: ["A"]
     )
     assert cache == {}
@@ -148,7 +148,7 @@ def test_cached_map_rejects_batches_with_the_wrong_length(tmp_path):
 def test_cached_map_rejects_batches_with_surplus_length(tmp_path):
     manager = CacheManager(tmp_path)
 
-    cache = _cached_map(
+    cache = cached_map(
         ["a", "b"], None, "bucket", 5, cache_manager=manager, func_name="demo", fetch_many=lambda chunk: ["A", "B", "C"]
     )
     assert cache == {}
@@ -160,7 +160,7 @@ def test_cached_map_does_not_save_when_nothing_unprocessed(tmp_path, monkeypatch
     saves = []
     monkeypatch.setattr(manager, "save_function_cache", lambda name: saves.append(name))
 
-    cache = _cached_map(
+    cache = cached_map(
         [], lambda v: v, "bucket", 5, cache_manager=manager, func_name="demo"
     )
     assert cache == {}

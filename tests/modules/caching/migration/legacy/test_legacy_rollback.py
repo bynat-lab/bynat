@@ -3,6 +3,7 @@ import sqlite3
 import pytest
 
 from bynat.caching import CacheManager
+from tests.modules.caching.helpers import _migrate_legacy_cache
 
 pytestmark = pytest.mark.integration
 
@@ -16,7 +17,7 @@ def test_legacy_migration_rolls_back_and_can_retry_after_partial_insert_failure(
         '{"status": {"a": 1, "b": 2}}', encoding="utf-8"
     )
     manager = CacheManager(cache_dir)
-    real_connect = manager._connect_sqlite
+    real_connect = manager._storage.connect
     state = {"failed": False, "inserted_rows": 0}
 
     class PartiallyFailingConnection:
@@ -39,18 +40,18 @@ def test_legacy_migration_rolls_back_and_can_retry_after_partial_insert_failure(
             return getattr(self.connection, name)
 
     monkeypatch.setattr(
-        manager, "_connect_sqlite", lambda: PartiallyFailingConnection(real_connect())
+        manager._storage, "connect", lambda: PartiallyFailingConnection(real_connect())
     )
     with pytest.raises(sqlite3.OperationalError, match="insert failure"):
-        manager._migrate_legacy_json_cache("translate")
+        _migrate_legacy_cache(manager, "translate")
 
     assert state["inserted_rows"] == 1
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute("SELECT count(*) FROM cache_entries").fetchone() == (0,)
         assert connection.execute("SELECT count(*) FROM migration_metadata").fetchone() == (0,)
 
-    manager._migrate_legacy_json_cache("translate")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    _migrate_legacy_cache(manager, "translate")
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT bucket, key, value_json FROM cache_entries ORDER BY key"
         ).fetchall() == [("status", "a", "1"), ("status", "b", "2")]
@@ -68,7 +69,7 @@ def test_legacy_migration_rolls_back_and_can_retry_after_marker_insert_failure(
         '{"status": {"a": 1, "b": 2}}', encoding="utf-8"
     )
     manager = CacheManager(cache_dir)
-    real_connect = manager._connect_sqlite
+    real_connect = manager._storage.connect
     state = {"failed": False, "entry_rows": 0, "marker_attempted": False}
 
     class MarkerFailingConnection:
@@ -96,19 +97,19 @@ def test_legacy_migration_rolls_back_and_can_retry_after_marker_insert_failure(
             return getattr(self.connection, name)
 
     monkeypatch.setattr(
-        manager, "_connect_sqlite", lambda: MarkerFailingConnection(real_connect())
+        manager._storage, "connect", lambda: MarkerFailingConnection(real_connect())
     )
     with pytest.raises(sqlite3.OperationalError, match="marker insert failure"):
-        manager._migrate_legacy_json_cache("translate")
+        _migrate_legacy_cache(manager, "translate")
 
     assert state["entry_rows"] == 2
     assert state["marker_attempted"]
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute("SELECT count(*) FROM cache_entries").fetchone() == (0,)
         assert connection.execute("SELECT count(*) FROM migration_metadata").fetchone() == (0,)
 
-    manager._migrate_legacy_json_cache("translate")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    _migrate_legacy_cache(manager, "translate")
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute("SELECT count(*) FROM cache_entries").fetchone() == (2,)
         assert connection.execute(
             "SELECT source_name FROM migration_metadata"
@@ -122,7 +123,7 @@ def test_legacy_migration_rolls_back_and_can_retry_after_commit_failure(tmp_path
         '{"status": {"ok": true}}', encoding="utf-8"
     )
     manager = CacheManager(cache_dir)
-    real_connect = manager._connect_sqlite
+    real_connect = manager._storage.connect
     state = {"commits": 0}
 
     class CommitFailingConnection:
@@ -139,17 +140,17 @@ def test_legacy_migration_rolls_back_and_can_retry_after_commit_failure(tmp_path
             return getattr(self.connection, name)
 
     monkeypatch.setattr(
-        manager, "_connect_sqlite", lambda: CommitFailingConnection(real_connect())
+        manager._storage, "connect", lambda: CommitFailingConnection(real_connect())
     )
     with pytest.raises(sqlite3.OperationalError, match="commit failure"):
-        manager._migrate_legacy_json_cache("translate")
+        _migrate_legacy_cache(manager, "translate")
 
     monkeypatch.undo()
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute("SELECT count(*) FROM cache_entries").fetchone() == (0,)
         assert connection.execute("SELECT count(*) FROM migration_metadata").fetchone() == (0,)
-    manager._migrate_legacy_json_cache("translate")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    _migrate_legacy_cache(manager, "translate")
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute("SELECT count(*) FROM migration_metadata").fetchone() == (1,)
 
 
@@ -161,11 +162,11 @@ def test_legacy_migration_unsupported_serialization_and_locking_retry(tmp_path, 
     manager = CacheManager(cache_dir)
 
     monkeypatch.setattr("json.dumps", lambda *a, **k: (_ for _ in ()).throw(TypeError("unsupported type")))
-    manager._migrate_legacy_json_cache("translate")
+    _migrate_legacy_cache(manager, "translate")
 
     monkeypatch.undo()
     attempts = {"count": 0}
-    real_init = manager._initialize_sqlite
+    real_init = manager._storage.initialize
 
     def flaky_init():
         attempts["count"] += 1
@@ -173,8 +174,8 @@ def test_legacy_migration_unsupported_serialization_and_locking_retry(tmp_path, 
             raise sqlite3.OperationalError("database is locked")
         real_init()
 
-    monkeypatch.setattr(manager, "_initialize_sqlite", flaky_init)
-    manager._migrate_legacy_json_cache("translate")
+    monkeypatch.setattr(manager._storage, "initialize", flaky_init)
+    _migrate_legacy_cache(manager, "translate")
     assert attempts["count"] == 2
 
-    manager._migrate_legacy_json_cache("translate")
+    _migrate_legacy_cache(manager, "translate")

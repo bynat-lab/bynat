@@ -59,7 +59,7 @@ def test_delete_column_cache_leaves_unrelated_function_intact(tmp_path):
 
     manager.delete_column_cache("translate", "status")
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         rows = connection.execute(
             "SELECT func_name, bucket, key, value_json "
             "FROM cache_entries ORDER BY func_name, bucket, key"
@@ -73,7 +73,7 @@ def test_delete_column_cache_missing_bucket_is_a_no_op(tmp_path, caplog):
     manager = CacheManager(cache_dir)
     _seed_cache_entries(manager, "translate", [("status", "pending", '"Pending"')])
 
-    with caplog.at_level(logging.INFO, logger="bynat.caching.Caching"):
+    with caplog.at_level(logging.INFO, logger="bynat.caching.manager"):
         manager.delete_column_cache("translate", "missing")
 
     assert "No cache found for column 'missing'" in caplog.text
@@ -91,7 +91,7 @@ def test_delete_column_cache_failed_transaction_is_retryable(tmp_path, monkeypat
     manager.load_function_cache("translate")
     baseline_before = manager._baselines["translate"]
 
-    real_connect = manager._connect_sqlite
+    real_connect = manager._storage.connect
     state = {"commits": 0}
 
     class CommitFailingConnection:
@@ -120,7 +120,7 @@ def test_delete_column_cache_failed_transaction_is_retryable(tmp_path, monkeypat
             return getattr(self.connection, name)
 
     monkeypatch.setattr(
-        manager, "_connect_sqlite", lambda: CommitFailingConnection(real_connect())
+        manager._storage, "connect", lambda: CommitFailingConnection(real_connect())
     )
     manager.delete_column_cache("translate", "status")
 

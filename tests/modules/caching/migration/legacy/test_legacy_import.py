@@ -4,6 +4,7 @@ import sqlite3
 import pytest
 
 from bynat.caching import CacheManager
+from tests.modules.caching.helpers import _migrate_legacy_cache
 
 pytestmark = pytest.mark.integration
 
@@ -20,9 +21,9 @@ def test_legacy_migration_imports_supported_values_and_maps_filename(tmp_path):
     )
 
     manager = CacheManager(cache_dir)
-    manager._migrate_legacy_json_cache("translate")
+    _migrate_legacy_cache(manager, "translate")
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         rows = connection.execute(
             "SELECT func_name, bucket, key, value_json FROM cache_entries ORDER BY bucket, key"
         ).fetchall()
@@ -43,8 +44,8 @@ def test_legacy_migration_is_idempotent_and_existing_rows_win(tmp_path):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
     manager = CacheManager(cache_dir)
-    manager._initialize_sqlite()
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    manager._storage.initialize()
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         connection.execute(
             "INSERT INTO cache_entries VALUES (?, ?, ?, ?, ?)",
             ("translate", "status", "pending", '"fresh"', "old"),
@@ -54,10 +55,10 @@ def test_legacy_migration_is_idempotent_and_existing_rows_win(tmp_path):
         '{"status": {"pending": "stale", "new": 3}}', encoding="utf-8"
     )
 
-    manager._migrate_legacy_json_cache("translate")
-    manager._migrate_legacy_json_cache("translate")
+    _migrate_legacy_cache(manager, "translate")
+    _migrate_legacy_cache(manager, "translate")
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'status' AND key = 'pending'"
         ).fetchone() == ('"fresh"',)
@@ -72,6 +73,6 @@ def test_legacy_migration_is_idempotent_and_existing_rows_win(tmp_path):
 def test_missing_legacy_source_does_not_create_database_or_marker(tmp_path):
     manager = CacheManager(tmp_path / "cache")
 
-    manager._migrate_legacy_json_cache("missing")
+    _migrate_legacy_cache(manager, "missing")
 
     assert not (tmp_path / "cache").exists()

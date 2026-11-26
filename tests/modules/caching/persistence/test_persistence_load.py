@@ -11,7 +11,7 @@ pytestmark = pytest.mark.integration
 def test_rebuild_function_cache_from_sqlite(tmp_path):
     cache_dir = tmp_path / "cache"
     manager = CacheManager(cache_dir)
-    manager._initialize_sqlite()
+    manager._storage.initialize()
 
     created_at = "2026-01-01T00:00:00+00:00"
     rows = [
@@ -23,14 +23,14 @@ def test_rebuild_function_cache_from_sqlite(tmp_path):
         ("other", "status", "pending", '"other"', created_at),
     ]
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         connection.executemany(
             "INSERT INTO cache_entries VALUES (?, ?, ?, ?, ?)",
             rows,
         )
         connection.commit()
 
-    assert manager._rebuild_function_cache_from_sqlite("translate") == {
+    assert manager._storage.rebuild_function_cache("translate") == {
         "status": {"pending": "Pending", "missing": None},
         "coordinates": {"home": [1.5, 2], "nested": {"ok": True}},
         "meta": {"count": 3},
@@ -39,9 +39,9 @@ def test_rebuild_function_cache_from_sqlite(tmp_path):
 
 def test_rebuild_function_cache_from_sqlite_is_empty_without_rows(tmp_path):
     manager = CacheManager(tmp_path / "cache")
-    manager._initialize_sqlite()
+    manager._storage.initialize()
 
-    assert manager._rebuild_function_cache_from_sqlite("unused") == {}
+    assert manager._storage.rebuild_function_cache("unused") == {}
 
 
 def test_load_function_cache_migrates_legacy_json_through_public_path(tmp_path):
@@ -59,7 +59,7 @@ def test_load_function_cache_migrates_legacy_json_through_public_path(tmp_path):
     }
 
     assert (cache_dir / "cache.sqlite3").exists()
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         rows = connection.execute(
             "SELECT bucket, key, value_json FROM cache_entries ORDER BY bucket, key"
         ).fetchall()
@@ -89,10 +89,10 @@ def test_load_function_cache_missing_function_returns_empty_and_builds_backend(t
 def test_load_function_cache_reads_sqlite_authoritatively(tmp_path):
     cache_dir = tmp_path / "cache"
     manager = CacheManager(cache_dir)
-    manager._initialize_sqlite()
+    manager._storage.initialize()
 
     created_at = "2026-01-01T00:00:00+00:00"
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         connection.execute(
             "INSERT INTO cache_entries VALUES (?, ?, ?, ?, ?)",
             ("translate", "status", "pending", '"Pending"', created_at),

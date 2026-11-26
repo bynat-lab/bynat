@@ -1,12 +1,10 @@
-import datetime
-import math
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from .processing import clean_scalar
 from bynat._internal import dedupe_key
+
+from .processing import clean_scalar
 
 __all__ = ["compute_numeric_stats",
     "compute_categorical_stats",

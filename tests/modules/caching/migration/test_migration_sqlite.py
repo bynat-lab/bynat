@@ -15,16 +15,16 @@ def test_sqlite_initialization_is_lazy_until_explicitly_requested(tmp_path):
 
     assert not cache_dir.exists()
 
-    manager._initialize_sqlite()
+    manager._storage.initialize()
 
     assert (cache_dir / "cache.sqlite3").exists()
 
 
 def test_sqlite_schema_has_required_tables_columns_keys_and_index(tmp_path):
     manager = CacheManager(tmp_path / "cache")
-    manager._initialize_sqlite()
+    manager._storage.initialize()
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         tables = {
             row[0]
             for row in connection.execute(
@@ -81,7 +81,7 @@ def test_sqlite_connection_configures_timeout_wal_and_full_synchronous(tmp_path)
     manager = CacheManager(tmp_path / "cache")
     (tmp_path / "cache").mkdir()
 
-    connection = manager._connect_sqlite()
+    connection = manager._storage.connect()
     try:
         assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == 30000
         assert connection.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
@@ -111,7 +111,7 @@ def test_sqlite_connection_closes_when_pragma_configuration_fails(tmp_path, monk
     monkeypatch.setattr(caching_module.sqlite3, "connect", lambda *args, **kwargs: connection)
 
     with pytest.raises(sqlite3.OperationalError, match="PRAGMA failure"):
-        CacheManager(tmp_path / "cache")._connect_sqlite()
+        CacheManager(tmp_path / "cache")._storage.connect()
 
     assert connection.close_called
 
@@ -136,10 +136,10 @@ def test_sqlite_initialization_rolls_back_and_closes_on_failure(tmp_path, monkey
             self.close_called = True
 
     connection = FailingConnection()
-    monkeypatch.setattr(manager, "_connect_sqlite", lambda: connection)
+    monkeypatch.setattr(manager._storage, "connect", lambda: connection)
 
     with pytest.raises(sqlite3.OperationalError, match="schema failure"):
-        manager._initialize_sqlite()
+        manager._storage.initialize()
 
     assert connection.rollback_called
     assert connection.close_called
@@ -148,7 +148,7 @@ def test_sqlite_initialization_rolls_back_and_closes_on_failure(tmp_path, monkey
 def test_sqlite_initialization_rolls_back_real_ddl_on_later_schema_failure(tmp_path, monkeypatch):
     manager = CacheManager(tmp_path / "cache")
     (tmp_path / "cache").mkdir()
-    real_connection = sqlite3.connect(manager._get_database_path())
+    real_connection = sqlite3.connect(manager._storage.get_database_path())
 
     class FailingSchemaConnection:
         def __init__(self, connection):
@@ -179,16 +179,16 @@ def test_sqlite_initialization_rolls_back_real_ddl_on_later_schema_failure(tmp_p
             return self.connection.commit()
 
     connection = FailingSchemaConnection(real_connection)
-    monkeypatch.setattr(manager, "_connect_sqlite", lambda: connection)
+    monkeypatch.setattr(manager._storage, "connect", lambda: connection)
 
     with pytest.raises(sqlite3.OperationalError, match="later schema failure"):
-        manager._initialize_sqlite()
+        manager._storage.initialize()
 
     assert connection.first_ddl_completed
     assert connection.rollback_called
     assert connection.close_called
 
-    with sqlite3.connect(manager._get_database_path()) as inspection:
+    with sqlite3.connect(manager._storage.get_database_path()) as inspection:
         schema_objects = inspection.execute(
             "SELECT type, name FROM sqlite_master "
             "WHERE type IN ('table', 'index') "
@@ -218,10 +218,10 @@ def test_sqlite_initialization_rolls_back_and_closes_when_commit_fails(tmp_path,
             self.close_called = True
 
     connection = CommitFailingConnection()
-    monkeypatch.setattr(manager, "_connect_sqlite", lambda: connection)
+    monkeypatch.setattr(manager._storage, "connect", lambda: connection)
 
     with pytest.raises(sqlite3.OperationalError, match="commit failure"):
-        manager._initialize_sqlite()
+        manager._storage.initialize()
 
     assert connection.rollback_called
     assert connection.close_called
@@ -230,10 +230,10 @@ def test_sqlite_initialization_rolls_back_and_closes_when_commit_fails(tmp_path,
 def test_repeated_sqlite_initialization_is_safe(tmp_path):
     manager = CacheManager(tmp_path / "cache")
 
-    manager._initialize_sqlite()
-    manager._initialize_sqlite()
+    manager._storage.initialize()
+    manager._storage.initialize()
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT count(*) FROM sqlite_master "
             "WHERE type IN ('table', 'index') AND name IN "

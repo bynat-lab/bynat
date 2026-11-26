@@ -10,7 +10,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from bynat.cleaning._common import left_merge_aligned
+from bynat.cleaning._internal import left_merge_aligned
 
 
 def _legacy_extract_keywords(df, *source_cols, remove_extracted=False, use_regex=False, **target_cols_and_keywords):

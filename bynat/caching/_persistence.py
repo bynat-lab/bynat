@@ -18,6 +18,8 @@ from ._internal import compute_cache_diff, legacy_json_path
 from ._migration import migrate_legacy_json_cache
 from ._storage import SQLiteStorage
 
+__all__ = ["load_cache", "persist_cache"]
+
 logger = logging.getLogger(__name__)
 
 

@@ -153,7 +153,7 @@ def test_convert_to_usd_looks_back_and_caches_missing_years(monkeypatch, tmp_pat
     assert result.loc["d", "salary_usd"] == 2.0
     assert fetches == [("EGP=X", 2019, 2020)]
 
-    with sqlite3.connect(frame.cache_manager._get_database_path()) as connection:
+    with sqlite3.connect(frame.cache_manager._storage.get_database_path()) as connection:
         currency_codes = {
             key: json.loads(value_json)
             for key, value_json in connection.execute(

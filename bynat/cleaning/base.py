@@ -17,10 +17,7 @@ import pandas as pd
 from bynat.caching import CacheManager
 from bynat.profiling import profile
 
-from . import _columns
-from . import _stats
-from . import _text
-from . import io
+from . import _columns, _stats, _text, io
 from ._internal import is_basedata_type
 from ._internal import shares_doc as _shares_doc
 from .enrich import _currency, _geocode, _nlp, _translate

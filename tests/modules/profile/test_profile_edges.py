@@ -144,16 +144,16 @@ def test_clean_scalar_bool_before_int():
     assert type(col.stats["top"]) is bool
     assert col.stats["top_frequency"] == 2
 
-    from bynat.profiling.profile import _clean_scalar
+    from bynat.profiling._internal.processing import clean_scalar
 
-    assert _clean_scalar(True) is True
-    assert type(_clean_scalar(True)) is bool
-    assert _clean_scalar(False) is False
-    assert type(_clean_scalar(False)) is bool
-    assert _clean_scalar(np.bool_(True)) is True
-    assert type(_clean_scalar(np.bool_(True))) is bool
-    assert _clean_scalar(1) == 1
-    assert type(_clean_scalar(1)) is int
+    assert clean_scalar(True) is True
+    assert type(clean_scalar(True)) is bool
+    assert clean_scalar(False) is False
+    assert type(clean_scalar(False)) is bool
+    assert clean_scalar(np.bool_(True)) is True
+    assert type(clean_scalar(np.bool_(True))) is bool
+    assert clean_scalar(1) == 1
+    assert type(clean_scalar(1)) is int
 
 
 def test_timedelta_columns_and_clean_scalar():
@@ -171,11 +171,11 @@ def test_timedelta_columns_and_clean_scalar():
 
     import datetime
 
-    from bynat.profiling.profile import _clean_scalar
+    from bynat.profiling._internal.processing import clean_scalar
 
-    assert _clean_scalar(pd.Timedelta(days=1)) == "P1DT0H0M0S"
-    assert _clean_scalar(np.timedelta64(10, "s")) == "P0DT0H0M10S"
-    assert _clean_scalar(datetime.timedelta(days=2)) == "P2DT0H0M0S"
+    assert clean_scalar(pd.Timedelta(days=1)) == "P1DT0H0M0S"
+    assert clean_scalar(np.timedelta64(10, "s")) == "P0DT0H0M10S"
+    assert clean_scalar(datetime.timedelta(days=2)) == "P2DT0H0M0S"
 
 
 def test_categorical_pd_categorical():

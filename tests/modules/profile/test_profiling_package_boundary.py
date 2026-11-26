@@ -43,7 +43,9 @@ def test_profiling_package_exports_exact_public_all():
 def test_profiling_package_has_no_forbidden_imports():
     package_dir = Path(profiling.__file__).resolve().parent
     files = sorted(package_dir.glob("*.py"))
-    assert {path.name for path in files} == {"__init__.py", "profile.py", "report.py"}
+    assert {path.name for path in files} == {
+        "__init__.py", "_builders.py", "profile.py", "report.py"
+    }
 
     for path in files:
         source = path.read_text(encoding="utf-8")
@@ -56,19 +58,19 @@ def test_profiling_package_has_no_forbidden_imports():
 
 
 def test_profiling_private_dedupe_key_normalizes_unhashable_values():
-    from bynat.profiling.profile import _dedupe_key
+    from bynat.profiling._internal.computations import dedupe_key
 
-    assert _dedupe_key([1, 2]) == "[1, 2]"
-    assert _dedupe_key({"b": 2, "a": 1}) == '{"a": 1, "b": 2}'
-    assert _dedupe_key({2, 1}) == "[1, 2]"
-    assert _dedupe_key(np.array([1, 2])) == "[1, 2]"
-    assert _dedupe_key(5) == 5
+    assert dedupe_key([1, 2]) == "[1, 2]"
+    assert dedupe_key({"b": 2, "a": 1}) == '{"a": 1, "b": 2}'
+    assert dedupe_key({2, 1}) == "[1, 2]"
+    assert dedupe_key(np.array([1, 2])) == "[1, 2]"
+    assert dedupe_key(5) == 5
 
 
 def test_profiling_private_dedupe_key_is_bound_to_canonical_internal_helper():
     import bynat._internal as internal
 
-    profile_module = importlib.import_module("bynat.profiling.profile")
+    computations = importlib.import_module("bynat.profiling._internal.computations")
 
-    assert profile_module._dedupe_key is internal.dedupe_key
-    assert profile_module._dedupe_key.__module__ == "bynat._internal.values"
+    assert computations.dedupe_key is internal.dedupe_key
+    assert computations.dedupe_key.__module__ == "bynat._internal.values"

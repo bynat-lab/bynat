@@ -19,6 +19,14 @@ import pandas as pd
 
 from ._internal import apply_computed_rules, apply_filters
 
+__all__ = [
+    "build_categorical_distribution",
+    "build_numerical_aggregation",
+    "build_time_series",
+    "build_kpi_value",
+    "build_bins",
+]
+
 logger = logging.getLogger(__name__)
 
 

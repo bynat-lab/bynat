@@ -22,11 +22,6 @@ PROHIBITED_GENERIC_NAMES = frozenset(
     {"shared", "_shared", "utils", "helpers", "common"}
 )
 
-# ARCH-095 grandfathers this existing cleaning-scoped owner module as a current-state
-# exception. It is not a naming pattern for new helper collections.
-GRANDFATHERED = {"cleaning/_common.py"}
-
-
 def _production_paths() -> list[str]:
     """Every `.py` module and every directory under `bynat/`, relative to the package root."""
     paths = [
@@ -56,7 +51,6 @@ def _offenders() -> list[str]:
     return [
         f"{'package' if not path.endswith('.py') else 'module'} {path}"
         for path in _generic_name_matches()
-        if path not in GRANDFATHERED
     ]
 
 
@@ -64,6 +58,6 @@ def test_no_prohibited_generic_helper_module_or_package_names():
     assert _offenders() == []
 
 
-def test_cleaning_common_is_the_single_grandfathered_exception():
-    assert (PACKAGE_ROOT / "cleaning" / "_common.py").is_file()
-    assert _generic_name_matches() == ["cleaning/_common.py"]
+def test_refactor_removes_the_legacy_cleaning_common_helper_module():
+    assert not (PACKAGE_ROOT / "cleaning" / "_common.py").exists()
+    assert _generic_name_matches() == []

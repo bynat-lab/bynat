@@ -1086,8 +1086,8 @@ class BynatAccessor:
         categories does not exceed it.
 
         Notes:
-            - An empty filtered frame or a missing `x_col` returns
-              `{"data": []}`.
+            - An empty filtered frame returns `{"data": []}`. A missing
+              `x_col` also returns `{"data": []}` and is logged as a warning.
             - The response `data` value is `DataFrame.to_dict(orient=orient)`,
               so `orient` changes the shape of every row mapping.
 
@@ -1135,9 +1135,9 @@ class BynatAccessor:
         `is_others=False` and `others_breakdown=None`.
 
         Notes:
-            - An empty filtered frame, a missing `x_col` or `y_col`, or a
-              failing `agg_func` returns `{"data": []}`. The failure is logged
-              as a warning.
+            - An empty filtered frame returns `{"data": []}`. A missing
+              `x_col` or `y_col`, or a failing `agg_func`, also returns
+              `{"data": []}` and is logged as a warning.
             - `round_value` is applied to the group values and, separately, to
               the recomputed `"Others"` value.
 
@@ -1187,9 +1187,9 @@ class BynatAccessor:
 
             With `num_col` set and `agg_func != "count"`, the numeric column is
             aggregated per bucket and rounded to whole numbers. Otherwise the
-            bucket row count is used. A missing `num_col`, a failing
-            `agg_func`, or an empty frame returns `{"data": []}`; the failure
-            is logged as a warning.
+            bucket row count is used. An empty frame returns `{"data": []}`.
+            A missing `date_col` or `num_col`, or a failing `agg_func`, also
+            returns `{"data": []}` and is logged as a warning.
 
         Args:
             date_col (str): Source datetime/date column used for time bucketing.
@@ -1219,8 +1219,8 @@ class BynatAccessor:
         With `agg_func="count"` the value is the number of filtered rows and
         `column` is only used as the default title. Otherwise the value is
         `data[column].agg(agg_func)`; a missing column, a failing aggregation,
-        or a non-scalar result yields `None` (logged as a warning for the
-        latter two). NumPy scalars are converted to Python scalars, a null
+        or a non-scalar result yields `None` (each logged as a warning).
+        NumPy scalars are converted to Python scalars, a null
         value becomes `None`, a float is rounded to `round_value` when that is
         non-zero, and other numeric values are converted to `int`.
 
@@ -1254,9 +1254,10 @@ class BynatAccessor:
         `"<lower>-<upper>"` bin range formatted to two decimals.
 
         Notes:
-            - An empty filtered frame, a missing `col`, a non-positive or
-              non-integer `bins` (booleans included), or no numeric values
-              returns `{"data": []}`.
+            - An empty filtered frame, a non-positive or non-integer `bins`
+              (booleans included), or no numeric values returns
+              `{"data": []}`. A missing `col` also returns `{"data": []}` and
+              is logged as a warning.
 
         Args:
             col (str): Numeric source column.

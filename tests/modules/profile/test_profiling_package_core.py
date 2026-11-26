@@ -1,5 +1,6 @@
 """Tests for the bynat.profiling core algorithm and report model behavior."""
 
+import importlib
 import json
 from collections.abc import Mapping
 from dataclasses import asdict
@@ -115,6 +116,13 @@ def test_profiling_core_output_type_dispatch():
         profile(df, output_type=_FrameSubclass)
     with pytest.raises(TypeError, match="Unsupported output_type"):
         profile(df, output_type=int)
+
+
+def test_invalid_output_type_is_rejected_before_report_build(monkeypatch):
+    module = importlib.import_module("bynat.profiling.profile")
+    monkeypatch.setattr(module, "build_report", lambda *_: pytest.fail("report computed too early"))
+    with pytest.raises(TypeError, match="Unsupported output_type"):
+        module.profile(_fixture_frame(), output_type=int)
 
 
 def test_profiling_core_column_selection_and_input_errors():

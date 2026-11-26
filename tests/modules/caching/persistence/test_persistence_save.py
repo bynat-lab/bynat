@@ -27,7 +27,7 @@ def test_save_persists_added_changed_and_removed_entries(tmp_path):
     del live["status"]["stale"]
     manager.save_function_cache("translate")
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         rows = connection.execute(
             "SELECT bucket, key, value_json FROM cache_entries ORDER BY bucket, key"
         ).fetchall()
@@ -56,7 +56,7 @@ def test_save_persists_entirely_removed_buckets(tmp_path):
     del live["coordinates"]
     manager.save_function_cache("translate")
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         identities = connection.execute(
             "SELECT bucket, key FROM cache_entries ORDER BY bucket, key"
         ).fetchall()
@@ -79,7 +79,7 @@ def test_save_handles_deletion_only_transaction(tmp_path):
     del live["status"]["done"]
     manager.save_function_cache("translate")
 
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         rows = connection.execute(
             "SELECT bucket, key, value_json FROM cache_entries ORDER BY key"
         ).fetchall()
@@ -104,7 +104,7 @@ def test_save_advances_baseline_after_removal(tmp_path):
 
     live["status"]["done"] = "Back"
     manager.save_function_cache("translate")
-    with sqlite3.connect(manager._get_database_path()) as connection:
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
         assert connection.execute(
             "SELECT value_json FROM cache_entries WHERE bucket = 'status' AND key = 'done'"
         ).fetchone() == ('"Back"',)
@@ -145,7 +145,7 @@ def test_save_function_cache_handles_failing_rollback_during_commit_error(tmp_pa
         def close(self):
             pass
 
-    monkeypatch.setattr(manager, "_connect_sqlite", lambda: FailingConnection())
+    monkeypatch.setattr(manager._storage, "connect", lambda: FailingConnection())
     manager.save_function_cache("translate")
     assert manager._baselines["translate"] == {}
     assert manager.caches["translate"]["status"] == {"k": "v"}

@@ -18,10 +18,10 @@
 > rule whose implementation is complete in the current checkout (ARCH-045/ARCH-046). The helper placement and organization rules in
 > [§1.15](#115-helper-placement-and-organization) are adopted normative rules whose current-state status is recorded
 > in [§2.10](#210-module-responsibility-inventory-current); they do not force code moves. The public-API/core-implementation
-> and helper/core-implementation separation rules in [§1.5](#15-functional-core-facades-and-transformation-contracts)
-> (ARCH-102–ARCH-104) are adopted target rules; their current-state status is recorded in §2.10, where co-located
-> interfaces/implementations and helpers are described as current mixed ownership, not approval. They authorize no
-> code move; any structural change requires the procedure in ARCH-066/ARCH-099.
+> and helper/core-implementation ownership rules in [§1.5](#15-functional-core-facades-and-transformation-contracts)
+> (ARCH-102–ARCH-104) describe the architecture implemented by commit `946eb16` and recorded in §2.10. They are
+> current rules, not targets for further separation. This constitution authorizes no additional code move; any future
+> architectural change requires a separate explicit decision and the procedure in ARCH-066/ARCH-099.
 
 ---
 
@@ -64,24 +64,25 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-017 | `bynat.profiling` owns non-mutating data-quality profiling and report models. It must not import `cleaning`, `analytics`, `caching`, or `_accessors`. |
 | ARCH-018 | `bynat._accessors` (private) owns pandas registration, binding, accessor signatures, delegation, and accessor-specific output adaptation only. It contains no domain algorithms. Functional packages must not import it. |
 | ARCH-019 | `bynat._internal` (private) owns domain-independent value normalization. It imports only the standard library and NumPy, and imports no functional package. |
-| ARCH-020 | Canonical shared-component owners are: `dedupe_key` → `_internal/values.py`; cleaning helpers → `cleaning/_common.py`; output conversion → `cleaning/_outputs.py`; cached lookup → `cleaning/enrich/engine.py`; provider contracts → `cleaning/enrich/providers.py`; cache-key identity → `caching/_keys.py`; SQLite persistence → `caching/_storage.py`; legacy migration → `caching/_migration.py`; report models → `profiling/report.py`; profiling core → `profiling/profile.py`; analytics engine → `analytics/analyzer.py`. Consumer count is evidence of reuse, **not** proof of ownership; a shared component belongs where its invariants and change reasons are owned. These are existing responsibility-owned modules (ARCH-095), not generic helper collections; `_internal/` is the prescribed generic collection (ARCH-094), and new helper placement follows ARCH-092. Public API modules own their supported contracts and delegate; they are not alternative owners of these implementation responsibilities (ARCH-102–ARCH-103). Where a listed module currently combines a public interface with its implementation, that co-location is an adopted separation target, not a current-fact approval, and no move is authorized by this constitution. |
+| ARCH-020 | Canonical shared-component owners are: `dedupe_key` → `_internal/values.py`; cleaning helpers → `cleaning/_internal/`; output conversion → `cleaning/_internal/outputs.py`; cached lookup → `cleaning/enrich/_engine.py`; rate-limited mapping and translation batching → `cleaning/enrich/_internal/mapping.py`; provider contracts → `cleaning/enrich/providers.py`; cache-key identity → `caching/_internal/keys.py`; SQLite persistence → `caching/_storage.py` with cache load/save orchestration in `caching/_persistence.py`; legacy migration → `caching/_migration.py`; profiling computations → `profiling/_internal/`; analytics implementations → `analytics/_insights.py` and `analytics/_internal/`; report models → `profiling/report.py`; analytics public API → `analytics/analyzer.py`. Consumer count is evidence of reuse, **not** proof of ownership; a shared component belongs where its invariants and change reasons are owned. These are existing responsibility-owned modules (ARCH-095), not generic helper collections; `_internal/` is the prescribed generic collection (ARCH-094), and new helper placement follows ARCH-092. Public API modules own their supported contracts and delegate; they are not alternative owners of these implementation responsibilities (ARCH-102–ARCH-103). Where a listed module currently combines a public interface with its implementation, that co-location is an adopted separation target, not a current-fact approval, and no move is authorized by this constitution. |
 | ARCH-021 | Do not use `shared`, `_shared`, `common`, `utils`, or `helpers` as generic internal-helper module or package names at any scope. `_internal` is the only prescribed generic internal-helper name; create it only under ARCH-092–ARCH-094. |
 
 ### 1.4 Dependency direction and private imports
 
 | ID | Rule |
 |---|---|
-| ARCH-022 | Permitted internal dependency edges are exactly: root → `cleaning`, `caching`, `analytics`, `profiling`, `_accessors`, `cleaning.io`; `_accessors` → `cleaning` (`columns`, `io`, `stats`, `text`, `_outputs.is_basedata_type`, and the enrichment feature modules `cleaning.enrich.{currency,geocode,nlp,translate}`), `caching`, `profiling`, `analytics`; `cleaning` → `caching` (public API plus the documented `caching._keys` edges), `profiling`, `_internal`; `profiling` → `_internal`; `analytics` → none; `caching` → none; `_internal` → none. |
-| ARCH-023 | Prohibited internal edges: `caching` → `cleaning`/`analytics`/`profiling`/`_accessors`; `analytics` → any `bynat` package (including `_accessors`); `profiling` → `cleaning`/`analytics`/`caching`/`_accessors`; `cleaning` → `analytics`/`_accessors`; any functional package → `_accessors`; `_internal` → any functional package; `_accessors` → `_internal` (no use case; add only with evidence). |
-| ARCH-024 | Cross-package private-module imports are exactly the **five documented exceptions** below. No other cross-package private-module import exists. |
+| ARCH-022 | Package dependency direction is: root → public packages, canonical loaders, and `_accessors` registration; `_accessors` → supported cleaning feature APIs, `Analyzer`, `CacheManager`, and profiling; cleaning → caching, profiling adapters, and library/domain `_internal` helpers; profiling → library `_internal`; analytics → no other `bynat` package; caching → no functional package; library `_internal` → no functional package. Within each package, public API modules delegate to private core modules and `_internal/` helpers; exact private cross-package imports are enumerated in §2.5. |
+| ARCH-023 | Prohibited internal edges: `caching` → `cleaning`/`analytics`/`profiling`/`_accessors`; `analytics` → any other `bynat` package; `profiling` → `cleaning`/`analytics`/`caching`/`_accessors`; `cleaning` → `analytics`/`_accessors`; any functional package → `_accessors`; any `_internal` package → a functional package. The explicit accessor delegations and private-helper dependencies recorded in §2.5 are permitted. |
+| ARCH-024 | Cross-package private imports are limited to the exact, enumerated edges in the current dependency inventory (§2.5). Public API modules may import private implementation modules only to delegate their supported contract; accessor-to-cleaning and functional-to-cache/private-helper edges must remain explicit and symbol-limited. No undocumented private edge is permitted. |
 
 | # | Importing module | Imported module | Symbol(s) | Ownership rationale |
 |---|---|---|---|---|
-| 1 | `cleaning.enrich.engine` | `caching._keys` | `cache_value_key` | Cache-key identity is caching-owned. |
-| 2 | `cleaning.enrich.translate` | `caching._keys` | `cache_has_value`, `cache_lookup_value` | Same. |
-| 3 | `_accessors.dataframe` | `cleaning._outputs` | `is_basedata_type` | BaseData-type detection is cleaning-owned; the accessor is the adaptation seam. |
+| 1 | `cleaning.enrich._engine` | `caching._internal` | `cache_value_key` | Cache-key identity is caching-owned. |
+| 2 | `cleaning.enrich._translate` | `caching._internal` | `cache_has_value`, `cache_lookup_value` | Same. |
+| 3 | `_accessors.dataframe` | `cleaning._internal` | `is_basedata_type` | BaseData-type detection is cleaning-owned; the accessor is the adaptation seam. |
 | 4 | `cleaning.io` | `_internal` | `dedupe_key` | `_internal` is the prescribed private value-helper collection (ARCH-094). |
-| 5 | `profiling.profile` | `_internal` | `dedupe_key` | Same. |
+| 5 | `profiling._internal.computations` | `_internal` | `dedupe_key` | Same. |
+| 6–13 | `_accessors.dataframe` | `cleaning._columns`, `cleaning._stats`, `cleaning._text`, `cleaning.io`, `cleaning.enrich._currency`, `_geocode`, `_nlp`, `_translate` | canonical feature functions | The accessor directly delegates public feature contracts; these are deliberate private implementation imports in the implemented boundary. |
 
 | ID | Rule |
 |---|---|
@@ -91,22 +92,22 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 
 ### 1.5 Functional Core, Facades, and transformation contracts
 
-ARCH-028–ARCH-030 define the Functional Core + Facades shape; ARCH-102–ARCH-104 state the universal separation of
-public API definitions/interfaces, core implementation, and helpers. Examples elsewhere in this constitution are
-illustrative and do not limit the scope of those rules.
+ARCH-028–ARCH-030 describe the Functional Core + Facades principles as they apply to the responsibilities and
+boundaries established by commit `946eb16`. ARCH-102–ARCH-104 define those implemented public API, private core,
+and `_internal/` responsibilities; they do not authorize further separation or relocation.
 
 | ID | Rule |
 |---|---|
-| ARCH-028 | The adopted shape is **Functional Core + Facades**. Core algorithms and domain behavior belong to implementation modules; public interfaces and facades expose supported contracts and delegate substantive behavior. `BaseData`, `BynatAccessor`, providers, and `CacheManager` form the imperative shell where they perform I/O and external effects. Public API modules do not become implementation owners merely because they define or expose an interface. |
+| ARCH-028 | The adopted shape is **Functional Core + Facades**, with module ownership and delegation exactly as established by commit `946eb16`. Public interfaces and facades expose supported contracts and delegate where the implemented boundary assigns delegation; a public API module may retain substantive implementation where that is its committed responsibility. `BaseData`, `BynatAccessor`, providers, and `CacheManager` form the imperative shell where they perform I/O and external effects. Do not infer a blanket requirement to separate every public function body from its module. |
 | ARCH-029 | Transformations are stateless functions with frame-first signatures. They preserve index, order, and length; they state copy-versus-mutate (`inplace`) and output-container (`output_type`) behavior explicitly. No `fit`/`transform` estimator layer and no lazy execution layer is introduced. |
-| ARCH-030 | Public facades delegate; they do not own or duplicate core algorithms. Public class declarations may retain constructors, methods, signatures, documentation, and behavior while delegating substantive work to internal implementation modules. Public standalone functions likewise expose their supported signatures and delegate. `BynatAccessor` adapts shared functions through the binding factories. The dual `BaseData._finish_with_stats` / `bynat._accessors._binding._frame_method(stats=True)` contract, including the accessor methods generated from it, is retained as a parity-pinned duplication, not silently unified. |
+| ARCH-030 | Public facades delegate to the core implementations and helpers assigned by the implemented architecture; this rule does not imply moving every public function body out of its established module. `BynatAccessor` adapts shared functions through the binding factories. The dual `BaseData._finish_with_stats` / `bynat._accessors._binding._frame_method(stats=True)` contract, including the accessor methods generated from it, is retained as a parity-pinned duplication, not silently unified. |
 | ARCH-031 | Accessor eligibility is contract-based. A function belongs on `df.bynat` only when all seven criteria hold: DataFrame receiver fit; stable fluent workflow; clear receiver contract; facade independence; optional integration value; justified public API cost; no hidden external boundary. Automatic mirroring is rejected. |
 | ARCH-032 | Classes and protocols are introduced only with a concrete consumer and a lifecycle or structural contract. Composition is preferred over inheritance. The only protocols are `Translator`, `Geocoder`, and `RateSource`. |
 | ARCH-033 | The normative internal interface inventory is: `CacheManager`; `Analyzer`; `BaseData`/`JsonFile`/`CsvFile`; `BynatAccessor`; `Translator`/`Geocoder`/`RateSource`; `DatasetProfile`/`ColumnProfile`/`ProfileReport`; `SQLiteStorage`. |
 | ARCH-100 | **Patterns are defaults, not templates.** The adopted patterns in ARCH-028–ARCH-032 are the preferred starting points where their stated responsibilities and contracts fit. Apply a pattern because it solves the concrete problem, not to make unrelated components look uniform. A deviation is valid when repository evidence shows a material difference in responsibility, invariant, ownership, consumer needs, lifecycle, or change reasons; record the reason when the deviation affects an architectural boundary. Do not invent layers, facades, classes, or abstractions solely for consistency, and do not create unexplained variation between components whose relevant constraints are materially the same. |
-| ARCH-102 | **Public API and core implementation are separate responsibilities library-wide.** A module whose responsibility is to define or expose a supported public interface defines the public contract—such as classes, methods, standalone functions, signatures, documentation, and delegation—but does not own substantive domain or core implementation logic. The implementation belongs in appropriately organized internal implementation modules. This applies to every package, feature, implementation style, and public surface, including package-level API modules; examples elsewhere in this constitution do not limit its scope. Preserve supported imports, signatures, behavior, and other pinned contracts. Keep implementation modules internal and out of public exports. Use direct delegation without unnecessary wrapper layers, abstractions, or compatibility facades. This is an adopted target rule; it authorizes no code change by itself. Current co-location of a public interface with its implementation is recorded as checkout fact, not approval, in [§2.10](#210-module-responsibility-inventory-current). |
+| ARCH-102 | **Public API, private core, and helper responsibilities follow the implemented architecture.** Public API modules expose supported contracts and exports; private core modules own the substantive implementation assigned to them by commit `946eb16`; package-local `_internal/` modules own the cohesive helper responsibilities assigned to them. Do not assume every public function is a thin facade or that every helper must be moved into `_internal/`; the current path, ownership, and delegation choices in §2.10 are authoritative. Preserve all supported paths, signatures, behavior, and pinned contracts. Do not add compatibility facades or relocate code based on a generalized template. |
 | ARCH-103 | **Canonical responsibility ownership.** Public API ownership, core implementation ownership, helper ownership, and shared internal implementation ownership are distinct. Each responsibility has one canonical owner; a public API module is not an alternative domain-logic owner, and an internal implementation module is not thereby a public interface. Shared implementation has one canonical owner only when consumers share the same semantics and contract; coincidental similarity does not justify merging distinct responsibilities or contracts. |
-| ARCH-104 | **Helpers are separate from the core implementation they support.** A helper must not be defined in the same source file as the core implementation it supports; place it in a dedicated internal module or package according to ARCH-092–ARCH-097. This does not require one file per helper: cohesive, related helpers may share a module, while unrelated responsibilities must not be grouped. The helper placement hierarchy, `_internal` naming, cohesion, depth, reuse, and anti-duplication rules remain authoritative. |
+| ARCH-104 | **Helper ownership follows the refactor.** Helpers reside at the exact private-core or `_internal/` paths established by commit `946eb16`; package-local `_internal/` packages contain the helper responsibilities assigned to them, while responsibility-specific shared implementations such as the enrichment cache engine remain at their established private-core paths. Preserve these ownership and path decisions; do not relocate helpers based on a blanket placement rule. |
 
 ### 1.6 Optional integrations and providers
 
@@ -114,17 +115,17 @@ illustrative and do not limit the scope of those rules.
 |---|---|
 | ARCH-034 | Optional dependencies are imported lazily and function-locally through `import_optional`, which raises a feature-specific `ImportError` naming the distribution. Argument and configuration validation precedes the dependency import where the code checks first. |
 | ARCH-035 | External services sit behind `provider=` protocols in `cleaning/enrich/providers.py`. No plugin discovery, entry-point registry, dependency-injection container, or generic integration framework is introduced. |
-| ARCH-036 | The `save_to_sql` public interface and its implementation have distinct responsibilities under ARCH-102–ARCH-103. The implementation belongs in an internal implementation module owned under ARCH-020 and placed under ARCH-092–ARCH-097; the public interface preserves its supported path and delegates. The lazy SQLAlchemy import remains the optional-dependency boundary. This rule does not authorize a file move by itself. |
+| ARCH-036 | `save_to_sql` remains defined in `cleaning/io.py` at its supported import path. URL construction is extracted to `cleaning/_internal/sql.py` as `build_engine_url`; `save_to_sql` retains validation, the lazy SQLAlchemy import, DataFrame preparation, engine use, and disposal. This is the implemented responsibility split; do not move or rename either function based on earlier proposals. |
 | ARCH-037 | Optional extras are declared in `pyproject.toml` (`translation`, `geocoding`, `currency`, `categorization`, `nlp`, `sql`). `extract_keywords` may silently fall back to the regex path when `pyahocorasick` is absent; `categorize_by_reference` hard-requires it. |
 
 ### 1.7 CacheManager boundaries and lifecycle
 
 | ID | Rule |
 |---|---|
-| ARCH-038 | `CacheManager` is the sole public cache facade. It owns SQLite connection lifecycle (one connection per operation, explicit `BEGIN IMMEDIATE`, WAL mode, finite busy timeout, always closed), baseline/diff persistence, column deletion, legacy-migration triggering, and the quarantine wrapper. |
+| ARCH-038 | `CacheManager` is the sole public cache facade. It delegates load/save orchestration to `_persistence.py`, SQLite operations to `_storage.py`, and legacy migration to `_migration.py`; the storage layer owns connection lifecycle (one connection per operation, explicit `BEGIN IMMEDIATE`, WAL mode, finite busy timeout, always closed). `CacheManager` retains its public cache operations, baseline/diff behavior, and column deletion, without private migration or quarantine wrappers. |
 | ARCH-039 | `shared_cache_manager` owns the process-wide registry: one manager per resolved absolute cache directory, guarded by a module lock, created on first request, never evicted. |
-| ARCH-040 | `caching` imports no functional package. `_storage.py`, `_migration.py`, and `_keys.py` are private; consumers use the public `caching` API and must not import them directly except through the documented exceptions. |
-| ARCH-041 | Cache-key identity is caching-owned (`caching/_keys.py`). Enrichment consumes it only through the two documented private-import exceptions and must not own storage-identity rules. |
+| ARCH-040 | `caching` imports no functional package. `_internal/`, `_persistence.py`, `_storage.py`, and `_migration.py` are private; consumers use the public `caching` API except for the documented cache-key helper dependency. |
+| ARCH-041 | Cache-key identity is caching-owned (`caching/_internal/keys.py`). Enrichment consumes it through the enumerated private imports and must not own storage-identity rules. |
 | ARCH-042 | `BaseData` owns its lazily created manager through instance metadata; `BynatAccessor` holds a manager by reference and resolves the shared manager lazily. `with_cache(...)` binds an explicit or shared manager. |
 | ARCH-043 | No global cache singleton without scoping and no resource manager or registry beyond `shared_cache_manager` is introduced. |
 
@@ -133,11 +134,11 @@ illustrative and do not limit the scope of those rules.
 | ID | Rule |
 |---|---|
 | ARCH-044 | The canonical name of every private helper is the name declared in its owning module's `__all__`. No module-level compatibility alias is retained; internal consumers import the canonical name. |
-| ARCH-045 | **Implemented.** The alias layer in `cleaning/_common.py`, `cleaning/_outputs.py`, `caching/_keys.py`, `caching/_migration.py`, and `caching/manager.py` is removed, and consumer imports are updated to canonical names in the current checkout. |
-| ARCH-046 | **Implemented.** Dead private wrappers `_SQLITE_DATABASE_NAME`, `_SQLITE_TIMEOUT_SECONDS`, and `CacheManager._migrate_legacy_cache` are removed. The surviving migration symbol is `CacheManager._migrate_legacy_json_cache`; the module-level alias `caching._migration._migrate_legacy_json_cache` is dead and removed. |
-| ARCH-047 | Consumer-side local naming (`cleaning/io.py` and `profiling/profile.py` importing `dedupe_key as _dedupe_key`) is a naming convention, not a module-level alias, and remains unchanged. |
-| ARCH-048 | True delegating methods (`CacheManager._quarantine_corrupt_cache_file`, `CacheManager._migrate_legacy_json_cache`) are not aliases and remain. |
-| ARCH-049 | The stale logger names `"bynat.cleaning.Cleaning"` and `"bynat.caching.Caching"` are a documented compatibility decision and are retained. |
+| ARCH-045 | **Implemented.** Redundant private wrappers and aliases were removed; canonical helpers now live in their established `_internal/` packages or responsibility-owned private modules. Consumers import the canonical names. |
+| ARCH-046 | **Implemented.** Redundant private cache wrappers and aliases are removed. Cache loading and saving are implemented in `caching/_persistence.py`; migration is implemented by the module-level `migrate_legacy_json_cache` in `caching/_migration.py`, and SQLite operations by `SQLiteStorage` in `caching/_storage.py`. These private implementation functions are not `CacheManager` methods. |
+| ARCH-047 | Consumer-side local naming (`cleaning/io.py` importing `dedupe_key as _dedupe_key`) is a naming convention, not a module-level alias, and remains unchanged. Profiling imports the canonical helper from `profiling/_internal/computations.py`. |
+| ARCH-048 | **Implemented.** Cache migration and quarantine have canonical module-level owners; `CacheManager` does not retain private wrapper methods for them. |
+| ARCH-049 | Every module that emits logs uses `logging.getLogger(__name__)`, so logger names match the actual module path. Modules that do not log do not define unused loggers. Legacy class-named logger strings are not retained. |
 
 Helper placement and organization rules are in [§1.15](#115-helper-placement-and-organization).
 
@@ -147,15 +148,15 @@ The stage labels below describe possible structural states and conditional optio
 
 | ID | Rule |
 |---|---|
-| ARCH-050 | **Stage A — flat domain modules (current).** Each domain package contains flat modules plus at most one capability subpackage where a real subsystem already exists (`cleaning/enrich`). |
+| ARCH-050 | **Stage A — implemented package organization (current).** Public API modules expose supported contracts; private core modules own domain implementations; package-local `_internal/` packages own cohesive private helpers. The exact current paths and ownership are recorded in §2.10 and implemented by commit `946eb16`. |
 | ARCH-051 | **Stage B — capability subpackages (conditional).** Entered when one package separates into ≥2 capability clusters, each with ≥2 modules and distinct change reasons, and a package-level `__init__` can curate a coherent surface. Counts are sanity checks, not triggers. |
 | ARCH-052 | **Stage C — domain-internal layers (conditional, rare).** Entered when a Stage-B capability subpackage has ≥2 internal layers with distinct consumers and change reasons, and layering reduces coupling. The procedure is: confirm the host is a subpackage; identify layers; verify reduced coupling; define a one-way dependency flow; add layer modules with `__all__`; verify no cycle, no public-path change, no new cross-package private import; record trigger and rollback. |
 | ARCH-053 | **Stage D — new domain package (conditional).** Entered when a coherent capability has its own public contract, its own lifecycle, and no dependency on existing package internals. |
 | ARCH-054 | **Stage E — extraction into separate distributions/services (rejected, far future).** Entered only on a concrete deployment, versioning, or team-boundary requirement. |
-| ARCH-055 | Module states: **M0** single module; **M1** split one module into ≥2 modules in the same package; **M2** convert a module into a same-named package with a curated `__init__`; **M3** merge modules that always change together; **M4** add a new module to an existing package. The decision procedure applies to implementation separation under ARCH-102–ARCH-103 and helper separation under ARCH-104 as well as other structural changes. Helper extraction follows ARCH-092–ARCH-097; the public-interface/core-implementation boundary is not waived by a single consumer or existing co-location. |
-| ARCH-056 | **M2 naming rule.** A module-to-package conversion keeps the same name so `from bynat.cleaning import columns, io, stats, text` and `from bynat.cleaning.enrich.providers import ...` continue to work. |
+| ARCH-055 | Module states: **M0** single module; **M1** split one module into ≥2 modules in the same package; **M2** convert a module into a same-named package with a curated `__init__`; **M3** merge modules that always change together; **M4** add a new module to an existing package. This decision procedure governs only a future structural change that has been explicitly authorized; it does not turn the public/core/helper responsibilities established by commit `946eb16` into additional separation work. Helper-placement rules apply to their stated scope but do not permit relocating existing committed owners. |
+| ARCH-056 | **Path-preservation rule.** Preserve the names, locations, import structure, and responsibility assignments established by commit `946eb16`. Do not use pre-refactor module-to-package examples in this constitution to rename, relocate, or reinterpret current modules. |
 | ARCH-057 | Evolution principles: **P-1** change reasons before size; **P-2** one responsibility per module (statable without “and”); **P-3** public surface frozen; **P-4** extract shared code into a broader reuse abstraction only after multiple real consumers (Rule of Three, scoped by ARCH-097; same-branch extraction follows ARCH-092); **P-5** dependency direction is a rule, not a directory tree; **P-6** subpackages need a responsibility, not a theme; **P-7** boundaries are enforced, not aspirational; **P-8** every conditional phase is reversible without public API change; **P-9** depth is the last resort; **P-10** the container stays a modular monolith. |
-| ARCH-058 | Near-term work is Phase 0 (baseline/decision record), Phase 1 (internal normalization plus dependency-graph enforcement), and Phase 2 (optional enforcement hardening on a demonstrated repository need). No subpackage is pre-built and no module is converted before its trigger fires. These work phases do not make Stages A–E or module states M0–M4 a required sequence; each structural transition remains independently trigger-gated. |
+| ARCH-058 | The Phase 0–2 sequence described in the historical evolution material (§3.3) is superseded by the implemented architecture in commit `946eb16`; it is not current scheduled work or authority to alter module boundaries, paths, or imports. Any future architectural change requires a separate explicit decision. |
 
 ### 1.10 Growth decision procedure and triggers
 
@@ -190,10 +191,10 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 
 | ID | Rule |
 |---|---|
-| ARCH-075 | Architecture enforcement must cover: exact public exports; public API/core implementation separation and canonical ownership (ARCH-102–ARCH-103); helper/core implementation separation and helper placement at the narrowest common scope, helper-file cohesion, and the `_internal` naming and directory convention (ARCH-092–ARCH-094, ARCH-104); permitted and prohibited dependency directions; the five private-import exceptions; `_internal` independence; accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment; the prohibition on row-wise data-path iteration; and the discoverability/analyzability expectations in ARCH-101. |
+| ARCH-075 | Architecture enforcement must cover: exact public exports; the public API/private core/helper ownership boundaries established by commit `946eb16` (ARCH-102–ARCH-104); helper placement, cohesion, and `_internal` naming where those rules apply (ARCH-092–ARCH-097); permitted and prohibited dependency directions; the enumerated private-import exceptions; `_internal` independence; accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment; the prohibition on row-wise data-path iteration; and the discoverability/analyzability expectations in ARCH-101. Enforcement must not impose additional facade or relocation rules beyond the implemented architecture. |
 | ARCH-101 | **Human discoverability and machine analyzability.** A reviewer should be able to infer a module's responsibility and owner from its name, location, and nearby package boundaries without tracing unrelated code or relying on undocumented tribal knowledge. Related components and their permitted dependencies should be findable through clear ownership and explicit exports/imports; avoid intermediate modules or layers that add indirection without a concrete boundary benefit. A machine-assisted analysis should be able to identify package/module ownership, dependency edges, public/private boundaries, and documented exceptions from repository artifacts and explicit rules rather than guessing from naming similarity or directory shape alone. Do not force identical file layouts to achieve this: use the narrowest clear organization that fits each responsibility. Automate objective checks where practical; assess semantic clarity, cohesion, and whether indirection adds value through human review. |
 | ARCH-076 | The enforcement mechanism MAY be a repository-native static or structural check, a dedicated dependency-analysis tool, or another reviewable mechanism selected for the repository. The mechanism MUST represent all five private-import exceptions precisely and MUST NOT require a runtime dependency merely to describe the architecture. |
-| ARCH-077 | A new **module** has one responsibility, a correct owner, no unapproved cross-package private import, an explicit export boundary, and placement at the appropriate architectural scope. Public interface modules delegate substantive behavior to internal implementation modules (ARCH-102–ARCH-103); helpers supporting core implementation are separate files (ARCH-104) and follow their own placement hierarchy (ARCH-092). A new **subpackage** satisfies its trigger, curates `__init__`, adds no cycle, inherits the parent's dependency budget, and changes no public API. A new **domain package** has its own public contract, ≥2–3 operations, no dependency on functional internals, and an explicit extension to the dependency matrix. |
+| ARCH-077 | A new **module** has one responsibility, the correct owner under the implemented architecture, no unapproved cross-package private import, an explicit export boundary, and placement consistent with the committed package boundaries. Do not add a facade or relocate an existing responsibility merely to enforce a generalized interface/implementation template. A new **subpackage** requires an explicit architectural decision, curates `__init__`, adds no cycle, inherits the parent's dependency budget, and changes no public API. A new **domain package** requires an explicit architectural decision, its own public contract, ≥2–3 operations, no dependency on functional internals, and an explicit extension to the dependency matrix. |
 | ARCH-078 | Every structural change review states the trigger it satisfies and its rollback. |
 
 ### 1.13 Prohibited patterns
@@ -204,12 +205,12 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 | ARCH-080 | No generic repository pattern, universal managers, or base classes for unrelated operations. |
 | ARCH-081 | Do not use `shared`, `_shared`, `utils`, `helpers`, or `common` as generic internal-helper module or package names. `_internal` is the only prescribed generic internal-helper collection, created only under ARCH-092–ARCH-094. |
 | ARCH-082 | No protocol proliferation, plugin registry, entry-point discovery, or dependency-injection container. |
-| ARCH-083 | No generic transformation engine and no duplicate implementations of shared behavior. Public API modules may define interfaces and delegate but must not own substantive core implementation logic (ARCH-102). |
+| ARCH-083 | No generic transformation engine and no duplicate implementations of shared behavior. Preserve the public API, private-core, and `_internal/` responsibility assignments established by commit `946eb16`; do not split or relocate an implementation based on a blanket facade rule. |
 | ARCH-084 | No Polars-style lazy execution/query-engine layer and no `fit`/`transform` estimator layer. |
 | ARCH-085 | No artificially strict global layer tree; layering is a dependency rule only. |
-| ARCH-086 | No splitting of `base.py`, `stats.py`, `analyzer.py`, or `profile.py` by LOC alone. A future interface/implementation or helper separation in these files is evaluated under ARCH-055/ARCH-066 and ARCH-102–ARCH-104, never by a size threshold. |
+| ARCH-086 | No splitting of `base.py`, `_stats.py`, `analyzer.py`, or `profile.py` by LOC alone. Any future structural change requires explicit authorization and must preserve the module ownership and paths established by commit `946eb16`; LOC is never sufficient justification. |
 | ARCH-087 | No `caching` under `cleaning`; no `analytics → cleaning` import merely because both use DataFrames; no `profiling → analytics` dependency. |
-| ARCH-088 | No `src/` layout migration, no renaming public modules to a “cleaner” tree, and no pre-building structures for scenarios that have not occurred. Public API and core implementation separation remains required (ARCH-102), including for `save_to_sql` (ARCH-036); any internal reorganization must preserve its supported public path and contracts. |
+| ARCH-088 | No `src/` layout migration, no renaming public modules to a “cleaner” tree, and no pre-building structures for scenarios that have not occurred. Preserve the public API, private core, and `_internal/` boundaries and the exact module assignments implemented by commit `946eb16`, including the `save_to_sql`/`build_engine_url` split in ARCH-036. |
 
 ### 1.14 Governance and amendment
 
@@ -235,7 +236,7 @@ without requiring one file per helper or forcing unrelated helpers together.
 | ARCH-092 | A helper belongs at the **narrowest common architectural scope** that contains all of its current consumers. Its placement follows actual usage boundaries, not a preference for keeping it in its original file or extracting every helper into a separate module. Apply the first matching level: **(a)** one file only — keep the helper private to that file; create no separate module unless a distinct architectural requirement applies (ARCH-096); **(b)** multiple files in the same submodule — place the helper at that submodule scope in a dedicated `_internal.py` module, or in a dedicated `_internal/` package when multiple dedicated helper modules are justified (ARCH-094); **(c)** sibling submodules of one parent — place the helper once at their nearest common parent in `_internal.py`, or in `_internal/` when multiple helper modules are justified, not in one sibling; **(d)** different branches of one package — walk upward recursively to their nearest common architectural scope and use `_internal.py` or `_internal/` there according to ARCH-094; **(e)** multiple top-level submodules (flat modules) of one package — place the helper in that package's `_internal.py` module or `_internal/` package, according to ARCH-094; **(f)** multiple packages — place the helper in library-level `bynat/_internal` only with a domain-independent responsibility and ≥2 real package consumers (ARCH-060, ARCH-074). A helper MAY instead live in an existing module when its responsibility naturally belongs there (ARCH-095). Never place a helper above the scope that owns all of its consumers. |
 | ARCH-093 | **Helper-file cohesion.** Helpers SHOULD share a file when their responsibilities are closely related, serve the same conceptual purpose, implement closely related behavior, or are complementary parts of one operation or workflow. Helpers with unrelated purposes, different responsibilities, or independent reasons to change MUST NOT be grouped merely because they are helpers, for convenience, or under one feature label. When distinct groups of helpers exist, organize them into responsibility-named modules rather than a generic `helpers.py`. A standalone dedicated internal-helper module uses the `_internal.py` name; modules within an `_internal/` collection are named for their responsibilities. Do not split closely related helpers without a meaningful cohesion or maintainability benefit. The objective is high cohesion and clear ownership, not minimizing or maximizing file count. |
 | ARCH-094 | **`_internal` is the only prescribed generic internal-helper naming convention.** A single dedicated internal-helper module MAY be a direct `_internal.py` file. When a parent directory needs multiple dedicated helper modules at the same depth, prefer an `_internal/` directory inside that same parent, especially in leaf directories where no narrower scope exists; put independently named, cohesive modules inside it. Create neither `_internal.py` nor `_internal/` for a single-file-local helper; do not create an `_internal/` directory for only one helper module. An `_internal/` directory may contain distinct responsibility-named helper modules and does not imply they belong in one file or share one responsibility; file cohesion is governed by ARCH-093. `shared`, `_shared`, `utils`, `helpers`, and `common` are not prescribed alternatives for generic helper locations. A per-package `_internal` inherits its parent's dependency budget and is distinct from library-level `bynat/_internal` (ARCH-019). |
-| ARCH-095 | **Existing private owner modules are retained.** A helper MAY live in an existing private module when its responsibility naturally belongs there. The following modules own established responsibilities and are not generic cross-scope helper collections: `cleaning/_common.py` (cleaning-scoped helpers), `cleaning/_outputs.py` (output conversion), `caching/_keys.py` (cache-key identity), `caching/_storage.py` (SQLite persistence), `caching/_migration.py` (legacy migration/quarantine), `cleaning/enrich/engine.py` (cached-lookup engine), and `cleaning/enrich/providers.py` (provider contracts). Responsibility-specific names identify most of these owners; the existing `_common.py` is a current-state exception, not a naming pattern for new helper collections. `_internal` is the prescribed generic naming convention for future dedicated helper modules (ARCH-094). This status is **Current**: the named modules remain at the current HEAD, and this constitution does not require or authorize moving them. Future helper placement follows ARCH-092–ARCH-094 without renaming or relocating these owners. |
+| ARCH-095 | **Private core ownership is retained.** Responsibility-specific private core modules and the package-local `_internal/` helper packages remain at their established paths. Helpers are not relocated or renamed for architectural preference; canonical ownership follows the implemented package structure and ARCH-102–ARCH-104. |
 | ARCH-096 | **Helper extraction guards.** Do not create a separate module for a helper used by only one file unless a distinct architectural requirement exists; the mandatory separation of a helper from the core implementation it supports (ARCH-104) is such a requirement. In that case keep the helper at the narrowest scope allowed by ARCH-092 and use the naming/organization in ARCH-094, without requiring one file per helper. Before extracting similar code, verify that the behavior and contracts are identical; similar code with different contracts is not merged. Never duplicate a genuinely common implementation; one canonical definition per responsibility. Never place a helper above the scope that owns all of its consumers. Never create `_internal/` speculatively or before its trigger fires. Helper modules remain internal (underscore modules/packages, never added to a public package `__all__`). Helper placement must preserve the permitted dependency directions (ARCH-022/ARCH-023) and must not introduce a cycle. |
 | ARCH-097 | **Rule of Three scope.** The Rule of Three applies only to broader reuse abstraction decisions — extracting a helper into a shared-scope or cross-domain scope for general reuse. It does not block same-branch or multi-file extraction within one package or submodule: a helper consumed by multiple files in the same branch may be extracted to the narrowest common scope under ARCH-092 without a third consumer. Consumer count remains a medium-weight signal (ARCH-067) for broader reuse only. |
 
@@ -261,7 +262,7 @@ This is illustrative, not a proposed current-tree change. A single helper module
 
 ## 2. Current architecture reference (Current facts)
 
-This section records the architecture as observed in the current checkout. It is reference, not proposal.
+This section records the architecture as observed in the current checkout. It is reference, not proposal. The architecture implemented in commit `946eb16` is the governing design decision; the conditional examples later in this document do not authorize reverting, relocating, or redesigning it.
 
 ### 2.1 Repository identity
 
@@ -289,37 +290,67 @@ bynat/
 │   └── values.py
 ├── analytics/
 │   ├── __init__.py
+│   ├── _insights.py
+│   ├── _internal/
+│   │   ├── __init__.py
+│   │   ├── appliers.py
+│   │   └── security.py
 │   └── analyzer.py
 ├── caching/
 │   ├── __init__.py
-│   ├── _keys.py
+│   ├── _internal/
+│   │   ├── __init__.py
+│   │   ├── diff.py
+│   │   ├── keys.py
+│   │   ├── paths.py
+│   │   └── quarantine.py
 │   ├── _migration.py
+│   ├── _persistence.py
 │   ├── _storage.py
 │   └── manager.py
 ├── cleaning/
 │   ├── __init__.py
-│   ├── _common.py
-│   ├── _outputs.py
+│   ├── _columns.py
+│   ├── _internal/
+│   │   ├── __init__.py
+│   │   ├── docs.py
+│   │   ├── frames.py
+│   │   ├── hierarchy.py
+│   │   ├── matching.py
+│   │   ├── optional.py
+│   │   ├── outputs.py
+│   │   ├── sql.py
+│   │   └── validation.py
+│   ├── _stats.py
+│   ├── _text.py
 │   ├── base.py
-│   ├── columns.py
 │   ├── io.py
-│   ├── stats.py
-│   ├── text.py
 │   └── enrich/
 │       ├── __init__.py
-│       ├── currency.py
-│       ├── engine.py
-│       ├── geocode.py
-│       ├── nlp.py
+│       ├── _currency.py
+│       ├── _engine.py
+│       ├── _geocode.py
+│       ├── _internal/
+│       │   ├── __init__.py
+│       │   ├── lexicon.py
+│       │   ├── mapping.py
+│       │   ├── nlp_options.py
+│       │   └── rates.py
+│       ├── _nlp.py
 │       ├── providers.py
-│       └── translate.py
+│       └── _translate.py
 └── profiling/
     ├── __init__.py
+    ├── _builders.py
+    ├── _internal/
+    │   ├── __init__.py
+    │   ├── computations.py
+    │   └── processing.py
     ├── profile.py
     └── report.py
 ```
 
-There are **31 tracked `.py` modules**. `bynat/_accessors/dataframe.pyi` is generated and excluded from `.py` counts.
+The current tree is the explicit public-API/private-core/`_internal` organization implemented by commit `946eb16` (`refactor: split packages into public API, private core, and _internal helpers`). Public API modules define supported interfaces and delegate substantive work to private core modules; private core modules own domain implementation; `_internal/` packages contain cohesive private helpers. The public package exports remain narrow; underscore-prefixed modules are private implementation paths. `bynat/_accessors/dataframe.pyi` is generated and excluded from Python source-module counts.
 
 ### 2.3 Current public API surface
 
@@ -338,45 +369,25 @@ Importing `bynat` registers `df.bynat`. `BaseData`, `CsvFile`, `JsonFile`, `Byna
 
 ### 2.4 Current dependency matrix
 
-Permitted edges are listed in ARCH-022; prohibited edges in ARCH-023. The observed internal import graph in the current checkout is:
+The module-level dependencies follow the package direction in ARCH-022. The root binds the four public packages, canonical loaders, and accessor registration. Public API modules delegate to private core modules. Cleaning core uses cleaning `_internal/`, enrichment core uses its `_internal/` helpers and cache internals, profiling uses profiling `_internal/` plus the canonical library value helper, and caching delegates persistence orchestration to `_persistence.py`, migration to `_migration.py`, and SQLite operations to `_storage.py`. Analytics owns its implementation in `_insights.py` and `analytics/_internal/` and imports no other `bynat` package. The runtime import graph is acyclic; `tests/cross_cutting/contracts/test_architecture_dependencies.py` enforces the current boundaries.
 
-```text
-bynat/__init__ ──> cleaning, caching, analytics, profiling, _accessors, cleaning.io
-_accessors/dataframe ──> cleaning (columns/io/stats/text + _outputs + enrich.currency/geocode/nlp/translate), analytics, caching, profiling, _accessors._binding
-cleaning/base ──> cleaning (columns, io, stats, text, enrich, enrich.providers), caching, profiling, cleaning._outputs
-cleaning/{columns,text} ──> cleaning._common
-cleaning/stats ──> cleaning._common, cleaning._outputs
-cleaning/io ──> cleaning._common, _internal
-cleaning/enrich/{currency,geocode,nlp,translate} ──> caching, enrich.engine, enrich.providers, cleaning._common
-cleaning/enrich/{engine,translate} ──> caching._keys        # documented exceptions 1–2
-caching/manager ──> caching._migration, caching._storage
-caching/_migration ──> caching._storage
-profiling/profile ──> profiling.report, _internal
-analytics/analyzer ──> (no bynat imports)
-_internal ──> (stdlib + numpy only)
-```
+### 2.5 Current private-import exceptions
 
-No import cycle is present.
-
-### 2.5 The five current private-import exceptions
-
-Observed in the current checkout (all absolute imports). These are exactly the five cross-package private-module imports of
-ARCH-024; the root package's registration import is separate and is described after the table.
+Observed in the current checkout and enforced as the exact private-import inventory by the architecture dependency contract. Package-internal relative imports are not cross-package exceptions; root accessor registration is separately required by ARCH-006.
 
 | # | Importer | Import statement |
 |---|---|---|
-| 1 | `bynat/cleaning/enrich/engine.py` | `from bynat.caching._keys import cache_value_key` |
-| 2 | `bynat/cleaning/enrich/translate.py` | `from bynat.caching._keys import cache_has_value, cache_lookup_value` |
-| 3 | `bynat/_accessors/dataframe.py` | `from bynat.cleaning._outputs import is_basedata_type` |
+| 1 | `bynat/cleaning/enrich/_engine.py` | `from bynat.caching._internal import cache_value_key` |
+| 2 | `bynat/cleaning/enrich/_translate.py` | `from bynat.caching._internal import cache_has_value, cache_lookup_value` |
+| 3 | `bynat/_accessors/dataframe.py` | `from bynat.cleaning._internal import is_basedata_type` |
 | 4 | `bynat/cleaning/io.py` | `from bynat._internal import dedupe_key as _dedupe_key` |
-| 5 | `bynat/profiling/profile.py` | `from bynat._internal import dedupe_key as _dedupe_key` |
+| 5 | `bynat/profiling/_internal/computations.py` | `from bynat._internal import dedupe_key` |
+| 6 | `bynat/_accessors/dataframe.py` | Imports canonical cleaning feature modules `_columns`, `_stats`, `_text`, `io`, and `cleaning.enrich._currency`, `_geocode`, `_nlp`, `_translate` for direct delegation. |
 
-The canonical exports are `cache_value_key`, `cache_has_value`, `cache_lookup_value` in `caching/_keys.py`, and
-`is_basedata_type` in `cleaning/_outputs.py`. Importers 1–2 import the canonical names; normalization ARCH-045 is
-implemented in the current checkout.
+The canonical exports are `cache_value_key`, `cache_has_value`, `cache_lookup_value` in `caching/_internal/keys.py`, and
+`is_basedata_type` in `cleaning/_internal/outputs.py`. Importers 1–2 import the canonical names.
 
-The root package's own registration import, `bynat/__init__.py → bynat._accessors`, is **not** one of these five
-exceptions. It is explicitly required by ARCH-006 ("Importing `bynat` registers `df.bynat` through a private
+The root package's own registration import, `bynat/__init__.py → bynat._accessors`, is separately required by ARCH-006 ("Importing `bynat` registers `df.bynat` through a private
 `_accessors` import") and is a root-to-registration-package import, not a functional-package cross-package
 private-module import. The dependency-graph test observes it separately as a mandatory root edge; the count of
 ARCH-024 exceptions remains exactly five.
@@ -424,16 +435,16 @@ cohesion, and whether indirection adds value are **not** inferred from module or
 a human review responsibility under ARCH-101/ARCH-102–ARCH-104 and follow the decision procedure in
 ARCH-066/ARCH-099. The naming-only contract
 `tests/cross_cutting/contracts/test_prohibited_helper_names.py` enforces the prohibited generic helper names of
-ARCH-021/ARCH-081 and the `_internal` naming convention of ARCH-094 at any scope, grandfathering only
-`cleaning/_common.py` per ARCH-095; it is objective naming enforcement, not evidence of semantic placement.
+ARCH-021/ARCH-081 and the `_internal` naming convention of ARCH-094 at any scope. There is no grandfathered
+generic helper path in the current tree; this is objective naming enforcement, not evidence of semantic placement.
 Import-Linter remains optional and deferred, not an unresolved blocker under ARCH-076: the repository-native AST
 contract already satisfies ARCH-076 without a runtime dependency, and Import-Linter is a Phase 2 option adopted only
 on a demonstrated repository need (AE-Q5). Private alias normalization (ARCH-045/046) is implemented in the
 current checkout. Helper placement and organization rules ARCH-092–ARCH-097 are adopted and normative; the current
 responsibility-named owner modules remain in place (ARCH-095). Public-API/core-implementation and helper/core
-separation (ARCH-102–ARCH-104) are adopted target rules; no automated check currently decides them semantically, the
-current checkout retains mixed ownership and co-located helpers ([§2.10](#210-module-responsibility-inventory-current)),
-and both remain human review under ARCH-101/ARCH-066. They authorize no code move.
+separation (ARCH-102–ARCH-104) describes the current responsibilities; no automated check decides semantic
+ownership, and module placement remains documented in [§2.10](#210-module-responsibility-inventory-current) and subject
+to explicit review. These rules authorize no code move.
 
 ### 2.9 Behavioral contracts (Current)
 
@@ -494,13 +505,13 @@ Requires `country_col`/`year_col` (else warning + copy) and valid target columns
 `save_every` positive int first; required lat/long columns and at least one valid fallback column else warning + copy. Builds `__temp_geocode_query__` from fallback columns joined `', '` skipping null/empty/`'nan'`/`'none'`/numeric values; `mask_missing = lat or long isna`. The provider defaults to `NominatimGeocoder(user_agent)`; `geocode(query)` tries the query then repeatedly drops the leftmost comma-separated part. Bucket `geocode_queries` key=str; `is_cached` treats cached None as a miss only when `retry_not_found`. Existing coordinates are preserved; only missing cells are updated; the temp column is always removed. Not-found queries are cached as None; service exceptions are uncached. Nominatim is rate-limited to 1 req/s via geopy.
 
 **F18 — `Analyzer` methods.**
-`Analyzer(dataframe)` raises TypeError for a non-DataFrame and stores a defensive copy. Five public methods: `get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, `get_bins`. Filters support scalar equality, list `isin`, and dict operators (`>`,`<`,`>=`,`<=`,`!=`,`==`,`contains`); `>`,`<`,`>=`,`<=` coerce with `pd.to_numeric` while `==`/`!=` compare raw; unknown columns are ignored and invalid operations logged/skipped. Computed rules support `where`/`set_col`/`set_value`, `new_col`/`expression`, and `source_col`/`method`/`new_col`; `_is_safe_expression` blocks `__`, `@`, `import`, `lambda`, `;` case-insensitively and is documented as "a guardrail, not a full sandbox". Responses are plain JSON-serializable dicts (`{'data': ...}` plus kwargs; KPI adds `title`); empty conventions are `{'data': []}` or `{'data': None, 'title': ...}`. Never mutates the constructor frame or method inputs.
+`Analyzer(dataframe)` raises TypeError for a non-DataFrame and stores a defensive copy. Five public methods: `get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, `get_bins`. Filters support scalar equality, list `isin`, and dict operators (`>`,`<`,`>=`,`<=`,`!=`,`==`,`contains`); `>`,`<`,`>=`,`<=` coerce with `pd.to_numeric` while `==`/`!=` compare raw; unknown columns are ignored and invalid operations logged/skipped. Computed rules support `where`/`set_col`/`set_value`, `new_col`/`expression`, and `source_col`/`method`/`new_col`; `analytics._internal.security.is_safe_expression` blocks `__`, `@`, `import`, `lambda`, `;` case-insensitively and is documented as "a guardrail, not a full sandbox". Responses are plain JSON-serializable dicts (`{'data': ...}` plus kwargs; KPI adds `title`); empty conventions are `{'data': []}` or `{'data': None, 'title': ...}`. The analyzer does not mutate its constructor frame or method inputs.
 
 **F19 — `profile(df, *columns, output_type=None)` and output-type adaptation.**
 Core: `df` must be a `pd.DataFrame` (else TypeError); a single collection argument may be list/tuple/set; a missing named column raises KeyError. Dispatch: None/`ProfileReport` → report; dict → `report.to_dict()`; `pd.DataFrame` → `report.to_dataframe()`; anything else → TypeError. `BaseData.profile` and the module-level accessor `profile` pre-check `is_basedata_type(output_type)` and construct `output_type(data=summary_frame)`. The core computes dataset metrics (row/column/total cells, missing count/proportion, duplicate rows `keep='first'`, empty columns, deep memory, dtype counts) and per-column kind statistics (numeric, categorical, boolean, datetime, other; unavailable stats are None), using `_internal.dedupe_key` for unhashable values. `ProfileReport.columns` keeps the last occurrence of a duplicate column name while `column_list` preserves every position. Never mutates input, index, or column names; read-only.
 
 **F20 — Optional-dependency failure behavior (cross-cutting).**
-`import_optional(module_name, distribution, feature)` wraps `ImportError` as `ImportError('<feature> requires the optional '<distribution>' dependency.')`, chaining the original; it currently catches any ImportError raised during module import, masking real defects inside an installed optional package (recorded follow-up). Hard-required at call: `categorize_by_reference` → pyahocorasick; `extract_entities_nlp` → spacy/spacy.matcher; `impute_by_language`/`translate_conditional_column` → langdetect; `fill_missing_coordinates` → geopy when no provider; `convert_to_usd` → pycountry/Babel and yfinance when no provider; `save_to_sql` → SQLAlchemy after argument validation. Soft/optional: `extract_keywords` → pyahocorasick with silent regex fallback. Providers import `deep_translator`/`geopy.geocoders`/`geopy.extra.rate_limiter`/`yfinance` in their constructors. `_cached_map` calls `on_fetch_start(total)` only when uncached work exists, and exceptions from it propagate. Cached methods call `get_column_cache` (which may initialize SQLite) before constructing the provider/model. `provider=` injection bypasses default imports. Failures occur before any result is produced; no partial frame is returned.
+`import_optional(module_name, distribution, feature)` wraps `ImportError` as `ImportError('<feature> requires the optional '<distribution>' dependency.')`, chaining the original; it currently catches any ImportError raised during module import, masking real defects inside an installed optional package (recorded follow-up). Hard-required at call: `categorize_by_reference` → pyahocorasick; `extract_entities_nlp` → spacy/spacy.matcher; `impute_by_language`/`translate_conditional_column` → langdetect; `fill_missing_coordinates` → geopy when no provider; `convert_to_usd` → pycountry/Babel and yfinance when no provider; `save_to_sql` → SQLAlchemy after argument validation. Soft/optional: `extract_keywords` → pyahocorasick with silent regex fallback. Providers import `deep_translator`/`geopy.geocoders`/`geopy.extra.rate_limiter`/`yfinance` in their constructors. `cached_map` calls `on_fetch_start(total)` only when uncached work exists, and exceptions from it propagate. Cached methods call `get_column_cache` (which may initialize SQLite) before constructing the provider/model. `provider=` injection bypasses default imports. Failures occur before any result is produced; no partial frame is returned.
 
 ### 2.10 Module responsibility inventory (Current)
 
@@ -519,46 +530,39 @@ public API.
 | `bynat/_internal/__init__.py` | Export the canonical value helper | `dedupe_key` | `_internal.values` | Private |
 | `bynat/_internal/values.py` | Domain-independent value normalization | `dedupe_key` | none | Private |
 | `bynat/analytics/__init__.py` | Export `Analyzer` | `Analyzer` | `analytics.analyzer` | Public |
-| `bynat/analytics/analyzer.py` | Application-independent analytics responses | `Analyzer` + private helpers | none | Public |
+| `bynat/analytics/analyzer.py` | Public analytics interface | `Analyzer` methods and delegation | `_insights`, analytics `_internal` | Public API |
 | `bynat/caching/__init__.py` | Export cache API | `CacheManager`, constants, `shared_cache_manager` | `caching.manager` | Public |
-| `bynat/caching/_keys.py` | Cache-key normalization and lookup | `cache_value_key`, `cache_has_value`, `cache_lookup_value` | none | Private |
+| `bynat/caching/_internal/keys.py` | Cache-key normalization and lookup | `cache_value_key`, `cache_has_value`, `cache_lookup_value` | none | Private |
+| `bynat/caching/_persistence.py` | Cache load/save orchestration | `load_cache`, `persist_cache` | caching internals | Private |
 | `bynat/caching/_migration.py` | Legacy JSON migration and quarantine | `migrate_legacy_json_cache`, `quarantine_corrupt_cache_file` | `caching._storage` | Private |
 | `bynat/caching/_storage.py` | SQLite persistence | `SQLiteStorage`, `connect_sqlite`, constants | none | Private |
-| `bynat/caching/manager.py` | Public cache facade and shared registry | `CacheManager`, `resolve_cache_dir`, `shared_cache_manager`, constants | `caching._migration`, `caching._storage` | Public |
+| `bynat/caching/manager.py` | Public cache API and manager | `CacheManager`, registry, constants | `_persistence`, `_migration`, `_storage`, caching `_internal` | Public API |
 | `bynat/cleaning/__init__.py` | Export class facade | `BaseData`, `CsvFile`, `JsonFile` | `cleaning.base` | Public |
-| `bynat/cleaning/_common.py` | Cleaning-scoped shared helpers | `import_optional`, `require_positive_int`, `left_merge_aligned`, `like`, `logger`, `FrameT`, `HIERARCHICAL_STATS_COLUMNS` | none | Private |
-| `bynat/cleaning/_outputs.py` | Output-type validation/conversion | `is_basedata_type`, `validate_output_type`, `convert_output`, `constructor_accepts_data`, `convert_default_output` | none | Private |
-| `bynat/cleaning/base.py` | Supported `DataFrame` subclass facade | `BaseData`, `JsonFile`, `CsvFile`, `_shares_doc` | `cleaning` modules, `enrich`, `caching`, `profiling`, `_outputs` | Public |
-| `bynat/cleaning/columns.py` | Column/reshape operations | 9 functions | `_common` | Package-internal |
-| `bynat/cleaning/io.py` | JSON/CSV loaders, JSON/SQL writers | `read_json`, `read_csv`, `save_to_json`, `save_to_sql` | `_common`, `_internal` | Package-internal |
-| `bynat/cleaning/stats.py` | Hierarchical statistics/imputation/outliers | 5 public functions + hierarchy helpers | `_common`, `_outputs` | Package-internal |
-| `bynat/cleaning/text.py` | Keyword/truncation/categorization | 3 public functions + matchers | `_common` | Package-internal |
+| `bynat/cleaning/_internal/` | Cleaning-scoped cohesive helpers | frames, hierarchy, matching, optional imports, outputs, SQL, validation, docs | cleaning core | Private helpers |
+| `bynat/cleaning/base.py` | Supported `DataFrame` subclass API | `BaseData`, `JsonFile`, `CsvFile` | private cleaning cores, caching, profiling | Public API |
+| `bynat/cleaning/_columns.py` | Column/reshape core | 9 functions | `_internal` | Private core |
+| `bynat/cleaning/io.py` | JSON/CSV loaders, JSON/SQL writers | `read_json`, `read_csv`, `save_to_json`, `save_to_sql` | `_internal`, library `_internal` | Public API |
+| `bynat/cleaning/_stats.py` | Hierarchical statistics/imputation/outliers | 5 public functions | `_internal` | Private core |
+| `bynat/cleaning/_text.py` | Keyword/truncation/categorization | 3 public functions | `_internal` | Private core |
 | `bynat/cleaning/enrich/__init__.py` | Export provider types | 6 provider symbols | `enrich.providers` | Package-internal |
-| `bynat/cleaning/enrich/currency.py` | Cached USD conversion | `convert_to_usd` | `caching`, `_common`, `engine`, `providers` | Package-internal |
-| `bynat/cleaning/enrich/engine.py` | Shared cached-lookup engine | `_cached_map`, `_rate_limited_map`, `SKIP`, `Fetch`, `FetchMany` | `caching`, `caching._keys`, `_common` | Private |
-| `bynat/cleaning/enrich/geocode.py` | Cached geocoding | `fill_missing_coordinates` | `caching`, `_common`, `engine`, `providers` | Package-internal |
-| `bynat/cleaning/enrich/nlp.py` | Cached spaCy entity extraction | `extract_entities_nlp` | `caching`, `_common`, `engine` | Package-internal |
-| `bynat/cleaning/enrich/providers.py` | Provider protocols and default adapters | 3 protocols + 3 adapters | `_common` | Package-internal |
-| `bynat/cleaning/enrich/translate.py` | Language imputation and cached translation | 3 public functions | `caching`, `caching._keys`, `_common`, `engine`, `providers` | Package-internal |
+| `bynat/cleaning/enrich/_currency.py` | Cached USD conversion | `convert_to_usd` | `caching`, cleaning `_internal`, `_engine`, `providers` | Private core |
+| `bynat/cleaning/enrich/_engine.py` | Shared cached-lookup engine | `cached_map`, `SKIP`, `Fetch`, `FetchMany` | `caching`, cache `_internal`, enrichment `_internal` | Private core |
+| `bynat/cleaning/enrich/_internal/` | Enrichment-specific helpers | mapping, rate-limited calls, translation batching, lexicon, NLP options, rates | enrichment core | Private helpers |
+| `bynat/cleaning/enrich/_geocode.py` | Cached geocoding | `fill_missing_coordinates` | `caching`, cleaning `_internal`, `_engine`, `providers` | Private core |
+| `bynat/cleaning/enrich/_nlp.py` | Cached spaCy entity extraction | `extract_entities_nlp` | `caching`, cleaning `_internal`, `_engine`, enrichment `_internal` | Private core |
+| `bynat/cleaning/enrich/providers.py` | Provider protocols and default adapters | 3 protocols + 3 adapters | cleaning `_internal` | Package-internal |
+| `bynat/cleaning/enrich/_translate.py` | Language imputation and cached translation | 3 public functions | `caching`, cache `_internal`, cleaning/enrichment `_internal`, `_engine`, `providers` | Private core |
+| `bynat/analytics/_insights.py` | Analytics computation implementation | response builders | analytics `_internal` | Private core |
+| `bynat/analytics/_internal/` | Analytics helper implementation | filtering, rule application, expression safety | analytics core | Private helpers |
+| `bynat/profiling/_builders.py` | Profiling report assembly | report builders | profiling `_internal`, report models | Private core |
+| `bynat/profiling/_internal/` | Profiling computations and processing | metric/type helpers | library `_internal` | Private helpers |
 | `bynat/profiling/__init__.py` | Export profiling API | `profile`, 3 report models | `profiling.profile`, `profiling.report` | Public |
-| `bynat/profiling/profile.py` | Non-mutating profiling core | `profile` + kind/stat helpers | `profiling.report`, `_internal` | Package-internal |
+| `bynat/profiling/profile.py` | Public profiling API | `profile` and validation/output dispatch | `_builders`, `report` | Public API |
 | `bynat/profiling/report.py` | Report data models | `ProfileReport`, `DatasetProfile`, `ColumnProfile` | none | Package-internal |
 
-**Current organization versus normative target (Current facts).** The inventory describes the checkout at the current
-HEAD. Several modules currently mix a supported public function/class interface with its substantive implementation
-(for example `cleaning/io.py`'s `save_to_json`/`save_to_sql`, `cleaning/stats.py`, `profiling/profile.py`,
-`analytics/analyzer.py`) and private helpers co-located with the core they support. That is mixed current ownership
-recorded as fact, not approval and not a mandated end state. ARCH-102–ARCH-104 define the normative separation and
-canonical ownership; they are adopted targets that authorize no code move by themselves. Any future separation must
-follow ARCH-055/ARCH-066 and ARCH-092–ARCH-097, preserve every supported path and pinned contract (ARCH-009–ARCH-013),
-and avoid unnecessary wrapper layers.
+**Current organization (Current facts).** Public API modules expose supported interfaces; underscore-prefixed modules contain private core implementations; cohesive shared helper sets live in package-level `_internal/` directories; library-wide domain-independent value normalization lives in `bynat/_internal/`. Commit `946eb16` establishes this organization. Keep these file locations, names, import boundaries, and responsibility assignments as the standard; do not treat conditional growth examples as authorization to reorganize them.
 
-**Existing private owners vs generic collections (Current).** `cleaning/_common.py`, `cleaning/_outputs.py`,
-`caching/_keys.py`, `caching/_storage.py`, `caching/_migration.py`, `cleaning/enrich/engine.py`, and
-`cleaning/enrich/providers.py` are existing private owner modules (ARCH-095), not generic helper containers.
-`bynat/_internal/` is the only generic internal-helper collection and currently holds `values.py` (ARCH-094). The
-helper-placement rules in [§1.15](#115-helper-placement-and-organization) govern future placement; they do not
-require moving these modules.
+**Private core and `_internal/` responsibilities (Current).** Responsibility-specific core modules retain their established underscore-prefixed names. Each package-local `_internal/` owns the cohesive helpers for that scope; `bynat/_internal/` remains the library-wide domain-independent collection and owns `dedupe_key`. The public initializers curate supported exports; internal modules are imported by canonical module path and are not compatibility facades.
 
 ### 2.11 Documented hazards and dispositions (Current)
 
@@ -572,10 +576,10 @@ explicit disposition.
 | 3 | `is_basedata_type` identifies `BaseData` by MRO string matching on `__name__ == 'BaseData'` and `__module__ == 'bynat.cleaning.base'`; renaming or relocating the class silently disables `BaseData` profile output adaptation. | Intentional (avoids a lower-level-to-facade import). Retain; recorded as a **relocation hazard**. |
 | 4 | `shared_cache_manager` constructs a throwaway `CacheManager` probe on every call and registers managers by absolute path in a dict with no eviction; long-lived processes accumulate manager instances. | Intentional lifecycle; process-wide registry. Retain. |
 | 5 | `import_optional` catches any `ImportError` raised during module import and rewrites it as a missing-dependency error, masking genuine defects inside an installed optional package. | Behavioral follow-up (narrow to `ModuleNotFoundError` for the target module, or re-raise when the module is present). |
-| 6 | `Analyzer._is_safe_expression` feeds expressions to `DataFrame.eval` with a token denylist (`__`, `@`, `import`, `lambda`, `;`) documented as "a guardrail, not a full sandbox"; the dynamic eval remains a code-injection surface. | Documented guardrail, not a sandbox. Security/behavioral follow-up, not architectural. |
+| 6 | `analytics._internal.security.is_safe_expression` guards expressions passed to `DataFrame.eval` with a token denylist (`__`, `@`, `import`, `lambda`, `;`) documented as "a guardrail, not a full sandbox"; the dynamic eval remains a code-injection surface. | Documented guardrail, not a sandbox. Security/behavioral follow-up, not architectural. |
 | 7 | `dedupe_key` serializes set, NumPy array, list, and tuple to the same JSON text (for example `[1, 2]`, `(1, 2)`, `{1, 2}`, `np.array([1, 2])` all become `'[1, 2]'`), so profiling duplicate and distinct counting treats values of different Python types as identical. | Behavioral follow-up. |
 | 8 | `JsonFile`/`CsvFile` reinterpret any str or path-like `data` as a file path and raise `FileNotFoundError` when it does not exist; with an explicit path argument the string reaches pandas and raises `ValueError('DataFrame constructor not properly called!')`. | Behavioral edge case; see the F1 contract. |
-| 9 | `CacheManager` still logs legacy `<func>_cache.json` filenames in `delete_column_cache` and `_get_file_path` after persistence moved to SQLite, so operator-facing messages misdescribe storage. | Behavioral follow-up. |
+| 9 | The pre-refactor `_get_file_path` wrapper and its JSON-filename logging are removed; current `delete_column_cache` logs the function and column identifiers without claiming a JSON backing file. | Resolved by the cache persistence refactor. |
 | 10 | `YFinanceRateSource` uses `ticker.history(end=f'{end_year}-12-31')`; yfinance's end is exclusive, so December 31 closes are excluded from the yearly mean. | Behavioral follow-up; verify against the intended inclusive-range contract. |
 | 11 | `ProfileReport.columns` keeps only the last occurrence of a duplicate column name while `column_list` preserves every position; consumers indexing by name silently lose earlier profiles. | Documented asymmetry; behavioral follow-up. |
 | 12 | `NominatimGeocoder`'s default `user_agent` is still `'data_cleaning_core_geocoder'`, a stale pre-rename identifier sent to an external service; `GoogleTranslatorProvider` class knobs `max_workers`/`min_interval` are the only provider tuning surface and are implicit rather than injected. | Behavioral follow-up. |
@@ -589,15 +593,15 @@ doc-sync verification. `import_optional`: **Deferred** behavioral follow-up. `ca
 
 ---
 
-## 3. Conditional future architecture (Conditional proposals)
+## 3. Conditional future architecture (Historical proposals; not current authority)
 
-Nothing in this section is scheduled or current. Each item is gated on its trigger.
+This section preserves earlier conditional evolution analysis. It is not a roadmap and authorizes no structural change. Where any stage, tree, module path, import convention, or example conflicts with the architecture implemented by commit `946eb16` and recorded in §2, that example is superseded and MUST NOT be used to reorganize the current architecture. A future architectural change requires a separate explicit decision; these examples do not provide that authorization.
 
 ### 3.1 Stage model
 
 | Stage | Structure | Status | Trigger to enter |
 |---|---|---|---|
-| **A** | Flat domain modules; one capability subpackage (`cleaning/enrich`) | **Current** | — |
+| **A** | Public API modules, private core modules, and scope-specific `_internal/` packages | **Current (implemented by `946eb16`)** | — |
 | **B** | Capability subpackages inside a domain | Conditional | ≥2 capability clusters, each ≥2 modules with distinct change reasons |
 | **C** | Domain-internal layers (validation / transformation / I/O) | Conditional | A capability subpackage has ≥2 internal layers with distinct consumers and change reasons |
 | **D** | New top-level domain package | Conditional | Coherent capability with its own public contract, lifecycle, and no dependency on existing package internals |
@@ -657,14 +661,13 @@ Renaming the package would break those imports and is not a compatibility-safe i
 
 **Component-level evolution.** A class/protocol is introduced only with a concrete consumer and a lifecycle or
 structural contract; growth does not justify new base classes or protocols. A shared engine (like
-`cleaning/enrich/engine.py`) stays shared only while its contract is stable and its consumers are real; if a
+`cleaning/enrich/_engine.py`) stays shared only while its contract is stable and its consumers are real; if a
 second consumer needs a different contract, the correct move is a separate implementation, not a parameterized
 engine.
 
-### 3.3 Near-term phases
+### 3.3 Historical implementation phases (superseded)
 
-Phase 0–2 are near-term preparation and enforcement. They do not convert modules into packages and do not
-represent future growth. E1–E6 (§3.4) are future structural evolution.
+The following phase table predates commit `946eb16` and is retained only as history. Its status, tree, and import-path assumptions are superseded wherever they differ from the current architecture and current verification evidence. It is not scheduled work.
 
 | Phase | Scope | Entry | Acceptance | Checkpoint | Rollback |
 |---|---|---|---|---|---|
@@ -675,9 +678,9 @@ represent future growth. E1–E6 (§3.4) are future structural evolution.
 **Explicitly deferred (not near-term):** splitting `base.py`; a generic transformation engine; a lazy
 execution layer; expanding `caching.__all__`. Analytics accessor methods were implemented (AE-Q3, [§4](#4-deferred-and-superseded-decisions)).
 
-### 3.4 Conditional scenarios E1–E6
+### 3.4 Historical conditional scenarios E1–E6 (superseded where conflicting)
 
-Each scenario is a stress test of the model, **not scheduled work**. None is sequential; each may occur
+Each scenario is a stress test from the earlier evolution model, **not scheduled work or authority to change the implemented architecture**. None is sequential; each may occur
 independently, in a different order, or never. Each opens only when its responsibility evidence is demonstrated,
 not when a count is reached.
 
@@ -919,22 +922,22 @@ pinned contract.
 No `src/` layout migration; no global `api/`/`domain/`/`infrastructure/` tree; no `shared`, `_shared`,
 `utils`, `helpers`, or `common` generic internal-helper name (`_internal` only, ARCH-094); no
 plugin/registry/DI structure; no lazy execution or query-engine layer; no `fit`/`transform` estimator layer;
-no pre-built capability subpackages and no speculative `_internal/`; and no code move authorized by this
-constitution alone — public-interface/core-implementation and helper/core separation are adopted targets applied
-through ARCH-055/ARCH-066 and ARCH-092–ARCH-097.
+no pre-built capability subpackages and no speculative `_internal/`; and no code move authorized by this constitution alone. The architecture implemented by commit `946eb16` is current and
+fixed; these earlier scenarios do not authorize further separation or relocation. A future architecture change
+requires a separate explicit decision.
 
 ---
 
 ## 4. Deferred and superseded decisions
 
-These are deliberate non-decisions. None prevents the near-term work. AE-Q3 was later decided and implemented, so its row records the outcome instead of an open question.
+These rows preserve earlier decisions and unresolved questions. They do not define current scheduled work; conflicts with the architecture implemented by commit `946eb16` are superseded by §§1–2. AE-Q3 was later decided and implemented, so its row records the outcome instead of an open question.
 
 | ID | Item | Disposition | Revisit trigger |
 |---|---|---|---|
-| AE-Q1 | Should `caching._keys` become a narrow public contract? | Keep private with a documented edge | A second consumer or a user-facing requirement |
+| AE-Q1 | Should `caching._internal.keys` become a narrow public contract? | Keep private with a documented edge | A second consumer or a user-facing requirement |
 | AE-Q2 | Should `base.py` be split or generated? | Defer | Concrete maintenance pain; docstring-generation cost |
 | AE-Q3 | Should any `Analyzer` operation become an accessor method? | Implemented (supersedes Defer); every public operation is exposed on `df.bynat` and delegates to `Analyzer` | Only if the accessor delegation contract changes |
-| AE-Q4 | Should `save_to_sql`'s public interface and implementation be separated? | Superseded: ARCH-036 adopts the separation as a target rule (ARCH-102–ARCH-103); no move is authorized or scheduled. The earlier “No / Never” remains valid only against a standalone move that changes the pinned public path/contract or splits `io.py` solely to isolate the optional SQLAlchemy dependency. | A concrete structural trigger under ARCH-055/ARCH-066 and ARCH-092–ARCH-097 (for example the conditional `io` M2 conversion E1) or a demonstrated maintenance need |
+| AE-Q4 | How should SQL URL construction be owned? | Resolved by commit `946eb16`: `build_engine_url` lives in `cleaning/_internal/sql.py`; `save_to_sql` remains in `cleaning/io.py` and owns the export flow. No further move is implied. | A separate explicit architecture decision |
 | AE-Q5 | Should dependency-boundary enforcement be hardened now? | No | A demonstrated repository enforcement need (Phase 2) |
 | AE-Q6 | When a derived `BaseData` frame's `CacheManager` is cleared or replaced, should the recreated manager inherit the originating custom `cache_dir`? | Missing behavioral contract; no intended contract is stated in repository evidence, so none is invented | A user report or a decision to propagate `_bynat_cache_dir` through pandas metadata |
 | AE-Q7 | Should a `validation` domain be created? | Defer | Roadmap `DQ-02` becomes a concrete requirement |
@@ -968,7 +971,7 @@ The prohibitions in [§1.13](#113-prohibited-patterns) are normative. The evalua
 | Duplicate implementations of shared behavior | Reject | Single canonical helper per responsibility; the alias layer is removed |
 | Polars-style lazy execution layer | Reject | No lazy/optimized execution requirement |
 | `fit`/`transform` estimator layer | Reject | Transformations are stateless functions |
-| Splitting `base.py`/`stats.py`/`analyzer.py` by LOC | Reject | Cohesive; size is documentation or one domain. A responsibility-based interface/implementation or helper separation follows ARCH-055/ARCH-066 and ARCH-102–ARCH-104, never a size threshold. |
+| Splitting `base.py`/`_stats.py`/`analyzer.py` by LOC | Reject | Preserve the module ownership and paths established by commit `946eb16`; LOC is never sufficient justification for a future structural change. |
 | Pre-building capability subpackages | Reject | No trigger; speculative structure |
 | Global layer tree | Reject | Obscures domain ownership |
 | `utils`/`helpers`/`common` catch-all modules | Reject | No responsibility statement; `_internal` is the only prescribed generic internal-helper name (ARCH-094) |
@@ -978,7 +981,7 @@ The prohibitions in [§1.13](#113-prohibited-patterns) are normative. The evalua
 | DI container | Reject | No consumer |
 | `src/` layout migration | Reject | Flat layout is correct; no packaging reason |
 | Renaming public modules | Reject | Public API change without requirement |
-| Moving `save_to_sql` to its own public module or changing its pinned public path | Reject | A standalone move fragments `io` and changes a pinned contract; the lazy import already isolates the optional dependency. Separating its public interface from an internal implementation module under ARCH-036/ARCH-102–ARCH-103 is a distinct adopted target, authorizes no move, and must preserve the supported path and contracts. |
+| Moving `save_to_sql` to its own public module or changing its pinned public path | Reject | Commit `946eb16` keeps `save_to_sql` in `cleaning/io.py` and extracts URL construction to `cleaning/_internal/sql.py`; preserve that ownership and the supported path. |
 | Keeping profiling under `cleaning` | Reject (as target) | Profiling does not transform; `cleaning` would own both transformation and diagnosis |
 | Integrating profiling into `analytics` | Reject | Report diagnostics and application response analytics have different contracts |
 | A broader quality/inspection umbrella now | Defer | Premature without a second substantial capability |
@@ -990,9 +993,9 @@ The prohibitions in [§1.13](#113-prohibited-patterns) are normative. The evalua
 | Broad root re-exports | Reject | Creates accidental API and long-term compatibility commitments |
 | Retaining obsolete root aliases (`BynatAccessor`, `ProfileReport`, `profile`) | Reject | Previous-version compatibility is out of scope; they were removed directly |
 | Keeping `bynat.cleaning.profile` as a compatibility facade | Reject | Obsolete path under target ownership; removed directly |
-| `bynat.cleaning.Cleaning` / `bynat.caching.Caching` shims | Reject | Already removed; only the stale logger names remain (ARCH-049) |
-| Splitting `io.py` solely to isolate SQL | Reject | Dependency isolation alone is not a structural justification; implementation/interface separation under ARCH-102–ARCH-104/ARCH-036 follows the decision procedure and helper-placement rules and preserves the public path. |
-| Splitting `enrich/engine.py` from the feature modules | Reject | The engine is the genuinely shared cached-lookup algorithm |
+| `bynat.cleaning.Cleaning` / `bynat.caching.Caching` shims | Reject | Already removed; module loggers use `logging.getLogger(__name__)` (ARCH-049) |
+| Splitting `io.py` or moving `save_to_sql` | Reject | Commit `946eb16` keeps `save_to_sql` in `cleaning/io.py` and extracts only URL construction to `cleaning/_internal/sql.py`; preserve that ownership and the supported public path. |
+| Splitting `enrich/_engine.py` from the feature modules | Reject | The engine is the genuinely shared cached-lookup algorithm and retains its committed owner. |
 | A generic integration framework / DI container | Reject | Concrete use cases only; no consumer for the abstraction |
 | Expanding `caching.__all__` | Reject | Storage/migration/key modules stay private |
 
@@ -1003,9 +1006,9 @@ The prohibitions in [§1.13](#113-prohibited-patterns) are normative. The evalua
 1. **Propose.** An amendment states the `ARCH-###` IDs added, repealed, or renumbered; the trigger or reason; the
    affected current/conditional/deferred status; and the rollback.
 2. **Check boundaries.** Verify the amendment against ARCH-005 (public surface frozen), ARCH-023 (prohibited edges),
-   ARCH-025 (private-import exceptions), ARCH-064 (reversibility), ARCH-102–ARCH-104 (API/implementation and
-   helper/core separation), and the hard rules ARCH-068. An adopted separation target is not authorization to move
-   code; a structural change still requires ARCH-066/ARCH-099.
+   ARCH-025 (private-import exceptions), ARCH-064 (reversibility), ARCH-102–ARCH-104 (the implemented API/core/helper
+   ownership boundaries), and the hard rules ARCH-068. The current ownership in §2.10 is fixed; a future architectural
+   change still requires separate explicit authorization and ARCH-066/ARCH-099.
 3. **Enforce.** Confirm the change has an automated check or an explicit documented exception (ARCH-063). A new
    cross-package private import requires a new exception entry before merge.
 4. **Resolve conflicts.** Apply ARCH-002 and ARCH-090: label status explicitly; prefer later implemented status over
@@ -1034,15 +1037,15 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 | # | Conflict | Resolution |
 |---|---|---|
 | 1 | `ARCHITECTURE_RESEARCH.md` Phase 0.2/0.3 describes a four-name root and profiling under `cleaning`; its Phase 3 status update and the current code describe a six-name root and `bynat.profiling`. | The research Phase 0 sections are the historical `b2a5f43` baseline. Phase 1–3 were implemented; the six-name root, `bynat.profiling`, and `bynat/_accessors/` are **Current**. |
-| 2 | Research §7 states the `caching._keys` consumers are “cache manager and enrichment engine”; the design §3.3 F-3 corrects this. | The manager does not import `_keys`. The consumers are `cleaning.enrich.engine` and `cleaning.enrich.translate`. Confirmed at HEAD. |
-| 3 | Research §7.1 and the design §3.3 F-7 describe `dedupe_key` ownership. | One canonical implementation exists in `bynat/_internal/values.py`; `cleaning.io` and `profiling.profile` import it. `cleaning._common` no longer defines it. Confirmed at HEAD. |
+| 2 | Research §7 names obsolete pre-refactor cache-key owners and consumers. | The current owner is `caching._internal.keys`; enrichment consumers are `cleaning.enrich._engine` and `_translate`. The manager does not import cache-key helpers. |
+| 3 | Research §7.1 and the design §3.3 F-7 describe `dedupe_key` ownership. | One canonical implementation exists in `bynat/_internal/values.py`; `cleaning.io` and `profiling._internal.computations` import it. The removed `cleaning._common` path is historical only. |
 | 4 | Research baseline measurements (10,171 physical LOC) differ from the design baseline (10,317). | Different commits (`b2a5f43` vs `6bf68bd`) and Phase 1–3 implementation. Not a decision conflict; the design baseline is the later one. |
 | 5 | The task referenced `BYNAT_SCALABLE_ARCHITECTURE_EVOLUTION_STRATEGY.md`. | That file does not exist; the actual document is `architecture/BYNAT_ARCHITECTURE_EVOLUTION_STRATEGY.md`, corrected in place and not renamed. |
-| 6 | The design and strategy decide private-alias normalization and dependency-graph enforcement. | Both are **adopted but not implemented** at HEAD; the constitution states them as rules with a pending-implementation note rather than as current facts. |
+| 6 | The design and strategy decide private-alias normalization and dependency-graph enforcement. | Private-alias normalization is implemented by commit `946eb16`; current dependency checks are separately recorded in §2.8. |
 | 7 | `ARCHITECTURE_RESEARCH.md` is dated 2026-11-21; the design and strategy are dated 2026-11-22. | Later documents supersede earlier historical sections; the current checkout supersedes all source baselines. |
 | 8 | The strategy's Rule of Three guidance (EV-11/EV-12) recommends multiple consumers before sharing, which could be read as blocking same-branch helper extraction. | The Rule of Three is scoped to broader reuse abstraction (ARCH-097); same-branch and multi-file extraction follows the narrowest-common-scope hierarchy (ARCH-092) and is not blocked by the consumer count. |
 | 9 | ARCH-022 as previously written omitted the accessor's imports of the `cleaning.enrich` feature modules, while `_accessors/dataframe.py` imports `currency`, `geocode`, `nlp`, and `translate`. | Verified correction: the actual delegation imports are now permitted edges in ARCH-022 (`_accessors` → `cleaning.enrich.{currency,geocode,nlp,translate}`) because the accessor must directly delegate those public functions; the dependency matrix in §2.4 records them. Rationale: preserve the accessor's required direct delegation without routing through a facade. Rollback would remove these imports only together with an approved alternate permitted delegation path. No public API change; stable ARCH IDs preserved. |
-| 10 | ARCH-036, AE-Q4, and [§5](#5-rejected-patterns) previously kept `save_to_sql` in `cleaning/io.py` and rejected moving it or splitting `io.py`, while ARCH-102 now separates public API definitions/interfaces from core implementation library-wide. | Resolved: ARCH-102–ARCH-103 revise ARCH-036. The prior rejection is limited to a standalone move that changes the pinned public path/contract or splits `io.py` solely to isolate the optional SQLAlchemy dependency. The interface/implementation distinction is an adopted target rule; it authorizes no code move, and the current checkout remains mixed ([§2.10](#210-module-responsibility-inventory-current)). Stable IDs preserved. |
+| 10 | Earlier rules described moving the `save_to_sql` implementation out of `cleaning/io.py`, which conflicts with the responsibility split implemented by commit `946eb16`. | Resolved: `save_to_sql` remains in `cleaning/io.py`; `build_engine_url` is in `cleaning/_internal/sql.py` (ARCH-036). No further move is authorized by the earlier proposal. |
 | 11 | ARCH-092(a)/ARCH-096 kept a single-consumer helper in its file, while ARCH-104 requires helpers to be separate from the core implementation they support. | Harmonized: ARCH-104 is the distinct architectural requirement that overrides the one-file default; the helper goes to the narrowest common scope under ARCH-092 with `_internal` naming (ARCH-094), cohesion (ARCH-093), and no artificial fragmentation. A single helper uses `_internal.py` rather than `_internal/`; related helpers may share a module. |
 
 ### 8.2 Rule-to-source mapping
@@ -1098,8 +1101,9 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 - [`../bynat/cleaning/__init__.py`](../bynat/cleaning/__init__.py), [`../bynat/caching/__init__.py`](../bynat/caching/__init__.py), [`../bynat/analytics/__init__.py`](../bynat/analytics/__init__.py), [`../bynat/profiling/__init__.py`](../bynat/profiling/__init__.py) — package exports.
 - [`../bynat/_accessors/dataframe.py`](../bynat/_accessors/dataframe.py), [`../bynat/_accessors/_binding.py`](../bynat/_accessors/_binding.py), [`../bynat/_accessors/dataframe.pyi`](../bynat/_accessors/dataframe.pyi) — private accessor boundary and generated stub.
 - [`../bynat/_internal/values.py`](../bynat/_internal/values.py) — canonical `dedupe_key`.
-- [`../bynat/caching/manager.py`](../bynat/caching/manager.py), [`../bynat/caching/_keys.py`](../bynat/caching/_keys.py), [`../bynat/caching/_storage.py`](../bynat/caching/_storage.py), [`../bynat/caching/_migration.py`](../bynat/caching/_migration.py) — cache boundary.
-- [`../bynat/cleaning/_common.py`](../bynat/cleaning/_common.py), [`../bynat/cleaning/_outputs.py`](../bynat/cleaning/_outputs.py), [`../bynat/cleaning/enrich/engine.py`](../bynat/cleaning/enrich/engine.py), [`../bynat/cleaning/enrich/providers.py`](../bynat/cleaning/enrich/providers.py) — shared owners and private-import exceptions.
+- [`../bynat/caching/manager.py`](../bynat/caching/manager.py), [`../bynat/caching/_persistence.py`](../bynat/caching/_persistence.py), [`../bynat/caching/_storage.py`](../bynat/caching/_storage.py), [`../bynat/caching/_migration.py`](../bynat/caching/_migration.py), [`../bynat/caching/_internal/keys.py`](../bynat/caching/_internal/keys.py) — cache boundary.
+- [`../bynat/cleaning/_internal/`](../bynat/cleaning/_internal/), [`../bynat/cleaning/enrich/_engine.py`](../bynat/cleaning/enrich/_engine.py), [`../bynat/cleaning/enrich/_internal/`](../bynat/cleaning/enrich/_internal/), [`../bynat/cleaning/enrich/providers.py`](../bynat/cleaning/enrich/providers.py) — cleaning and enrichment core/helper ownership.
+- [`../bynat/analytics/analyzer.py`](../bynat/analytics/analyzer.py), [`../bynat/analytics/_insights.py`](../bynat/analytics/_insights.py), [`../bynat/analytics/_internal/`](../bynat/analytics/_internal/), [`../bynat/profiling/_builders.py`](../bynat/profiling/_builders.py), [`../bynat/profiling/_internal/`](../bynat/profiling/_internal/) — analytics and profiling ownership.
 - [`../tools/sync_docs.py`](../tools/sync_docs.py) — generated stub and docstring synchronization.
 - Current repository boundary-verification artifacts — evidence for the current export, accessor, profiling, and shared-helper boundaries; their testing details remain governed by `docs/TESTING_STANDARDS.md`.
 
@@ -1191,7 +1195,7 @@ reference material; the constitutional rules stand independently.
 | E-7 | A modular monolith keeps one deployable but organizes bounded contexts with explicit public interfaces; GitLab enforces privacy and explicit dependencies with a static analyzer (Packwerk). | Adopt the boundary-enforcement idea; reject multi-service extraction and event buses. |
 | E-8 | NumPy documents three module tiers, computes `numpy.__all__` as a union of submodule `__all__` lists, moved `numpy.core` to private `numpy._core`, and states in NEP 52 the goals of a clear public/private distinction and one canonical location per public function. | Supports a deliberate public `__all__`, a private `_internal` package, and one canonical helper location; does not justify renaming public modules. |
 | E-9 | Synthesis of E-1/E-2: a transformation contract specifies length/order preservation, copy semantics, output container, and stateless vs stateful. | bynat already states index/order preservation, `inplace`, and `output_type`; preserve these and add no stateful estimator layer. |
-| E-10 | Import Linter contract types: `forbidden`, `protected`, `layers`, `independence`, `private_modules` (underscore modules scoped to their parent package), `acyclic_siblings`; configured in `.importlinter`/`setup.cfg`/`pyproject.toml`; `ignore_imports` exempts an edge. | Recommended enforcement mechanism; a `protected` contract on `bynat.caching._keys` with an allow-list is more precise than a blanket `private_modules` exception. |
+| E-10 | Import Linter contract types: `forbidden`, `protected`, `layers`, `independence`, `private_modules` (underscore modules scoped to their parent package), `acyclic_siblings`; configured in `.importlinter`/`setup.cfg`/`pyproject.toml`; `ignore_imports` exempts an edge. | Recommended enforcement mechanism; a `protected` contract on `bynat.caching._internal.keys` with an allow-list is more precise than a blanket `private_modules` exception. |
 | E-11 | PyPA documents naming-convention, namespace-package, and entry-point plugin discovery; entry points are justified when multiple independently distributed plugins implement one interface, unjustified when all implementations ship in one distribution. | No third-party plugin requirement; reject entry-point discovery and registries. |
 | E-12 | Importing a package executes its `__init__.py`; `__all__` controls `from package import *` and signals the public surface. | Explicit root/package imports and exact `__all__` are the correct mechanism; incidental import-order attributes are not API. |
 | E-13 | PEP 621 `optional-dependencies` maps each extra to `Requires-Dist` entries guarded by the extra name. | Extras are correctly declared; no change. |

@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-__all__ = ["dedupe_key", "clean_scalar", "detect_column_kind"]
+__all__ = ["clean_scalar", "detect_column_kind"]
 
 def clean_scalar(val: Any) -> Any:
     """

@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from bynat.cleaning import _text
+from bynat.cleaning._internal import matching
 from tests.cross_cutting.equivalence._bench_refs import _legacy_extract_keywords
 
 pytestmark = pytest.mark.integration
@@ -107,7 +108,12 @@ def test_extract_keywords_aho_corasick_and_regex_paths_agree(monkeypatch, keywor
     keywords = ["data", "data analyst", "analyst", "c++", ".net", "x_y", "red"]
 
     with_automaton = _text.extract_keywords(keyword_frame, "title", "body", found=keywords)
-    monkeypatch.setattr(_text, "_optional_ahocorasick", lambda: None)
+    original_try_import = matching.try_import
+    monkeypatch.setattr(
+        matching,
+        "try_import",
+        lambda module_name: None if module_name == "ahocorasick" else original_try_import(module_name),
+    )
     regex_only = _text.extract_keywords(keyword_frame, "title", "body", found=keywords)
 
     pd.testing.assert_frame_equal(with_automaton, regex_only)

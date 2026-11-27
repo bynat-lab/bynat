@@ -14,19 +14,14 @@ script makes that check reproducible and offline:
 3. import ``bynat`` from a directory outside the checkout and assert that the
    imported package, its distribution metadata, and its public package files
    all come from the installed wheel rather than any source tree;
-4. copy the complete ``tests/`` tree, the development tooling
-   ``tools/sync_docs.py``, and the source artifacts the doc-drift test reads
-   into a scratch test root, then run the full suite, the four target
-   verification files, and an installed-distribution smoke test against the
-   installed wheel.
+4. copy the complete ``tests/`` tree and the development tooling
+   ``benchmarks/reference_impls.py`` into a scratch test root, then run the
+   full suite, the four target verification files, and an installed-
+   distribution smoke test against the installed wheel.
 
-The doc-drift test reads source files (``bynat/py.typed``,
-``bynat/cleaning/base.py``, ``bynat/cleaning/accessor.py``, and
-``bynat/cleaning/accessor.pyi``). Those files are copied into the scratch test
-root without ``__init__.py``, so they form a PEP 420 namespace portion that
-never shadows the regular ``bynat`` package installed in the venv
-site-packages; the test still compares the source artifacts with the installed
-modules.
+The installed wheel is checked for its ``bynat/py.typed`` marker and its
+accessor package files, which must resolve from the venv site-packages
+rather than any source tree.
 
 Usage:
     python tools/verify_installed_wheel.py [--python PATH] [--keep]
@@ -54,28 +49,35 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = "bynat"
 PHASE3_TESTS = (
-    "tests/modules/io/test_io_append.py",
-    "tests/modules/io/test_io_json.py",
-    "tests/modules/io/test_io_read.py",
-    "tests/modules/enrichment/optional/test_optional_ahocorasick.py",
-    "tests/modules/enrichment/optional/test_optional_sqlalchemy.py",
-    "tests/modules/columns/test_columns_pivot.py",
-    "tests/modules/columns/test_columns_split.py",
-    "tests/modules/columns/test_columns_structural.py",
-    "tests/cross_cutting/accessor/test_parity.py",
+    "tests/integration/io/test_io_append.py",
+    "tests/integration/io/test_io_json_format.py",
+    "tests/integration/io/test_io_json_overwrite.py",
+    "tests/integration/io/test_io_read.py",
+    "tests/integration/io/test_io_sql.py",
+    "tests/integration/enrichment/test_optional_categorization.py",
+    "tests/integration/enrichment/test_optional_sql.py",
+    "tests/unit/columns/test_columns_pivot.py",
+    "tests/unit/columns/test_columns_split.py",
+    "tests/unit/columns/test_columns_structural.py",
+    "tests/parity/class_accessor/test_accessor_class_parity.py",
 )
-TOP_LEVEL_EXPORTS = {"BynatAccessor", "ProfileReport", "profile", "read_csv", "read_json"}
+TOP_LEVEL_EXPORTS = {
+    "cleaning",
+    "caching",
+    "analytics",
+    "profiling",
+    "read_csv",
+    "read_json",
+}
 CLEANING_EXPORTS = {"BaseData", "CsvFile", "JsonFile"}
-PACKAGE_DATA = ("bynat/py.typed", "bynat/cleaning/accessor.pyi")
-
-TEST_TOOLING = ("tools/sync_docs.py", "benchmarks/reference_impls.py")
-
-DOC_DRIFT_SOURCE_FILES = (
-    "bynat/py.typed",
-    "bynat/cleaning/base.py",
-    "bynat/cleaning/accessor.py",
-    "bynat/cleaning/accessor.pyi",
+PACKAGE_DATA = ("bynat/py.typed",)
+ACCESSOR_PACKAGE_FILES = (
+    "bynat/_accessors/__init__.py",
+    "bynat/_accessors/_binding.py",
+    "bynat/_accessors/dataframe.py",
 )
+
+TEST_TOOLING = ("benchmarks/reference_impls.py",)
 
 SOURCE_COPY_IGNORE = shutil.ignore_patterns(
     ".git",
@@ -447,6 +449,16 @@ def _verify_installed(
         failures.append(f"source package files missing from the wheel: {sorted(source_files - wheel_files)}")
     if not set(PACKAGE_DATA) <= wheel_files:
         failures.append(f"package data missing from the wheel: {sorted(set(PACKAGE_DATA) - wheel_files)}")
+    if not set(ACCESSOR_PACKAGE_FILES) <= wheel_files:
+        failures.append(
+            "accessor package files missing from the wheel: "
+            f"{sorted(set(ACCESSOR_PACKAGE_FILES) - wheel_files)}"
+        )
+    if not set(ACCESSOR_PACKAGE_FILES) <= installed_files:
+        failures.append(
+            "accessor package files missing from the installed distribution: "
+            f"{sorted(set(ACCESSOR_PACKAGE_FILES) - installed_files)}"
+        )
     if source_files != installed_files:
         failures.append(
             "installed package files differ from the source package files: "
@@ -495,10 +507,6 @@ def _prepare_test_root(scratch: Path, source_root: Path) -> Path:
         if Path(relative).parent != Path("."):
             (testroot / Path(relative).parent).mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source_root / relative, testroot / relative)
-    for relative in DOC_DRIFT_SOURCE_FILES:
-        destination = testroot / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source_root / relative, destination)
     smoke_dir = testroot / "smoke"
     smoke_dir.mkdir()
     (smoke_dir / "test_installed_distribution_smoke.py").write_text(SMOKE_TEST, encoding="utf-8")

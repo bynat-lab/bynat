@@ -1,10 +1,10 @@
 [cosmic-ray]
 module-path = [
-    "bynat/cleaning/stats.py",
-    "bynat/cleaning/enrich/engine.py",
+    "bynat/cleaning/_stats.py",
+    "bynat/cleaning/enrich/_engine.py",
     "bynat/caching/manager.py",
 ]
-test-command = "python -m pytest -q -x -o addopts=\"\" tests/modules/stats tests/modules/enrichment tests/modules/caching -m \"not slow and not extras and not network\""
+test-command = "python -m pytest -q -x -o addopts=\"\" tests/unit tests/integration tests/contracts tests/parity tests/equivalence tests/regression tests/properties -m \"not slow and not extras and not network\""
 timeout = 30.0
 
 [cosmic-ray.distributor]

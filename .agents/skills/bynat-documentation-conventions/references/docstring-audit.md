@@ -9,7 +9,7 @@ make the docstrings consistent.
 - Enumerate every module and every public function, method, and class with an AST
   walk; record missing docstrings and docstrings that are a single line.
 - Identify the generated artifacts first: `bynat/cleaning/base.py` carries literal
-  copies of the shared docstrings, and `bynat/cleaning/accessor.pyi` carries the
+  copies of the shared docstrings, and `bynat/_accessors/dataframe.pyi` carries the
   accessor signatures with the same docstrings. Both come from
   `tools/sync_docs.py`; a hand edit is overwritten on the next run.
 - Make the convention explicit before changing it: parse every docstring and
@@ -62,7 +62,7 @@ Probe at least:
   `io.py`, `enrich/*.py`, `analytics/analyzer.py`, `caching/*.py`, `_common.py`,
   and `_outputs.py`.
 - Run `.venv-check/Scripts/python tools/sync_docs.py` to rewrite `base.py` and
-  `accessor.pyi`.
+  `bynat/_accessors/dataframe.pyi`.
 - Run `.venv-check/Scripts/python tools/sync_docs.py --check` as its own
   command; it exits 1 on drift and aborts an `&&` chain.
 

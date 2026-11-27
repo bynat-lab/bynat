@@ -1,0 +1,139 @@
+import importlib
+import inspect
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from bynat._accessors import BynatAccessor
+from bynat.analytics import Analyzer
+from bynat.caching import CacheManager
+from bynat.cleaning import BaseData
+
+pytestmark = pytest.mark.integration
+
+
+ANALYTICS_METHODS = (
+    "get_categorical_distribution",
+    "get_numerical_aggregation",
+    "get_time_series",
+    "get_kpi_value",
+    "get_bins",
+)
+
+
+def test_accessor_methods_expose_signatures_without_the_frame_or_cache_manager():
+    parameters = inspect.signature(BynatAccessor.translate_categorical_column).parameters
+
+    assert list(parameters)[:2] == ["self", "target_col"]
+    assert "cache_manager" not in parameters
+    assert "provider" in parameters
+    inplace_parameter = inspect.signature(BynatAccessor.drop_by_substring).parameters["inplace"]
+    assert inplace_parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    assert inplace_parameter.default is False
+
+
+@pytest.mark.parametrize("method_name", ANALYTICS_METHODS)
+def test_accessor_analytics_docstring_summaries_match_analyzer(method_name):
+    accessor_summary = inspect.getdoc(getattr(BynatAccessor, method_name)).splitlines()[0]
+    analyzer_summary = inspect.getdoc(getattr(Analyzer, method_name)).splitlines()[0]
+    assert accessor_summary == analyzer_summary
+
+
+def test_runtime_inspect_signature_and_help_preserved():
+    """Runtime inspect.signature and __doc__ must continue to reflect wrapped functions."""
+    from bynat.cleaning import _stats
+    from bynat.cleaning.enrich import _currency
+
+    df = pd.DataFrame({"a": [1.0, None], "country": ["US", "US"], "year": [2020, 2020]})
+
+    base_sig = inspect.signature(BaseData.fill_missing)
+    assert "strategy" in base_sig.parameters
+    assert "hierarchy_cols" in base_sig.parameters
+    assert "min_samples" in base_sig.parameters
+    assert "fallback_global" in base_sig.parameters
+    assert BaseData.fill_missing.__doc__ is not None
+    assert "Impute missing values by progressively relaxing" in BaseData.fill_missing.__doc__
+
+    class_sig = inspect.signature(BynatAccessor.fill_missing)
+    assert list(class_sig.parameters.keys()) == [
+        "self", "target_cols", "inplace", "strategy", "hierarchy_cols", "min_samples",
+        "fallback_global", "get_hierarchical_stats"
+    ]
+
+    bound_sig = inspect.signature(df.bynat.fill_missing)
+    assert list(bound_sig.parameters.keys()) == [
+        "target_cols", "inplace", "strategy", "hierarchy_cols", "min_samples",
+        "fallback_global", "get_hierarchical_stats"
+    ]
+    assert "cache_manager" not in inspect.signature(df.bynat.convert_to_usd).parameters
+    assert df.bynat.convert_to_usd.__doc__ == _currency.convert_to_usd.__doc__
+    assert df.bynat.fill_missing.__doc__ == _stats.fill_missing.__doc__
+
+    base_from_sig = inspect.signature(BaseData.fill_missing_from)
+    assert "dataset" in base_from_sig.parameters
+    assert "match_cols" in base_from_sig.parameters
+    assert "targets" in base_from_sig.parameters
+    assert "strategy" in base_from_sig.parameters
+    assert "hierarchy_cols" in base_from_sig.parameters
+    assert "min_samples" in base_from_sig.parameters
+    assert "fallback_global" in base_from_sig.parameters
+    assert "inplace" in base_from_sig.parameters
+    assert "get_hierarchical_stats" in base_from_sig.parameters
+    assert BaseData.fill_missing_from.__doc__ is not None
+    assert "Impute missing values using statistics calculated from a reference dataset" in BaseData.fill_missing_from.__doc__
+
+    class_from_sig = inspect.signature(BynatAccessor.fill_missing_from)
+    assert list(class_from_sig.parameters.keys()) == [
+        "self", "dataset", "target_cols", "inplace", "match_cols", "targets", "strategy",
+        "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+    ]
+
+    bound_from_sig = inspect.signature(df.bynat.fill_missing_from)
+    assert list(bound_from_sig.parameters.keys()) == [
+        "dataset", "target_cols", "inplace", "match_cols", "targets", "strategy",
+        "hierarchy_cols", "min_samples", "fallback_global", "get_hierarchical_stats"
+    ]
+    assert df.bynat.fill_missing_from.__doc__ == _stats.fill_missing_from.__doc__
+
+
+def test_documented_caching_exports_and_cleaning_namespace_boundary():
+    """Verify caching package exports and strict cleaning namespace boundaries."""
+    import bynat.cleaning
+    from bynat.caching import (
+        CACHE_DIR_ENV_VAR,
+        DEFAULT_CACHE_DIR,
+        shared_cache_manager,
+    )
+
+    assert CACHE_DIR_ENV_VAR == "BYNAT_CACHE_DIR"
+    assert isinstance(DEFAULT_CACHE_DIR, (Path, str))
+    assert DEFAULT_CACHE_DIR == "Settings/Cache Data/Automated"
+    mgr = shared_cache_manager()
+    assert isinstance(mgr, CacheManager)
+    assert sorted(bynat.cleaning.__all__) == ["BaseData", "CsvFile", "JsonFile"]
+
+
+def test_package_modules_declare_valid_all_and_remove_legacy_shims():
+    import bynat
+
+    package_root = Path(bynat.__file__).resolve().parent
+    module_paths = sorted(package_root.rglob("*.py"))
+    assert module_paths
+
+    for path in module_paths:
+        rel_parts = path.relative_to(package_root.parent).with_suffix("").parts
+        module_name = ".".join(rel_parts[:-1] if rel_parts[-1] == "__init__" else rel_parts)
+        module = importlib.import_module(module_name)
+        assert hasattr(module, "__all__"), f"{module_name} is missing __all__"
+        exports = module.__all__
+        assert isinstance(exports, (list, tuple)), f"{module_name}.__all__ must be list or tuple"
+        for symbol in exports:
+            assert isinstance(symbol, str) and not symbol.startswith("_"), (
+                f"{module_name}.__all__ exposes invalid symbol {symbol!r}"
+            )
+            assert hasattr(module, symbol), f"{module_name}.__all__ declares missing {symbol!r}"
+
+    for removed_shim in ("bynat.cleaning.Cleaning", "bynat.caching.Caching"):
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(removed_shim)

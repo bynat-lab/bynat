@@ -1,13 +1,13 @@
 """JSON and SQL export helpers, and the JSON/CSV loaders."""
 
-import json
+import logging
 import os
-import urllib.parse
-from typing import Any, Literal
+from typing import Any
 
 import pandas as pd
 
-from ._common import _dedupe_key, _import_optional, logger
+from ._readers import load_json_payload, normalize_records, read_csv_records
+from ._writers import IfExists, JsonOrient, write_json, write_sql
 
 __all__ = [
     "IfExists",
@@ -18,16 +18,14 @@ __all__ = [
     "save_to_sql",
 ]
 
-JsonOrient = Literal['split', 'records', 'index', 'columns', 'values', 'table']
-IfExists = Literal['fail', 'replace', 'append']
+logger = logging.getLogger(__name__)
 
 
 def read_json(
     json_file_path: str | os.PathLike,
     key: str | None = None,
 ) -> pd.DataFrame:
-    """
-    Read a JSON file into a plain `pandas.DataFrame`.
+    """Read a JSON file into a plain `pandas.DataFrame`.
 
     The payload is flattened with `pandas.json_normalize`, as `JsonFile`
     does. Use the `df.bynat` accessor on the result for bynat methods.
@@ -47,9 +45,9 @@ def read_json(
 
     Example:
     ```
-        import bynat
+        from bynat.cleaning.io import read_json
 
-        jobs = bynat.read_json("jobs.json", key="items")
+        jobs = read_json("jobs.json", key="items")
         jobs = jobs.bynat.rename_all_DOTS()
     ```
     """
@@ -58,8 +56,7 @@ def read_json(
     if not os.path.isfile(path):
         raise FileNotFoundError(f"JSON file not found: {path}")
 
-    with open(path, encoding = "utf-8") as file:
-        raw_data = json.load(file)
+    raw_data = load_json_payload(path)
 
     if key:
         if not isinstance(raw_data, dict):
@@ -70,12 +67,11 @@ def read_json(
 
         raw_data = raw_data[key]
 
-    return pd.json_normalize(raw_data)
+    return normalize_records(raw_data)
 
 
 def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFrame:
-    """
-    Read a CSV file into a plain `pandas.DataFrame`.
+    """Read a CSV file into a plain `pandas.DataFrame`.
 
     Args:
         csv_file_path (str | os.PathLike): Path to the CSV file.
@@ -90,9 +86,9 @@ def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFra
 
     Example:
     ```
-        import bynat
+        from bynat.cleaning.io import read_csv
 
-        people = bynat.read_csv("people.csv", sep=";")
+        people = read_csv("people.csv", sep=";")
     ```
     """
     path = os.fspath(csv_file_path)
@@ -100,7 +96,7 @@ def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFra
     if not os.path.isfile(path):
         raise FileNotFoundError(f"CSV file not found: {path}")
 
-    return pd.read_csv(path, **read_kwargs)
+    return read_csv_records(path, **read_kwargs)
 
 
 def save_to_json(
@@ -111,8 +107,7 @@ def save_to_json(
     force_ascii: bool = False,
     indent: int = 4
 ) -> None:
-    """
-    Save the dataframe to a JSON file only when content has changed.
+    """Save the dataframe to a JSON file only when content has changed.
 
     Notes:
         Before writing, the method compares the current dataframe payload to
@@ -130,6 +125,7 @@ def save_to_json(
         created.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         file_path (str | os.PathLike): Destination JSON file path.
         orient (str): JSON orientation passed to `pandas.DataFrame.to_json`.
             Defaults to `"records"`.
@@ -142,93 +138,24 @@ def save_to_json(
         indent (int): Indentation width used when writing to disk. Defaults
             to 4.
 
-    Returns:
-        None. Nothing is written when an existing non-append file already
-        holds identical content.
-
     Raises:
         ValueError: If `file_path` is empty, or if `append=True` and the
             existing file cannot be read with the given `orient`.
+
     """
     file_path = os.fspath(file_path).strip() if file_path is not None else ""
 
     if not file_path:
         raise ValueError("file_path cannot be empty.")
 
-    export_df = df.copy()
-
-    for col in export_df.select_dtypes(include = ['datetime', 'datetimetz']).columns:
-        export_df[col] = export_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-    is_append_successful = False
-    new_rows_count = len(export_df)
-
-    duplicates_removed = 0
-
-    if os.path.exists(file_path):
-        if append:
-            try:
-                existing_df = pd.read_json(file_path, orient = orient)
-
-            except ValueError as e:
-                # Overwriting here would silently destroy the existing file.
-                raise ValueError(
-                    f"Cannot append to '{file_path}': it is not readable as orient='{orient}' JSON."
-                ) from e
-
-            combined_df = pd.concat([existing_df, export_df], ignore_index = True)
-
-            initial_count = len(combined_df)
-
-            try:
-                duplicate_mask = combined_df.duplicated()
-
-            except TypeError:
-                # Lists and dicts are unhashable, so compare object columns by a JSON key.
-                dedupe_view = combined_df.copy(deep = False)
-
-                for col in dedupe_view.select_dtypes(include = 'object').columns:
-                    dedupe_view[col] = dedupe_view[col].map(_dedupe_key)
-
-                duplicate_mask = dedupe_view.duplicated()
-
-            combined_df = combined_df[~duplicate_mask].reset_index(drop = True)
-            duplicates_removed = initial_count - len(combined_df)
-
-            export_df = combined_df
-            is_append_successful = True
-
-        else:
-            try:
-                json_str = export_df.to_json(orient = orient, force_ascii = force_ascii)
-                current_data = json.loads(json_str)
-
-                with open(file_path, encoding = 'utf-8') as f:
-                    existing_data = json.load(f)
-
-                if current_data == existing_data:
-                    logger.info("[SKIP] No changes detected. '%s' is already up to date.", os.path.basename(file_path))
-
-                    return None
-
-            except Exception as e:
-                logger.warning("Could not read existing file for comparison (%s). Overwriting...", e)
-
-    output_dir = os.path.dirname(file_path)
-
-    if output_dir:
-        os.makedirs(output_dir, exist_ok = True)
-
-    export_df.to_json(file_path, orient = orient, force_ascii = force_ascii, indent = indent)
-
-    if is_append_successful:
-        logger.info("[APPEND] Added %s new rows. Removed %s duplicates. Total jobs: %s.", new_rows_count, duplicates_removed, len(export_df))
-
-    else:
-        logger.info("[OVERWRITE] Save completed successfully! Total rows: %s.", len(export_df))
-
-    return None
-
+    write_json(
+        df,
+        file_path,
+        orient = orient,
+        append = append,
+        force_ascii = force_ascii,
+        indent = indent,
+    )
 
 def save_to_sql(
     df: pd.DataFrame,
@@ -246,8 +173,7 @@ def save_to_sql(
     if_exists: IfExists = 'append',
     index: bool = False
 ) -> None:
-    """
-    Save the dataframe to a SQL database table using SQLAlchemy.
+    """Save the dataframe to a SQL database table using SQLAlchemy.
 
     Notes:
         The method supports standard SQLAlchemy URL styles and includes
@@ -261,6 +187,7 @@ def save_to_sql(
         is disposed of after the write, whether it succeeds or fails.
 
     Args:
+        df: The source dataframe. The standalone function never modifies it.
         table_name (str): The name of the SQL table to write to.
         database_type (str): SQLAlchemy dialect/driver, for example
             `"postgresql+psycopg2"`, `"mysql+pymysql"`, `"mssql+pyodbc"`,
@@ -283,9 +210,6 @@ def save_to_sql(
             Options: 'fail', 'replace', 'append'. Defaults to 'append'.
         index (bool): Whether to write the DataFrame index as a SQL column.
             Defaults to False.
-
-    Returns:
-        None
 
     Raises:
         ValueError: If `table_name` or `database_type` is empty, if
@@ -310,8 +234,8 @@ def save_to_sql(
             index=False
         )
     ```
-    """
 
+    """
     db_type = str(database_type or '').strip().lower()
     db_user = str(database_user or '').strip()
     db_pass = str(database_password or '').strip()
@@ -320,7 +244,6 @@ def save_to_sql(
     db_name = str(database_name or '').strip()
     db_driver = str(database_driver or '').strip() or None
     table_name = str(table_name or '').strip()
-    engine_kwargs = {}
 
     if not table_name:
         raise ValueError("table_name cannot be empty.")
@@ -331,65 +254,19 @@ def save_to_sql(
     if not db_type:
         raise ValueError("database_type cannot be empty.")
 
-    if db_type.startswith('sqlite'):
-        if not db_name:
-            raise ValueError("database_name is required for SQLite.")
-
-        if db_name == ':memory:':
-            engine_url = "sqlite:///:memory:"
-
-        else:
-            engine_url = f"sqlite:///{db_name}"
-
-    elif 'mssql' in db_type or 'sqlserver' in db_type:
-        if not all([db_user, db_pass, db_host, db_port, db_name]):
-            raise ValueError("SQL Server needs database_user, database_password, database_host, database_port, and database_name.")
-
-        if not db_driver:
-            raise ValueError("database_driver is required for SQL Server.")
-
-        encoded_driver = urllib.parse.quote_plus(db_driver)
-        encoded_user = urllib.parse.quote_plus(db_user)
-        encoded_pass = urllib.parse.quote_plus(db_pass)
-
-        engine_url = f"{db_type}://{encoded_user}:{encoded_pass}@{db_host}:{db_port}/{db_name}?driver={encoded_driver}"
-        engine_kwargs['fast_executemany'] = fast_executemany
-
-    else:
-
-        if not all([db_user, db_pass, db_host, db_port, db_name]):
-            raise ValueError("database_user, database_password, database_host, database_port, and database_name are required.")
-
-        encoded_user = urllib.parse.quote_plus(db_user)
-        encoded_pass = urllib.parse.quote_plus(db_pass)
-
-        engine_url = f"{db_type}://{encoded_user}:{encoded_pass}@{db_host}:{db_port}/{db_name}"
-
-    sqlalchemy = _import_optional("sqlalchemy", "SQLAlchemy", "save_to_sql")
-
-    export_df = df.copy()
-
-    # Normalize timezone-aware datetimes for SQL drivers that do not accept timezone-aware pandas dtypes.
-    for col in export_df.select_dtypes(include = ['datetimetz']).columns:
-        export_df[col] = export_df[col].dt.tz_localize(None)
-
-    engine = sqlalchemy.create_engine(engine_url, **engine_kwargs)
-
-    try:
-        logger.info("Pushing data to SQL table '%s' at %s...", table_name, db_host)
-
-        export_df.to_sql(
-            table_name,
-            con = engine,
-            if_exists = if_exists,
-            index = index,
-            dtype = columns_types,
-            chunksize = chunk_size if chunk_size else None
-        )
-
-        logger.info("Database save completed successfully!")
-
-    finally:
-        engine.dispose()
-
-    return None
+    write_sql(
+        df,
+        table_name,
+        db_type,
+        db_user,
+        db_pass,
+        db_host,
+        db_port,
+        db_name,
+        db_driver,
+        columns_types,
+        chunk_size,
+        fast_executemany,
+        if_exists,
+        index,
+    )

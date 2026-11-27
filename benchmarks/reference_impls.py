@@ -10,7 +10,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from bynat.cleaning._common import _left_merge_aligned
+from bynat.cleaning._internal import left_merge_aligned
 
 
 def _legacy_extract_keywords(df, *source_cols, remove_extracted=False, use_regex=False, **target_cols_and_keywords):
@@ -95,7 +95,7 @@ def _legacy_outlier_masks(result, target_col, hierarchy_cols, min_samples, on_ou
             iqr = bounds['q3'] - bounds['q1']
             bounds['lower_bound'] = bounds['q1'] - 1.5 * iqr
             bounds['upper_bound'] = bounds['q3'] + 1.5 * iqr
-            merged_df = _left_merge_aligned(result, bounds.drop(columns=['q1', 'q3']), current_hierarchy)
+            merged_df = left_merge_aligned(result, bounds.drop(columns=['q1', 'q3']), current_hierarchy)
             is_outlier = (
                 valid_group_mask & unprocessed_mask &
                 merged_df['lower_bound'].notna() &
@@ -197,7 +197,7 @@ def _legacy_convert_to_usd(
     rates_df = pd.Series(rates_mapping).reset_index()
     if not rates_df.empty:
         rates_df.columns = [country_col, year_col, "_conversion_rate"]
-        temp_df = _left_merge_aligned(result, rates_df, [country_col, year_col])
+        temp_df = left_merge_aligned(result, rates_df, [country_col, year_col])
         for col in valid_cols:
             col_name = f"{col}_usd" if new_cols else col
             result[col_name] = result[col] / temp_df["_conversion_rate"]

@@ -144,11 +144,12 @@ Both versions return a new object and leave `records` unchanged. Accessor method
 
 ## Using bynat
 
-bynat has three parts that work together:
+bynat has four parts that work together:
 
 - **Cleaning** (`bynat.cleaning`): column, text, statistics, enrichment, and file methods.
 - **Analytics** (`bynat.analytics`): reusable DataFrame aggregations, distributions, time series, KPIs, and histogram bins.
 - **Caching** (`bynat.caching`): SQLite-backed storage for lookup results.
+- **Profiling** (`bynat.profiling`): non-mutating data-quality inspection and profiling reports.
 
 Cleaning methods that call outside services (translation, geocoding, NLP extraction, and exchange-rate lookup) use a shared `CacheManager`. See [Caching](#caching).
 
@@ -168,22 +169,26 @@ The accessor is always called `bynat` (`df.bynat...`), whatever alias you give t
 
 ```python
 import bynat                          # registers the df.bynat accessor
-from bynat import ProfileReport, profile, read_csv, read_json
+from bynat import read_csv, read_json
 from bynat.caching import CacheManager, shared_cache_manager
 from bynat.cleaning import BaseData, CsvFile, JsonFile
 from bynat.cleaning.enrich import Geocoder, RateSource, Translator
+from bynat.cleaning.io import save_to_json, save_to_sql
+from bynat.profiling import ProfileReport, profile
 ```
 
 What each module provides:
 
 | Module | Public objects |
 | --- | --- |
-| `bynat` | `read_json`, `read_csv`, `BynatAccessor`, `profile`, `ProfileReport` |
+| `bynat` | `cleaning`, `caching`, `analytics`, `profiling`, `read_csv`, `read_json` (importing `bynat` also registers `df.bynat`) |
 | `bynat.caching` | `CacheManager`, `shared_cache_manager`, `CACHE_DIR_ENV_VAR`, `DEFAULT_CACHE_DIR` |
 | `bynat.cleaning` | `BaseData`, `JsonFile`, `CsvFile` |
+| `bynat.profiling` | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
+| `bynat.cleaning.io` | `read_csv`, `read_json`, `save_to_json`, `save_to_sql` |
 | `bynat.cleaning.enrich` | Provider protocols `Translator`, `Geocoder`, `RateSource`, and their defaults `GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource` |
 
-> **Import submodules explicitly.** The top-level `bynat` namespace exposes only `read_json`, `read_csv`, `BynatAccessor`, `profile`, and `ProfileReport`. Import the class API from `bynat.cleaning` and the cache API from `bynat.caching`.
+> **Import submodules explicitly.** The top-level `bynat` namespace exposes the four package entry points (`cleaning`, `caching`, `analytics`, `profiling`) plus the canonical `read_csv` and `read_json` loader functions. `bynat.read_csv` and `bynat.read_json` are the same objects as `bynat.cleaning.io.read_csv` and `bynat.cleaning.io.read_json`; use the module path for the other I/O helpers. Import the class API from `bynat.cleaning`, the cache API from `bynat.caching`, and the profiling API from `bynat.profiling`.
 
 ---
 
@@ -211,8 +216,8 @@ Here is how the two ways in compare:
 | Class | Constructor parameters | Equivalent accessor or function form |
 | --- | --- | --- |
 | `BaseData` | `data=None`, `cache_dir=None`, `*args`, `**kwargs` | `pandas.DataFrame(...)` with `df.bynat`; use `df.bynat.with_cache(cache_dir)` to set a cache directory |
-| `JsonFile` | `data=None`, `json_file_path=None`, `key=None`, `cache_dir=None`, `*args`, `**kwargs` | `bynat.read_json(json_file_path, key=None)`, then `df.bynat` methods |
-| `CsvFile` | `data=None`, `csv_file_path=None`, `cache_dir=None`, `read_kwargs=None`, `*args`, `**kwargs` | `bynat.read_csv(csv_file_path, **read_kwargs)`, then `df.bynat` methods |
+| `JsonFile` | `data=None`, `json_file_path=None`, `key=None`, `cache_dir=None`, `*args`, `**kwargs` | `bynat.read_json(json_file_path, key=None)` (also `bynat.cleaning.io.read_json`), then `df.bynat` methods |
+| `CsvFile` | `data=None`, `csv_file_path=None`, `cache_dir=None`, `read_kwargs=None`, `*args`, `**kwargs` | `bynat.read_csv(csv_file_path, **read_kwargs)` (also `bynat.cleaning.io.read_csv`), then `df.bynat` methods |
 
 How `inplace` works, in both the class-based API and the accessor:
 
@@ -230,7 +235,7 @@ The accessor is an optional extra way to use bynat on ordinary DataFrames. It do
 
 - Accessor transformations return a new DataFrame by default, and also accept `inplace=True`, which mutates the DataFrame the accessor wraps and returns `None` (or the documented statistics result).
 - `df.bynat.with_cache(...)` returns an accessor that caches in another directory or in an explicit `CacheManager`.
-- `bynat.read_csv` and `bynat.read_json` return plain DataFrames that you can use the accessor on right away.
+- `bynat.read_csv` and `bynat.read_json` (also available from `bynat.cleaning.io`) return plain DataFrames that you can use the accessor on right away.
 - `get_hierarchical_stats`, `profile`, `save_to_json`, `save_to_sql`, `clear_cache_for_column`, and `with_cache` do not transform the wrapped DataFrame, so they do not accept `inplace`.
 
 ### The same job in both styles
@@ -283,7 +288,7 @@ from_csv.bynat.save_to_json("output.json", orient="records")
 
 ### How the cleaning code is organized
 
-Each function in the `columns`, `text`, `stats`, `enrich`, and `io` modules takes a DataFrame as its first argument and returns a new one by default. The classes and the accessor are thin layers over these functions. See the [module layout](#module-layout).
+Each function in the `_columns`, `_text`, `_stats`, `enrich`, and `io` modules takes a DataFrame as its first argument and returns a new one by default. The classes and the accessor are thin layers over these functions. See the [module layout](#module-layout).
 
 ---
 
@@ -321,8 +326,8 @@ All four forms return the same report:
 | --- | --- |
 | pandas accessor | `df.bynat.profile(*columns, output_type=None)` |
 | Class-based API | `BaseData(df).profile(*columns, output_type=None)` |
-| Top-level function | `bynat.profile(df, *columns, output_type=None)` |
-| Cleaning function | `from bynat.cleaning.profile import profile`<br>`profile(df, *columns, output_type=None)` |
+| Package function | `bynat.profiling.profile(df, *columns, output_type=None)` |
+| Profiling function | `from bynat.profiling import profile`<br>`profile(df, *columns, output_type=None)` |
 
 Passing something other than a `pandas.DataFrame` to the function forms raises a `TypeError`.
 
@@ -355,7 +360,7 @@ Any other value raises a `TypeError`.
 import json
 import pandas as pd
 from bynat.cleaning import BaseData
-from bynat.cleaning.profile import profile
+from bynat.profiling import profile
 
 report = profile(df)                              # ProfileReport
 as_dict = profile(df, output_type=dict)           # plain dictionary
@@ -473,15 +478,46 @@ Empty and all-null columns do not raise errors. When a column has no non-null va
 
 ## Analytics
 
-Need numbers that are ready for a chart, a dashboard, or an API response? `Analyzer` in `bynat.analytics` summarizes an ordinary `pandas.DataFrame` into dictionary payloads (`{"data": ...}`).
+Need numbers for a chart, a dashboard, or an API response? `Analyzer` summarizes a `pandas.DataFrame` into plain dictionaries (`{"data": ...}`) you can serialize as they are.
 
-- It copies the input DataFrame on initialization, so your original stays untouched.
-- It supports optional `filters` and post-aggregation `rules`.
-- It requires only `pandas` and `numpy`, with no optional extras.
-- It stays independent of Power BI and other application-specific integrations.
-- It takes any `pandas.DataFrame`, so you can analyze a frame you just cleaned with `bynat.cleaning`, including a `BaseData`.
+Use it either way:
 
-Here are all five methods on a small sales table:
+- **On a DataFrame:** `import bynat`, then call the methods on `df.bynat`.
+- **With `Analyzer`:** `from bynat.analytics import Analyzer`, then call the same methods on an instance.
+
+Both routes run the same code, so the results match.
+
+```python
+import bynat
+import pandas as pd
+
+sales = pd.DataFrame({
+    "region": ["North", "North", "South", "East", "West"],
+    "revenue": [120.0, 80.0, 200.0, 50.0, 40.0],
+    "order_date": ["2026-01-05", "2026-01-20", "2026-03-10", "2026-03-12", "2026-03-15"],
+})
+
+# 1. Categorical distribution with top_n + Others breakdown
+dist = sales.bynat.get_categorical_distribution("region", top_n=2, show_others=True)
+
+# 2. Grouped numerical aggregation
+rev_by_region = sales.bynat.get_numerical_aggregation("region", "revenue", agg_func="sum")
+
+# 3. Gap-filled time series ("M", "Y", "H", "D")
+monthly = sales.bynat.get_time_series("order_date", time_period="M", num_col="revenue", agg_func="sum")
+
+# 4. Single-value KPI card
+total_rev = sales.bynat.get_kpi_value("revenue", agg_func="sum", round_value=2, title="Total Revenue")
+
+# 5. Histogram bins
+hist = sales.bynat.get_bins("revenue", bins=3)
+```
+
+Each call returns the same `{"data": ...}` dictionary as the matching `Analyzer` method, and leaves your DataFrame untouched.
+
+The five methods are `get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, and `get_bins`. Their arguments are the same through either route.
+
+Prefer `Analyzer` directly?
 
 ```python
 import pandas as pd
@@ -495,34 +531,22 @@ sales = pd.DataFrame({
 })
 
 analyzer = Analyzer(sales)
-
-# 1. Categorical distribution with top_n + Others breakdown
 dist = analyzer.get_categorical_distribution("region", top_n=2, show_others=True)
-
-# 2. Grouped numerical aggregation with filters and computed rules on output rows
-rev_by_region = analyzer.get_numerical_aggregation(
-    "region",
-    "revenue",
-    agg_func="sum",
-    filters={"revenue": {">=": 50}},
-    rules=[{"new_col": "y_k", "expression": "y / 1000"}],
-)
-
-# 3. Gap-filled time series ("M", "Y", "H", "D")
-monthly = analyzer.get_time_series("order_date", time_period="M", num_col="revenue", agg_func="sum")
-
-# 4. Single-value KPI card
-total_rev = analyzer.get_kpi_value("revenue", agg_func="sum", round_value=2, title="Total Revenue")
-
-# 5. Histogram bins
-hist = analyzer.get_bins("revenue", bins=3)
 ```
+
+`Analyzer` copies the input DataFrame when you create it, so your original stays untouched. It takes any `pandas.DataFrame`, including a `BaseData` or a frame you cleaned with `bynat.cleaning`.
+
+Other things to know:
+
+- Both routes support optional `filters` and post-aggregation `rules`.
+- Both need only `pandas` and `numpy`, with no optional extras.
+- Both stay independent of Power BI and other application-specific integrations.
 
 What happens when something goes wrong:
 
-- All five methods (`get_categorical_distribution`, `get_numerical_aggregation`, `get_time_series`, `get_kpi_value`, `get_bins`) return empty or `None` payloads (`{"data": []}` or `{"data": None, "title": ...}`) when columns are missing or empty.
+- The distribution, numerical aggregation, time-series, and bin methods return `{"data": []}` when required columns are missing or the input has no rows. `get_kpi_value` follows the selected aggregation: `count` returns the row count (including `0` for an empty frame), while a missing source column returns `None` for non-count aggregations.
 - `Analyzer(...)` raises `TypeError` on non-`DataFrame` inputs.
-- Invalid filters, unsafe expressions, and failing aggregations log warnings via `"bynat.analytics.analyzer"` instead of crashing your code.
+- Filter and aggregation errors log warnings; unsafe or unsupported computed rules are skipped.
 
 ---
 
@@ -743,7 +767,6 @@ Methods are grouped by the kind of job they do:
 - [Text and language](#text-and-language)
 - [Enrichment](#enrichment)
 - [Outliers, missing values, and statistics](#outliers-missing-values-and-statistics)
-- [Data profiling](#data-profiling-1)
 - [Saving data](#saving-data)
 - [Cache and object helpers](#cache-and-object-helpers)
 
@@ -895,12 +918,6 @@ For `handle_outliers`, `drop_outliers`, `fill_missing`, and `fill_missing_from`,
 - With `inplace=True`, the operation changes the original object in place and returns `stats` directly. This applies to the class methods and to `df.bynat`.
 - The outlier methods use the default hierarchical `median` statistic. `fill_missing` uses its requested `strategy`.
 
-### Data profiling
-
-| Method | Parameters | Purpose |
-| --- | --- | --- |
-| `profile` | `*columns`, keyword-only `output_type=None` | Returns a read-only data quality report for all columns or the ones you name. See [Data profiling](#data-profiling) for the report structure and `output_type` values. |
-
 ### Saving data
 
 | Method | Parameters | Purpose |
@@ -930,12 +947,12 @@ Use this table to find where things live if you want to read the source or impor
 | Module | Purpose | Contents |
 | --- | --- | --- |
 | `bynat.cleaning.base` | The class-based API | `BaseData`, `JsonFile`, `CsvFile` |
-| `bynat.cleaning.accessor` | The `df.bynat` entry point | The `df.bynat` accessor |
-| `bynat.cleaning.stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
-| `bynat.cleaning.enrich` | Adding information from outside the table | `translate`, `geocode`, `currency`, `nlp`, the shared cached-lookup `engine`, and `providers` |
-| `bynat.cleaning.profile` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
-| `bynat.cleaning.columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
-| `bynat.cleaning.text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |
+| `bynat._accessors.dataframe` | The `df.bynat` entry point (private integration boundary) | The `df.bynat` accessor |
+| `bynat.cleaning._stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
+| `bynat.cleaning.enrich` | Adding information from outside the table | `_translate`, `_geocode`, `_currency`, `_nlp`, the shared cached-lookup `_engine`, and `providers` |
+| `bynat.profiling` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
+| `bynat.cleaning._columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
+| `bynat.cleaning._text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |
 | `bynat.cleaning.io` | Reading and writing | `save_to_json`, `save_to_sql`, `read_json`, `read_csv` |
 | `bynat.caching.manager` | Remembering results | `CacheManager` and `shared_cache_manager` |
 | `bynat.analytics.analyzer` | Summarizing and aggregating data | `Analyzer` (distributions, numerical aggregations, time series, KPIs, histogram bins) |
@@ -1011,7 +1028,7 @@ CI runs the suite on Ubuntu and Windows with Python 3.11 and 3.13, plus Ruff, my
 
 ### Type checking
 
-Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager and the cleaning helper modules (`_common`, `accessor`, `columns`, `text`, `stats`, `io`, `profile`, `enrich`), checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
+Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager and cache internals, the cleaning core, `_internal` helpers, I/O and enrichment packages, the analytics API, the accessor boundary (`_accessors`), and the profiling API, checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
 
 To bring a module into scope:
 

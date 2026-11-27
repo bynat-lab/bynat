@@ -1,60 +1,31 @@
-"""
-`pandas.DataFrame` subclasses: `BaseData`, `JsonFile`, and `CsvFile`.
+"""`pandas.DataFrame` subclasses: `BaseData`, `JsonFile`, and `CsvFile`.
 
-They are thin wrappers over the functions in the `columns`, `text`, `stats`,
-`enrich`, and `io` modules, which the `df.bynat` accessor shares. Both APIs
-accept `inplace=True` for the transformations that support it, and
-`JsonFile` / `CsvFile` load data directly from disk.
+They are thin wrappers over the private `_columns`, `_text`, and `_stats`
+modules and the `enrich` and `io` packages, whose functions the `df.bynat`
+accessor shares. Both APIs accept `inplace=True` for the transformations that
+support it, and `JsonFile` / `CsvFile` load data directly from disk.
 """
 
 import os
 from collections.abc import Callable, Iterable
-from typing import Any, Self, TypeVar
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
 
 from bynat.caching import CacheManager
+from bynat.profiling import profile
 
-from . import columns, io, profile, stats, text
-from .enrich import currency, geocode, nlp, translate
+from . import _columns, _stats, _text, io
+from ._internal import is_basedata_type
+from .enrich import _currency, _geocode, _nlp, _translate
 from .enrich.providers import Geocoder, RateSource, Translator
 
 __all__ = ['BaseData', 'JsonFile', 'CsvFile']
 
-F = TypeVar('F', bound=Callable[..., Any])
-
-
-def _shares_doc(func: Callable[..., Any]) -> Callable[[F], F]:
-    """
-    Reuse a shared implementation's docstring on a `BaseData` method.
-
-    The decorator assigns the implementation's cleaned docstring to the
-    method's `__doc__` at import time. `tools/sync_docs.py` writes the same
-    text as a literal docstring in `base.py` so editors and type checkers can
-    see it without running the decorator, and `tests/cross_cutting/contracts/
-    test_doc_drift.py` fails when the two drift apart.
-
-    Args:
-        func (Callable): Shared implementation whose docstring is copied.
-
-    Returns:
-        Callable: Decorator that assigns the docstring and returns the method
-        unchanged.
-    """
-    def decorate(method: F) -> F:
-        """Assign the shared docstring to `method` and return it unchanged."""
-        method.__doc__ = (func.__doc__ or "").rstrip()
-
-        return method
-
-    return decorate
-
 
 class BaseData(pd.DataFrame):
-    """
-    Extend `pandas.DataFrame` with project-specific cleaning, translation,
-    enrichment, and export helpers.
+    """Extend `pandas.DataFrame` with cleaning and enrichment helpers.
 
     Every transformation returns a new object by default and leaves the
     receiver untouched. The transformations that support in-place behavior
@@ -80,8 +51,7 @@ class BaseData(pd.DataFrame):
 
     @property
     def _constructor(self) -> Callable[..., Self]:
-        """
-        Preserve the custom dataframe subclass during pandas operations.
+        """Preserve the custom dataframe subclass during pandas operations.
 
         pandas calls this property whenever it builds a derived frame, so
         chained operations and slices keep producing the current subclass
@@ -95,8 +65,7 @@ class BaseData(pd.DataFrame):
 
 
     def __init__(self, data = None, cache_dir: str | os.PathLike | None = None, *args, **kwargs) -> None:
-        """
-        Initialize the custom dataframe from in-memory tabular data.
+        """Initialize the custom dataframe from in-memory tabular data.
 
         Args:
             data: Optional tabular data passed directly to `pandas.DataFrame`.
@@ -108,11 +77,9 @@ class BaseData(pd.DataFrame):
             **kwargs: Additional keyword arguments forwarded to
                 `pandas.DataFrame`.
 
-        Returns:
-            None
-
         Notes:
             File-specific loading is implemented by `JsonFile` and `CsvFile`.
+
         """
         object.__setattr__(self, '_bynat_cache_dir', cache_dir)
         object.__setattr__(self, '_bynat_cache_manager', None)
@@ -122,8 +89,7 @@ class BaseData(pd.DataFrame):
 
     @property
     def cache_manager(self) -> CacheManager:
-        """
-        The `CacheManager` used by cached helper methods, created on first use.
+        """The `CacheManager` used by cached helper methods, created on first use.
 
         The manager is stored on the instance, so it is shared with every
         frame pandas derives from this one and is not rebuilt by pandas
@@ -149,8 +115,7 @@ class BaseData(pd.DataFrame):
 
 
     def _finish(self, result: pd.DataFrame, inplace: bool) -> Self | None:
-        """
-        Return `result`, or copy it into this object when `inplace=True`.
+        """Return `result`, or copy it into this object when `inplace=True`.
 
         With `inplace=False` the shared function's result is returned as-is.
         With `inplace=True` the result is written into this object through
@@ -171,8 +136,7 @@ class BaseData(pd.DataFrame):
 
 
     def _finish_with_stats(self, outcome: Any, inplace: bool, with_stats: bool) -> Any:
-        """
-        `_finish` for methods that can also return hierarchical statistics.
+        """`_finish` for methods that can also return hierarchical statistics.
 
         With `inplace=False` the outcome is returned unchanged: the frame, or
         the `(frame, statistics)` tuple when `with_stats=True`. With
@@ -198,23 +162,18 @@ class BaseData(pd.DataFrame):
 
 
     def clear_cache_for_column(self, func_name: str, target_col: str) -> None:
-        """
-        Delete a cached column bucket for one of the helper methods.
+        """Delete a cached column bucket for one of the helper methods.
 
         Args:
             func_name (str): Name of the cached helper function.
             target_col (str): Nested cache key to remove, usually a column name.
 
-        Returns:
-            None
         """
         self.cache_manager.delete_column_cache(func_name, target_col)
 
 
     def view(self) -> pd.DataFrame:
-        """
-        Return the object as a standard pandas DataFrame for inspection and
-        rich display.
+        """Return the object as a plain pandas DataFrame.
 
         The result is a new plain `pandas.DataFrame`: it is not a `BaseData`
         instance, does not carry the `cache_manager` metadata, and mutating it
@@ -233,14 +192,11 @@ class BaseData(pd.DataFrame):
                 search_dataframe.view().plot(kind='bar')
         ```
         """
-
         return pd.DataFrame(self)
 
 
-    @_shares_doc(columns.drop_by_substring)
     def drop_by_substring(self, substring: str, inplace: bool = False) -> Self | None:
-        """
-        Drop all columns that contain a specific substring within their names.
+        """Drop all columns that contain a specific substring within their names.
 
         Columns are matched with a plain ``substring in col`` test, so the value is
         literal text rather than a regular expression. A column whose name does not
@@ -271,13 +227,11 @@ class BaseData(pd.DataFrame):
                 df.drop_by_substring("user")
         ```
         """
-        return self._finish(columns.drop_by_substring(self, substring), inplace)
+        return self._finish(_columns.drop_by_substring(self, substring), inplace)
 
 
-    @_shares_doc(columns.drop_CLASS_columns)
     def drop_CLASS_columns(self, inplace: bool = False) -> Self | None:
-        """
-        Drop all columns that contain the substring "__CLASS__" from the data.
+        """Drop all columns that contain the substring "__CLASS__" from the data.
 
         Equivalent to `drop_by_substring(df, "__CLASS__")`; the marker is matched
         literally.
@@ -304,13 +258,11 @@ class BaseData(pd.DataFrame):
                 df.drop_CLASS_columns()
         ```
         """
-        return self._finish(columns.drop_CLASS_columns(self), inplace)
+        return self._finish(_columns.drop_CLASS_columns(self), inplace)
 
 
-    @_shares_doc(columns.rename_by_substring)
     def rename_by_substring(self, old_substring: str, new_substring: str, inplace: bool = False) -> Self | None:
-        """
-        Rename columns by replacing a specific substring with a new one.
+        """Rename columns by replacing a specific substring with a new one.
 
         Args:
             old_substring (str): The text to search for within the column names.
@@ -339,13 +291,11 @@ class BaseData(pd.DataFrame):
                 df.rename_by_substring("display_name", "name")
         ```
         """
-        return self._finish(columns.rename_by_substring(self, old_substring, new_substring), inplace)
+        return self._finish(_columns.rename_by_substring(self, old_substring, new_substring), inplace)
 
 
-    @_shares_doc(columns.rename_all_DOTS)
     def rename_all_DOTS(self, unified_separator: str = "_", inplace: bool = False) -> Self | None:
-        """
-        Rename columns by replacing all occurrences of dots ('.') with a unified separator.
+        """Replace dots in column names with a unified separator.
 
         Args:
             unified_separator (str): The new string to replace dots with.
@@ -372,13 +322,11 @@ class BaseData(pd.DataFrame):
                 df.rename_all_DOTS(unified_separator = "_")
         ```
         """
-        return self._finish(columns.rename_all_DOTS(self, unified_separator), inplace)
+        return self._finish(_columns.rename_all_DOTS(self, unified_separator), inplace)
 
 
-    @_shares_doc(columns.reorder_columns)
     def reorder_columns(self, *first_cols, inplace: bool = False) -> Self | None:
-        """
-        Reorder the dataframe by moving a specified list of columns to the front.
+        """Reorder the dataframe by moving a specified list of columns to the front.
 
         Any columns not mentioned in `first_cols` will be appended to the end
         preserving their original relative order.
@@ -409,10 +357,9 @@ class BaseData(pd.DataFrame):
                 df.reorder_columns("id", "timestamp")
         ```
         """
-        return self._finish(columns.reorder_columns(self, *first_cols), inplace)
+        return self._finish(_columns.reorder_columns(self, *first_cols), inplace)
 
 
-    @_shares_doc(columns.melt_transform_pivot)
     def melt_transform_pivot(
         self,
         id_vars: list | str,
@@ -426,9 +373,7 @@ class BaseData(pd.DataFrame):
         inplace: bool = False,
         **kwargs
     ) -> Self | None:
-        """
-        Reshape selected columns to long format, transform their values, and
-        pivot them back to wide format.
+        """Reshape, transform, and pivot selected columns back to wide form.
 
         Notes:
             This helper is useful when the same vectorized operation should be
@@ -493,7 +438,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        result = columns.melt_transform_pivot(
+        result = _columns.melt_transform_pivot(
             self,
             id_vars,
             value_vars = value_vars,
@@ -508,10 +453,8 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(columns.move_column)
     def move_column(self, col_to_move: str, col_target: str, position: str = "after", inplace: bool = False) -> Self | None:
-        """
-        Move a specific column to a new position relative to a target column.
+        """Move a specific column to a new position relative to a target column.
 
         Args:
             col_to_move (str): The name of the column you want to relocate.
@@ -545,14 +488,11 @@ class BaseData(pd.DataFrame):
                 df.move_column("user_id", "user_name", position="before")
         ```
         """
-        return self._finish(columns.move_column(self, col_to_move, col_target, position), inplace)
+        return self._finish(_columns.move_column(self, col_to_move, col_target, position), inplace)
 
 
-    @_shares_doc(columns.align_lat_lng)
     def align_lat_lng(self, inplace: bool = False) -> Self | None:
-        """
-        Standardize the coordinate order by moving the 'longitude' column
-        immediately after the 'latitude' column.
+        """Place the longitude column immediately after the latitude column.
 
         .. note::
         This method strictly expects the column names to be exactly **'latitude'**
@@ -580,10 +520,9 @@ class BaseData(pd.DataFrame):
                 df.align_lat_lng()
         ```
         """
-        return self._finish(columns.align_lat_lng(self), inplace)
+        return self._finish(_columns.align_lat_lng(self), inplace)
 
 
-    @_shares_doc(text.extract_keywords)
     def extract_keywords(
             self,
             *source_cols,
@@ -592,9 +531,7 @@ class BaseData(pd.DataFrame):
             use_regex: bool = False,
             **target_cols_and_keywords
     ) -> Self | None:
-        """
-        Search for keywords or regular expressions across source columns and extract them into new target columns.
-        Matches are case-insensitive and are formatted to Title Case in the target column.
+        """Extract case-insensitive keyword matches into Title Case columns.
 
         Notes:
             - **Keyword Priority**: Keywords are extracted based on list order. The first item in the list has the highest precedence.
@@ -656,7 +593,7 @@ class BaseData(pd.DataFrame):
                 df.extract_keywords("comments", "tags", categories=["urgent", "review"])
         ```
         """
-        result = text.extract_keywords(
+        result = _text.extract_keywords(
             self,
             *source_cols,
             remove_extracted = remove_extracted,
@@ -666,7 +603,6 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(columns.split_list_objects)
     def split_list_objects(
             self,
             source_col: str,
@@ -676,8 +612,7 @@ class BaseData(pd.DataFrame):
             inplace: bool = False,
             **target_cols_and_indices
     ) -> Self | None:
-        """
-        Extract specific elements from lists stored within a column into new columns.
+        """Extract specific elements from lists stored within a column into new columns.
 
         This method allows you to pull items out of list-like objects by their index.
         It can either join multiple indices into a string, explode them into parallel
@@ -745,7 +680,7 @@ class BaseData(pd.DataFrame):
                 df.split_list_objects("attributes", explode_rows=True, cartesian_explode=True, colors=[0, 1], sizes=[2, 3])
         ```
         """
-        result = columns.split_list_objects(
+        result = _columns.split_list_objects(
             self,
             source_col,
             remove_source_col = remove_source_col,
@@ -756,7 +691,6 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(translate.impute_by_language)
     def impute_by_language(
             self,
             reference_col: str,
@@ -764,9 +698,7 @@ class BaseData(pd.DataFrame):
             target_lang: str = 'en',
             inplace: bool = False
     ) -> Self | None:
-        """
-        Impute missing or inconsistent values in target columns based on a reference column
-        and a preferred language.
+        """Impute target values from a reference column and preferred language.
 
         Notes:
             - **Dependencies**: This method requires the `langdetect` library.
@@ -816,11 +748,10 @@ class BaseData(pd.DataFrame):
                 df.impute_by_language("city_id", "city_name", target_lang="ar")
         ```
         """
-        result = translate.impute_by_language(self, reference_col, *target_cols, target_lang = target_lang)
+        result = _translate.impute_by_language(self, reference_col, *target_cols, target_lang = target_lang)
         return self._finish(result, inplace)
 
 
-    @_shares_doc(translate.translate_conditional_column)
     def translate_conditional_column(
         self,
         partition_col: str,
@@ -835,8 +766,7 @@ class BaseData(pd.DataFrame):
         random_state: int | np.random.Generator | np.random.RandomState | None = 0,
         provider: Translator | None = None,
     ) -> Self | None:
-        """
-        Conditionally translate values in a target column based on language detection of a sample.
+        """Translate a target column when sampled text is in another language.
 
         This method groups data by `partition_col`, samples text from `detect_col` to determine
         if the language matches `target_lang`. If the percentage of matches is below the
@@ -902,7 +832,7 @@ class BaseData(pd.DataFrame):
                 )
         ```
         """
-        result = translate.translate_conditional_column(
+        result = _translate.translate_conditional_column(
             self,
             partition_col,
             detect_col,
@@ -919,7 +849,6 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(translate.translate_categorical_column)
     def translate_categorical_column(
             self,
             target_col: str,
@@ -928,8 +857,7 @@ class BaseData(pd.DataFrame):
             inplace: bool = False,
             provider: Translator | None = None,
     ) -> Self | None:
-        """
-        Translate all unique categories in a specific column using an automated translator.
+        """Translate all unique categories in one column automatically.
 
         This method optimizes performance and API usage by translating only unique
         values (categories) and utilizing a caching mechanism to avoid re-translating
@@ -980,7 +908,7 @@ class BaseData(pd.DataFrame):
                 df.translate_categorical_column("product_category", target_lang="fr")
         ```
         """
-        result = translate.translate_categorical_column(
+        result = _translate.translate_categorical_column(
             self,
             target_col,
             target_lang = target_lang,
@@ -991,10 +919,8 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(text.truncate_after_substring)
     def truncate_after_substring(self, regex: bool = True, inplace: bool = False, **target_cols_and_substrings) -> Self | None:
-        """
-        Remove specific substrings and everything following them from target columns.
+        """Remove specific substrings and everything following them from target columns.
 
         Each named column is processed independently. The first occurrence of each
         substring cuts the text, and the remaining text is stripped of surrounding
@@ -1034,10 +960,9 @@ class BaseData(pd.DataFrame):
                 'company': ['Tech Corp', 'Data Inc']
         ```
         """
-        return self._finish(text.truncate_after_substring(self, regex = regex, **target_cols_and_substrings), inplace)
+        return self._finish(_text.truncate_after_substring(self, regex = regex, **target_cols_and_substrings), inplace)
 
 
-    @_shares_doc(geocode.fill_missing_coordinates)
     def fill_missing_coordinates(
         self,
         *fallback_cols: str,
@@ -1049,9 +974,7 @@ class BaseData(pd.DataFrame):
         inplace: bool = False,
         provider: Geocoder | None = None,
     ) -> Self | None:
-        """
-        Fill missing latitude and longitude values by geocoding fallback location
-        text.
+        """Fill missing latitude and longitude values by geocoding fallback location text.
 
         Notes:
             The method builds a location query from the supplied fallback
@@ -1104,7 +1027,7 @@ class BaseData(pd.DataFrame):
             ImportError: If the default provider's optional `geopy` dependency
                 is not installed and no `provider` is given.
         """
-        result = geocode.fill_missing_coordinates(
+        result = _geocode.fill_missing_coordinates(
             self,
             *fallback_cols,
             lat_col = lat_col,
@@ -1118,7 +1041,6 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(currency.convert_to_usd)
     def convert_to_usd(
         self,
         *target_cols,
@@ -1129,9 +1051,7 @@ class BaseData(pd.DataFrame):
         inplace: bool = False,
         provider: RateSource | None = None,
     ) -> Self | None:
-        """
-        Convert numeric salary-like columns into USD using country currency codes
-        and year-based exchange rates.
+        """Convert salary-like columns to USD using country and year rates.
 
         Notes:
             Currency codes and exchange rates are cached to reduce repeated
@@ -1180,7 +1100,7 @@ class BaseData(pd.DataFrame):
                 installed, or if the default provider's optional `yfinance`
                 dependency is not installed and no `provider` is given.
         """
-        result = currency.convert_to_usd(
+        result = _currency.convert_to_usd(
             self,
             *target_cols,
             country_col = country_col,
@@ -1193,7 +1113,6 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(stats.handle_outliers)
     def handle_outliers(
         self,
         *target_cols,
@@ -1202,8 +1121,7 @@ class BaseData(pd.DataFrame):
         inplace: bool = False,
         get_hierarchical_stats: bool = False
     ) -> Self | tuple[Self, Self] | None:
-        """
-        Replace outlier values with missing values using hierarchical IQR rules.
+        """Replace outlier values with missing values using hierarchical IQR rules.
 
         Notes:
             - The method starts with the full grouping hierarchy and progressively
@@ -1243,7 +1161,7 @@ class BaseData(pd.DataFrame):
             in place and the statistics dataframe is returned when
             `get_hierarchical_stats=True`, otherwise None.
         """
-        outcome = stats.handle_outliers(
+        outcome = _stats.handle_outliers(
             self,
             *target_cols,
             hierarchy_cols = hierarchy_cols,
@@ -1253,7 +1171,6 @@ class BaseData(pd.DataFrame):
         return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
 
-    @_shares_doc(stats.drop_outliers)
     def drop_outliers(
         self,
         *target_cols,
@@ -1262,8 +1179,7 @@ class BaseData(pd.DataFrame):
         inplace: bool = False,
         get_hierarchical_stats: bool = False
     ) -> Self | tuple[Self, Self] | None:
-        """
-        Remove rows that contain outlier values based on hierarchical IQR rules.
+        """Remove rows that contain outlier values based on hierarchical IQR rules.
 
         Notes:
             - This method shares the same grouping logic as `handle_outliers`, but
@@ -1302,7 +1218,7 @@ class BaseData(pd.DataFrame):
             in place and the statistics dataframe is returned when
             `get_hierarchical_stats=True`, otherwise None.
         """
-        outcome = stats.drop_outliers(
+        outcome = _stats.drop_outliers(
             self,
             *target_cols,
             hierarchy_cols = hierarchy_cols,
@@ -1312,7 +1228,6 @@ class BaseData(pd.DataFrame):
         return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
 
-    @_shares_doc(stats.fill_missing)
     def fill_missing(
         self,
         *target_cols,
@@ -1323,8 +1238,7 @@ class BaseData(pd.DataFrame):
         inplace: bool = False,
         get_hierarchical_stats: bool = False
     ) -> Self | tuple[Self, Self] | None:
-        """
-        Impute missing values by progressively relaxing a grouping hierarchy.
+        """Impute missing values by progressively relaxing a grouping hierarchy.
 
         Notes:
             - Supported strategies are `median`, `mean`, and `mode`. The method
@@ -1392,7 +1306,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        outcome = stats.fill_missing(
+        outcome = _stats.fill_missing(
             self,
             *target_cols,
             strategy = strategy,
@@ -1405,7 +1319,6 @@ class BaseData(pd.DataFrame):
 
 
 
-    @_shares_doc(stats.fill_missing_from)
     def fill_missing_from(
         self,
         dataset: Any,
@@ -1419,8 +1332,7 @@ class BaseData(pd.DataFrame):
         inplace: bool = False,
         get_hierarchical_stats: bool = False,
     ) -> Self | tuple[Self, Self] | None:
-        """
-        Impute missing values using statistics calculated from a reference dataset.
+        """Impute missing values using statistics calculated from a reference dataset.
 
         Statistics are computed exclusively from `dataset` to avoid statistical
         leakage from `df`, making this suitable for train/test workflows. The
@@ -1525,7 +1437,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        outcome = stats.fill_missing_from(
+        outcome = _stats.fill_missing_from(
             self,
             dataset,
             *target_cols,
@@ -1539,7 +1451,6 @@ class BaseData(pd.DataFrame):
         )
         return self._finish_with_stats(outcome, inplace, get_hierarchical_stats)
 
-    @_shares_doc(stats.get_hierarchical_stats)
     def get_hierarchical_stats(
         self,
         *target_cols,
@@ -1547,8 +1458,7 @@ class BaseData(pd.DataFrame):
         hierarchy_cols: list | str | None = None,
         output_type = None,
     ) -> Any:
-        """
-        Extract statistics for each progressively relaxed hierarchy level.
+        """Extract statistics for each progressively relaxed hierarchy level.
 
         The full valid hierarchy is aggregated first, then its last grouping
         column is removed for each subsequent level. No global level is added,
@@ -1630,7 +1540,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        return stats.get_hierarchical_stats(
+        return _stats.get_hierarchical_stats(
             self,
             *target_cols,
             strategy = strategy,
@@ -1639,14 +1549,12 @@ class BaseData(pd.DataFrame):
         )
 
 
-    @_shares_doc(profile.profile)
     def profile(
         self,
         *columns: Any,
         output_type = None,
     ) -> Any:
-        """
-        Generate a structured, non-mutating data quality profile report for a DataFrame.
+        """Generate a structured data quality profile for a DataFrame.
 
         Computes dataset-wide metrics (row count, column count, total cells, missing
         cell count and proportion, duplicate row count and proportion using
@@ -1714,14 +1622,21 @@ class BaseData(pd.DataFrame):
             summary_dict = df.bynat.profile("age", output_type=dict)
         ```
         """
-        return profile.profile(
+        if is_basedata_type(output_type):
+            summary_frame = profile(
+                self,
+                *columns,
+                output_type=pd.DataFrame,
+            )
+            return output_type(data=summary_frame)
+
+        return profile(
             self,
             *columns,
-            output_type = output_type,
+            output_type=output_type,
         )
 
 
-    @_shares_doc(text.categorize_by_reference)
     def categorize_by_reference(
         self,
         *source_cols: str,
@@ -1730,8 +1645,7 @@ class BaseData(pd.DataFrame):
         default_category: str = 'Other',
         inplace: bool = False
     ) -> Self | None:
-        """
-        Categorize text data into broader groups based on a reference lexicon dictionary.
+        """Categorize text into broader groups using a reference lexicon.
 
         This method scans one or more source text columns for specific keywords defined in a
         lexicon dictionary. If a match is found, the dictionary's key (the category)
@@ -1794,7 +1708,7 @@ class BaseData(pd.DataFrame):
             )
         ```
         """
-        result = text.categorize_by_reference(
+        result = _text.categorize_by_reference(
             self,
             *source_cols,
             target_col = target_col,
@@ -1804,7 +1718,6 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(nlp.extract_entities_nlp)
     def extract_entities_nlp(
         self,
         *source_cols,
@@ -1817,9 +1730,7 @@ class BaseData(pd.DataFrame):
         noisy_terms: set | None = None,
         **target_cols_and_json_keys
     ) -> Self | None:
-        """
-        Extract entities from free text by matching against a cached lexicon with
-        spaCy tokenization and lemmatization.
+        """Extract cached lexicon entities from text with spaCy lemmatization.
 
         Notes:
             Terms are loaded from a JSON file or dictionary, grouped by target
@@ -1913,7 +1824,7 @@ class BaseData(pd.DataFrame):
                 "extract_entities_nlp() got an unexpected keyword argument "
                 "'noisey_terms'; did you mean 'noisy_terms'?"
             )
-        result = nlp.extract_entities_nlp(
+        result = _nlp.extract_entities_nlp(
             self,
             *source_cols,
             lexicon_source = lexicon_source,
@@ -1928,7 +1839,6 @@ class BaseData(pd.DataFrame):
         return self._finish(result, inplace)
 
 
-    @_shares_doc(io.save_to_json)
     def save_to_json(
             self,
             file_path: str | os.PathLike,
@@ -1937,8 +1847,7 @@ class BaseData(pd.DataFrame):
             force_ascii: bool = False,
             indent: int = 4
     ) -> None:
-        """
-        Save the dataframe to a JSON file only when content has changed.
+        """Save the dataframe to a JSON file only when content has changed.
 
         Notes:
             Before writing, the method compares the current dataframe payload to
@@ -1979,7 +1888,6 @@ class BaseData(pd.DataFrame):
         return io.save_to_json(self, file_path, orient = orient, append = append, force_ascii = force_ascii, indent = indent)
 
 
-    @_shares_doc(io.save_to_sql)
     def save_to_sql(
             self,
             table_name: str,
@@ -1996,8 +1904,7 @@ class BaseData(pd.DataFrame):
             if_exists: str = 'append',
             index: bool = False
     ) -> None:
-        """
-        Save the dataframe to a SQL database table using SQLAlchemy.
+        """Save the dataframe to a SQL database table using SQLAlchemy.
 
         Notes:
             The method supports standard SQLAlchemy URL styles and includes
@@ -2081,8 +1988,7 @@ class BaseData(pd.DataFrame):
 
 
 class JsonFile(BaseData):
-    """
-    Load a JSON file into a `BaseData` frame.
+    """Load a JSON file into a `BaseData` frame.
 
     The payload is flattened with `pandas.json_normalize` by
     `bynat.cleaning.io.read_json`, so nested objects become dotted column
@@ -2119,8 +2025,7 @@ class JsonFile(BaseData):
         *args,
         **kwargs
     ) -> None:
-        """
-        Load the JSON payload and delegate to `BaseData`.
+        """Load the JSON payload and delegate to `BaseData`.
 
         Args:
             data: See the class docstring.
@@ -2154,8 +2059,7 @@ class JsonFile(BaseData):
 
 
 class CsvFile(BaseData):
-    """
-    Load a CSV file into a `BaseData` frame.
+    """Load a CSV file into a `BaseData` frame.
 
     Parsing is delegated to `pandas.read_csv` through
     `bynat.cleaning.io.read_csv`, so every `pandas.read_csv` keyword is
@@ -2190,8 +2094,7 @@ class CsvFile(BaseData):
         *args,
         **kwargs
     ) -> None:
-        """
-        Load the CSV payload and delegate to `BaseData`.
+        """Load the CSV payload and delegate to `BaseData`.
 
         Args:
             data: See the class docstring.

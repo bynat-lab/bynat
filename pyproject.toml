@@ -46,6 +46,7 @@ sql = [
 dev = [
     "cosmic-ray",
     "hypothesis",
+    "interrogate==1.7.0",
     "mypy",
     "pandas-stubs",
     "pytest",
@@ -61,34 +62,67 @@ include = ["bynat*"]
 
 [tool.setuptools.package-data]
 bynat = ["py.typed"]
-"bynat.cleaning" = ["*.pyi"]
 
 [tool.ruff]
 target-version = "py311"
+preview = true
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP"]
-ignore = ["E501"]
+select = ["E", "F", "W", "I", "UP", "D", "DOC"]
+# E251/E302/E303/E305 conflict with the repo style once preview is enabled.
+# DOC502 cannot see exceptions propagated from callees, which are part of the contract.
+ignore = ["E501", "E251", "E302", "E303", "E305", "D203", "D213", "DOC502", "W391"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
+"tests/**" = ["D", "DOC"]
+"tools/**" = ["D", "DOC"]
+"benchmarks/**" = ["D", "DOC"]
+
+[tool.interrogate]
+ignore-init-method = false
+ignore-init-module = false
+ignore-property-decorators = false
+ignore-setters = false
+ignore-overloaded-functions = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-nested-functions = false
+ignore-nested-classes = false
+ignore-module = false
+style = "google"
+fail-under = 100
 
 [tool.mypy]
 python_version = "3.11"
 files = [
-    "bynat/caching/_keys.py",
+    "bynat/_accessors/__init__.py",
+    "bynat/_accessors/_binding.py",
+    "bynat/_accessors/dataframe.py",
+    "bynat/_internal/__init__.py",
+    "bynat/_internal/keys.py",
+    "bynat/_internal/types.py",
+    "bynat/analytics/__init__.py",
+    "bynat/analytics/analyzer.py",
+    "bynat/caching/_registry.py",
     "bynat/caching/_migration.py",
     "bynat/caching/_storage.py",
     "bynat/caching/manager.py",
-    "bynat/cleaning/_common.py",
-    "bynat/cleaning/_outputs.py",
-    "bynat/cleaning/accessor.py",
-    "bynat/cleaning/columns.py",
+    "bynat/cleaning/_internal",
+    "bynat/cleaning/_columns.py",
     "bynat/cleaning/enrich",
+    "bynat/cleaning/_readers.py",
+    "bynat/cleaning/_writers.py",
     "bynat/cleaning/io.py",
-    "bynat/cleaning/profile.py",
-    "bynat/cleaning/stats.py",
-    "bynat/cleaning/text.py",
+    "bynat/cleaning/_stats.py",
+    "bynat/cleaning/_text.py",
+    "bynat/profiling/__init__.py",
+    "bynat/profiling/profile.py",
+    "bynat/profiling/report.py",
     "tests",
 ]
 check_untyped_defs = true

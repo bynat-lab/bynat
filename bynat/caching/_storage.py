@@ -12,7 +12,7 @@ __all__ = [
     "connect_sqlite",
 ]
 
-logger = logging.getLogger("bynat.caching.Caching")
+logger = logging.getLogger(__name__)
 
 SQLITE_DATABASE_NAME = "cache.sqlite3"
 """File name of the SQLite cache database inside the cache directory."""
@@ -22,8 +22,7 @@ SQLITE_TIMEOUT_SECONDS = 30.0
 
 
 def connect_sqlite(database_path: str, timeout: float = SQLITE_TIMEOUT_SECONDS) -> sqlite3.Connection:
-    """
-    Open and configure a SQLite connection for cache infrastructure.
+    """Open and configure a SQLite connection for cache infrastructure.
 
     Applies `PRAGMA busy_timeout`, `PRAGMA journal_mode = WAL`, and
     `PRAGMA synchronous = FULL`. If any pragma fails the connection is closed
@@ -52,8 +51,7 @@ def connect_sqlite(database_path: str, timeout: float = SQLITE_TIMEOUT_SECONDS) 
 
 
 class SQLiteStorage:
-    """
-    Encapsulates SQLite database persistence, schema creation, and queries.
+    """Encapsulates SQLite database persistence, schema creation, and queries.
 
     One instance belongs to one cache directory; the database file is
     `cache.sqlite3` inside it. The directory is created by `initialize`,
@@ -65,8 +63,7 @@ class SQLiteStorage:
     """
 
     def __init__(self, cache_dir_path: str, timeout: float = SQLITE_TIMEOUT_SECONDS) -> None:
-        """
-        Bind the storage to a cache directory.
+        """Bind the storage to a cache directory.
 
         Args:
             cache_dir_path (str): Directory holding the database file.
@@ -77,8 +74,7 @@ class SQLiteStorage:
         self.timeout = timeout
 
     def get_database_path(self) -> str:
-        """
-        Return the SQLite database path for this cache directory.
+        """Return the SQLite database path for this cache directory.
 
         Returns:
             str: `cache_dir_path` joined with `SQLITE_DATABASE_NAME`.
@@ -86,8 +82,7 @@ class SQLiteStorage:
         return os.path.join(self.cache_dir_path, SQLITE_DATABASE_NAME)
 
     def connect(self) -> sqlite3.Connection:
-        """
-        Open and configure a SQLite connection for this storage.
+        """Open and configure a SQLite connection for this storage.
 
         Returns:
             sqlite3.Connection: The configured connection.
@@ -98,8 +93,7 @@ class SQLiteStorage:
         return connect_sqlite(self.get_database_path(), timeout = self.timeout)
 
     def initialize(self, connect_fn: object | None = None) -> None:
-        """
-        Create the SQLite cache schema in one explicit transaction.
+        """Create the SQLite cache schema in one explicit transaction.
 
         Creates the cache directory when missing, then issues
         `BEGIN IMMEDIATE` and creates the `cache_entries` table, its
@@ -158,8 +152,7 @@ class SQLiteStorage:
             connection.close()
 
     def rebuild_function_cache(self, func_name: str, connect_fn: object | None = None) -> dict:
-        """
-        Rebuild the nested cache for one function from its SQLite rows.
+        """Rebuild the nested cache for one function from its SQLite rows.
 
         Reads every `cache_entries` row for `func_name`, ordered by bucket and
         key, and decodes each `value_json` blob with `json.loads`. The result
@@ -198,8 +191,7 @@ class SQLiteStorage:
         removal_identities: list[tuple[str, str, str]],
         connect_fn: object | None = None,
     ) -> bool:
-        """
-        Persist prepared entries and removals in one BEGIN IMMEDIATE transaction.
+        """Persist prepared entries and removals in one BEGIN IMMEDIATE transaction.
 
         Additions and changes are written with `INSERT OR REPLACE`, so a
         later committed writer wins for the same `(func_name, bucket, key)`;

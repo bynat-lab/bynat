@@ -1,0 +1,60 @@
+import os
+from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.unit
+
+
+REPO_ROOT = Path(
+    os.environ.get("BYNAT_VERIFY_SOURCE_ROOT", str(Path(__file__).resolve().parents[3]))
+).resolve()
+
+
+PACKAGE_ROOT = REPO_ROOT / "bynat"
+
+
+PROHIBITED_GENERIC_NAMES = frozenset(
+    {"shared", "_shared", "utils", "helpers", "common"}
+)
+
+
+def _production_paths() -> list[str]:
+    """Every `.py` module and every directory under `bynat/`, relative to the package root."""
+    paths = [
+        path.relative_to(PACKAGE_ROOT).as_posix()
+        for path in PACKAGE_ROOT.rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
+    paths += [
+        path.relative_to(PACKAGE_ROOT).as_posix()
+        for path in PACKAGE_ROOT.rglob("*")
+        if path.is_dir() and path != PACKAGE_ROOT and "__pycache__" not in path.parts
+    ]
+    return sorted(paths)
+
+
+def _generic_name_matches() -> list[str]:
+    # Leading underscores are ignored so `_common`-style variants of a prohibited
+    # generic name are caught too (`_shared` is already an explicit entry).
+    return [
+        path
+        for path in _production_paths()
+        if Path(path).stem.lstrip("_") in PROHIBITED_GENERIC_NAMES
+    ]
+
+
+def _offenders() -> list[str]:
+    return [
+        f"{'package' if not path.endswith('.py') else 'module'} {path}"
+        for path in _generic_name_matches()
+    ]
+
+
+def test_no_prohibited_generic_helper_module_or_package_names():
+    assert _offenders() == []
+
+
+def test_refactor_removes_the_legacy_cleaning_common_helper_module():
+    assert not (PACKAGE_ROOT / "cleaning" / "_common.py").exists()
+    assert _generic_name_matches() == []

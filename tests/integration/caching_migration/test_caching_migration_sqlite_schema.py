@@ -1,0 +1,127 @@
+import importlib
+import sqlite3
+
+import pytest
+
+from bynat.caching import CacheManager
+
+
+def test_sqlite_initialization_is_lazy_until_explicitly_requested(tmp_path):
+    cache_dir = tmp_path / "cache"
+    manager = CacheManager(cache_dir)
+
+    assert not cache_dir.exists()
+
+    manager._storage.initialize()
+
+    assert (cache_dir / "cache.sqlite3").exists()
+
+
+def test_sqlite_schema_has_required_tables_columns_keys_and_index(tmp_path):
+    manager = CacheManager(tmp_path / "cache")
+    manager._storage.initialize()
+
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        assert {"cache_entries", "migration_metadata"}.issubset(tables)
+
+        cache_columns = {
+            row[1]: row
+            for row in connection.execute("PRAGMA table_info(cache_entries)")
+        }
+        assert set(cache_columns) == {
+            "func_name",
+            "bucket",
+            "key",
+            "value_json",
+            "created_at",
+        }
+        for name, row in cache_columns.items():
+            assert row[2] == "TEXT", name
+            assert row[3] == 1, name
+        primary_key_columns = {
+            name for name, row in cache_columns.items() if row[5]
+        }
+        assert primary_key_columns == {"func_name", "bucket", "key"}
+
+        metadata_columns = {
+            row[1]: row
+            for row in connection.execute("PRAGMA table_info(migration_metadata)")
+        }
+        assert set(metadata_columns) == {"source_name", "migrated_at"}
+        assert metadata_columns["source_name"][2] == "TEXT"
+        assert metadata_columns["source_name"][5] == 1
+        assert metadata_columns["migrated_at"][2] == "TEXT"
+        assert metadata_columns["migrated_at"][3] == 1
+        assert metadata_columns["migrated_at"][5] == 0
+
+        indexes = connection.execute(
+            "PRAGMA index_list(cache_entries)"
+        ).fetchall()
+        index_names = {row[1] for row in indexes}
+        assert "idx_cache_entries_func_bucket" in index_names
+        indexed_columns = {
+            row[2]
+            for row in connection.execute(
+                "PRAGMA index_info(idx_cache_entries_func_bucket)"
+            )
+        }
+        assert indexed_columns == {"func_name", "bucket"}
+
+
+def test_sqlite_connection_configures_timeout_wal_and_full_synchronous(tmp_path):
+    manager = CacheManager(tmp_path / "cache")
+    (tmp_path / "cache").mkdir()
+
+    connection = manager._storage.connect()
+    try:
+        assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == 30000
+        assert connection.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
+        assert connection.execute("PRAGMA synchronous").fetchone()[0] == 2
+    finally:
+        connection.close()
+
+
+def test_sqlite_connection_closes_when_pragma_configuration_fails(tmp_path, monkeypatch):
+    caching_module = importlib.import_module("bynat.caching._storage")
+
+    class FailingConnection:
+        def __init__(self):
+            self.execute_calls = []
+            self.close_called = False
+
+        def execute(self, statement):
+            self.execute_calls.append(statement)
+            if len(self.execute_calls) == 2:
+                raise sqlite3.OperationalError("PRAGMA failure")
+            return None
+
+        def close(self):
+            self.close_called = True
+
+    connection = FailingConnection()
+    monkeypatch.setattr(caching_module.sqlite3, "connect", lambda *args, **kwargs: connection)
+
+    with pytest.raises(sqlite3.OperationalError, match="PRAGMA failure"):
+        CacheManager(tmp_path / "cache")._storage.connect()
+
+    assert connection.close_called
+
+
+def test_repeated_sqlite_initialization_is_safe(tmp_path):
+    manager = CacheManager(tmp_path / "cache")
+
+    manager._storage.initialize()
+    manager._storage.initialize()
+
+    with sqlite3.connect(manager._storage.get_database_path()) as connection:
+        assert connection.execute(
+            "SELECT count(*) FROM sqlite_master "
+            "WHERE type IN ('table', 'index') AND name IN "
+            "('cache_entries', 'migration_metadata', 'idx_cache_entries_func_bucket')"
+        ).fetchone()[0] == 3

@@ -369,7 +369,7 @@ Importing `bynat` registers `df.bynat`. `BaseData`, `CsvFile`, `JsonFile`, `Byna
 
 ### 2.4 Current dependency matrix
 
-The module-level dependencies follow the package direction in ARCH-022. The root binds the four public packages, canonical loaders, and accessor registration. Public API modules delegate to private core modules. Cleaning core uses cleaning `_internal/`, enrichment core uses its `_internal/` helpers and cache internals, profiling uses profiling `_internal/` plus the canonical library value helper, and caching delegates persistence orchestration to `_persistence.py`, migration to `_migration.py`, and SQLite operations to `_storage.py`. Analytics owns its implementation in `_insights.py` and `analytics/_internal/` and imports no other `bynat` package. The runtime import graph is acyclic; `tests/cross_cutting/contracts/test_architecture_dependencies.py` enforces the current boundaries.
+The module-level dependencies follow the package direction in ARCH-022. The root binds the four public packages, canonical loaders, and accessor registration. Public API modules delegate to private core modules. Cleaning core uses cleaning `_internal/`, enrichment core uses its `_internal/` helpers and cache internals, profiling uses profiling `_internal/` plus the canonical library value helper, and caching delegates persistence orchestration to `_persistence.py`, migration to `_migration.py`, and SQLite operations to `_storage.py`. Analytics owns its implementation in `_insights.py` and `analytics/_internal/` and imports no other `bynat` package. The runtime import graph is acyclic; `tests/contracts/architecture/test_dependency_edges.py` enforces the current boundaries.
 
 ### 2.5 Current private-import exceptions
 
@@ -421,20 +421,20 @@ ARCH-024 exceptions remains exactly five.
 
 The repository has existing boundary-verification evidence for the root API, package exports, accessor ownership,
 profiling independence, and the canonical `_internal` helper. The dependency-graph enforcement required by ARCH-075 is
-provided by the AST contract test `tests/cross_cutting/contracts/test_architecture_dependencies.py` in the current
+provided by the AST contract test `tests/contracts/architecture/test_dependency_edges.py` in the current
 checkout: it models runtime package/module edges, rejects prohibited and unlisted edges, enforces the five
 private-import exceptions with their exact symbol allowlists, detects runtime cycles with TYPE_CHECKING-only imports
 ignored, and rejects row-wise iteration (ARCH-027) in production transformation paths. Automated checks are
 separate from human review: the AST dependency contract plus the root public-API/export contract
-(`tests/cross_cutting/contracts/test_root_api.py`), accessor ownership/boundary tests
-(`tests/cross_cutting/accessor/test_accessor_package_boundary.py`), profiling independence
-(`tests/modules/profile/test_profiling_package_boundary.py`), and the canonical `_internal` helper contract
+(`tests/contracts/api/test_root_api.py`), accessor ownership/boundary tests
+(`tests/contracts/architecture/test_accessor_boundary.py`, `tests/contracts/architecture/test_accessor_delegation.py`), profiling independence
+(`tests/contracts/api/test_profiling_api.py`, `tests/contracts/architecture/test_profiling_package_boundary.py`), and the canonical `_internal` helper contract
 (`test_internal_shared_helpers.py`) mechanically verify names, import edges, symbols, and signatures. Semantic
 helper placement, public-API/core-implementation and helper/core separation, canonical ownership, discoverability,
 cohesion, and whether indirection adds value are **not** inferred from module or package names alone; they remain
 a human review responsibility under ARCH-101/ARCH-102–ARCH-104 and follow the decision procedure in
 ARCH-066/ARCH-099. The naming-only contract
-`tests/cross_cutting/contracts/test_prohibited_helper_names.py` enforces the prohibited generic helper names of
+`tests/contracts/helpers/test_prohibited_helper_names.py` enforces the prohibited generic helper names of
 ARCH-021/ARCH-081 and the `_internal` naming convention of ARCH-094 at any scope. There is no grandfathered
 generic helper path in the current tree; this is objective naming enforcement, not evidence of semantic placement.
 Import-Linter remains optional and deferred, not an unresolved blocker under ARCH-076: the repository-native AST

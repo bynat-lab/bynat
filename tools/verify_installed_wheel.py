@@ -49,15 +49,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = "bynat"
 PHASE3_TESTS = (
-    "tests/modules/io/test_io_append.py",
-    "tests/modules/io/test_io_json.py",
-    "tests/modules/io/test_io_read.py",
-    "tests/modules/enrichment/optional/test_optional_ahocorasick.py",
-    "tests/modules/enrichment/optional/test_optional_sqlalchemy.py",
-    "tests/modules/columns/test_columns_pivot.py",
-    "tests/modules/columns/test_columns_split.py",
-    "tests/modules/columns/test_columns_structural.py",
-    "tests/cross_cutting/accessor/test_parity.py",
+    "tests/integration/io/test_io_append.py",
+    "tests/integration/io/test_io_json_format.py",
+    "tests/integration/io/test_io_json_overwrite.py",
+    "tests/integration/io/test_io_read.py",
+    "tests/integration/io/test_io_sql.py",
+    "tests/integration/enrichment/test_optional_categorization.py",
+    "tests/integration/enrichment/test_optional_sql.py",
+    "tests/unit/columns/test_columns_pivot.py",
+    "tests/unit/columns/test_columns_split.py",
+    "tests/unit/columns/test_columns_structural.py",
+    "tests/parity/class_accessor/test_accessor_class_parity.py",
 )
 TOP_LEVEL_EXPORTS = {
     "cleaning",

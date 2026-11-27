@@ -288,7 +288,7 @@ from_csv.bynat.save_to_json("output.json", orient="records")
 
 ### How the cleaning code is organized
 
-Each function in the `columns`, `text`, `stats`, `enrich`, and `io` modules takes a DataFrame as its first argument and returns a new one by default. The classes and the accessor are thin layers over these functions. See the [module layout](#module-layout).
+Each function in the `_columns`, `_text`, `_stats`, `enrich`, and `io` modules takes a DataFrame as its first argument and returns a new one by default. The classes and the accessor are thin layers over these functions. See the [module layout](#module-layout).
 
 ---
 
@@ -767,7 +767,6 @@ Methods are grouped by the kind of job they do:
 - [Text and language](#text-and-language)
 - [Enrichment](#enrichment)
 - [Outliers, missing values, and statistics](#outliers-missing-values-and-statistics)
-- [Data profiling](#data-profiling-1)
 - [Saving data](#saving-data)
 - [Cache and object helpers](#cache-and-object-helpers)
 
@@ -919,12 +918,6 @@ For `handle_outliers`, `drop_outliers`, `fill_missing`, and `fill_missing_from`,
 - With `inplace=True`, the operation changes the original object in place and returns `stats` directly. This applies to the class methods and to `df.bynat`.
 - The outlier methods use the default hierarchical `median` statistic. `fill_missing` uses its requested `strategy`.
 
-### Data profiling
-
-| Method | Parameters | Purpose |
-| --- | --- | --- |
-| `profile` | `*columns`, keyword-only `output_type=None` | Returns a read-only data quality report for all columns or the ones you name. See [Data profiling](#data-profiling) for the report structure and `output_type` values. |
-
 ### Saving data
 
 | Method | Parameters | Purpose |
@@ -955,11 +948,11 @@ Use this table to find where things live if you want to read the source or impor
 | --- | --- | --- |
 | `bynat.cleaning.base` | The class-based API | `BaseData`, `JsonFile`, `CsvFile` |
 | `bynat._accessors.dataframe` | The `df.bynat` entry point (private integration boundary) | The `df.bynat` accessor |
-| `bynat.cleaning.stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
-| `bynat.cleaning.enrich` | Adding information from outside the table | `translate`, `geocode`, `currency`, `nlp`, the shared cached-lookup `engine`, and `providers` |
+| `bynat.cleaning._stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
+| `bynat.cleaning.enrich` | Adding information from outside the table | `_translate`, `_geocode`, `_currency`, `_nlp`, the shared cached-lookup `_engine`, and `providers` |
 | `bynat.profiling` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
-| `bynat.cleaning.columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
-| `bynat.cleaning.text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |
+| `bynat.cleaning._columns` | Tidying and reshaping columns | Column renaming, dropping, reordering, moving, `melt_transform_pivot`, `split_list_objects` |
+| `bynat.cleaning._text` | Working with text | `extract_keywords`, `truncate_after_substring`, `categorize_by_reference` |
 | `bynat.cleaning.io` | Reading and writing | `save_to_json`, `save_to_sql`, `read_json`, `read_csv` |
 | `bynat.caching.manager` | Remembering results | `CacheManager` and `shared_cache_manager` |
 | `bynat.analytics.analyzer` | Summarizing and aggregating data | `Analyzer` (distributions, numerical aggregations, time series, KPIs, histogram bins) |

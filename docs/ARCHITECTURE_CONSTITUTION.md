@@ -49,9 +49,9 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-007 | Package `__all__` values are exact and non-underscore: `cleaning` → `BaseData, CsvFile, JsonFile`; `caching` → `CacheManager, CACHE_DIR_ENV_VAR, DEFAULT_CACHE_DIR, shared_cache_manager`; `analytics` → `Analyzer`; `profiling` → `profile, ProfileReport, DatasetProfile, ColumnProfile`; `cleaning.enrich` → the six provider symbols; `_internal` → `dedupe_key`; `_accessors` → `BynatAccessor`. |
 | ARCH-008 | Every `bynat/**/*.py` module declares `__all__` as a list or tuple of non-underscore names. (`bynat/_accessors/_binding.py` uses the annotated form `__all__: list[str] = []`.) |
 | ARCH-009 | Before moving or replacing any module path, classify it in exactly one of four categories: (1) public symbols declared in a package `__all__`; (2) public package import paths (`bynat`, `bynat.cleaning`, `bynat.caching`, `bynat.analytics`, `bynat.profiling`); (3) internal implementation module paths imported by repository code or tests; (4) documented import paths not in `__all__` (for example `bynat.cleaning.io`). Record the classification and the preservation requirement in the phase acceptance criteria. |
-| ARCH-010 | An unchanged `__all__` does **not** by itself prove compatibility. `__all__` governs star-imports and the package namespace only. Direct module imports, package-attribute access, function `__module__`, `__wrapped__` identity, function identity, and generated stubs must also be preserved. |
-| ARCH-011 | A module-to-package conversion keeps the module's name (`columns.py` → `columns/`, `text.py` → `text/`, `stats.py` → `stats/`, `io.py` → `io/`, `providers.py` → `providers/`) and re-exports every symbol accessed by repository code, tests, and the generated stub. A module and a same-named package must never coexist in one parent package. |
-| ARCH-012 | For the `io` conversion, the `__module__` contract is `read_csv.__module__ == "bynat.cleaning.io"` and `read_json.__module__ == "bynat.cleaning.io"`. **Option A** (define the public functions in `io/__init__.py`) is the approved approach. **Option B** (define in a submodule and assign `__module__`) is viable only with a `tools/sync_docs.py` change and explicit approval. **Option C** (accept `bynat.cleaning.io.readers`) is rejected because it weakens a pinned public contract. |
+| ARCH-010 | An unchanged `__all__` does **not** by itself prove compatibility. `__all__` governs star-imports and the package namespace only. Direct module imports, package-attribute access, function `__module__`, `__wrapped__` identity, function identity must also be preserved. |
+| ARCH-011 | A module-to-package conversion keeps the module's name (`columns.py` → `columns/`, `text.py` → `text/`, `stats.py` → `stats/`, `io.py` → `io/`, `providers.py` → `providers/`) and re-exports every symbol accessed by repository code and tests. A module and a same-named package must never coexist in one parent package. |
+| ARCH-012 | For the `io` conversion, the `__module__` contract is `read_csv.__module__ == "bynat.cleaning.io"` and `read_json.__module__ == "bynat.cleaning.io"`. **Option A** (define the public functions in `io/__init__.py`) is the approved approach. **Option B** (define in a submodule and assign `__module__`) is viable only with a change to the current docstring mechanism and explicit approval. **Option C** (accept `bynat.cleaning.io.readers`) is rejected because it weakens a pinned public contract. |
 | ARCH-013 | No deprecation, compatibility facade, or alias is introduced to absorb an internal redesign. Internal reorganization is a minor/patch change if the public API is unchanged. |
 
 ### 1.3 Package boundaries and ownership
@@ -64,7 +64,7 @@ repeal, or renumber explicitly under [§6](#6-governance-and-amendment-procedure
 | ARCH-017 | `bynat.profiling` owns non-mutating data-quality profiling and report models. It must not import `cleaning`, `analytics`, `caching`, or `_accessors`. |
 | ARCH-018 | `bynat._accessors` (private) owns pandas registration, binding, accessor signatures, delegation, and accessor-specific output adaptation only. It contains no domain algorithms. Functional packages must not import it. |
 | ARCH-019 | `bynat._internal` (private) owns domain-independent value normalization. It imports only the standard library and NumPy, and imports no functional package. |
-| ARCH-020 | Canonical shared-component owners are: `dedupe_key` → `_internal/values.py`; cleaning helpers → `cleaning/_internal/`; output conversion → `cleaning/_internal/outputs.py`; cached lookup → `cleaning/enrich/_engine.py`; rate-limited mapping and translation batching → `cleaning/enrich/_internal/mapping.py`; provider contracts → `cleaning/enrich/providers.py`; cache-key identity → `caching/_internal/keys.py`; SQLite persistence → `caching/_storage.py` with cache load/save orchestration in `caching/_persistence.py`; legacy migration → `caching/_migration.py`; profiling computations → `profiling/_internal/`; analytics implementations → `analytics/_insights.py` and `analytics/_internal/`; report models → `profiling/report.py`; analytics public API → `analytics/analyzer.py`. Consumer count is evidence of reuse, **not** proof of ownership; a shared component belongs where its invariants and change reasons are owned. These are existing responsibility-owned modules (ARCH-095), not generic helper collections; `_internal/` is the prescribed generic collection (ARCH-094), and new helper placement follows ARCH-092. Public API modules own their supported contracts and delegate; they are not alternative owners of these implementation responsibilities (ARCH-102–ARCH-103). Where a listed module currently combines a public interface with its implementation, that co-location is an adopted separation target, not a current-fact approval, and no move is authorized by this constitution. |
+| ARCH-020 | Canonical shared-component owners are: `dedupe_key` → `_internal/keys.py`; cleaning helpers → `cleaning/_internal/`; output conversion → `cleaning/_internal/outputs.py`; cached lookup → `cleaning/enrich/_engine.py`; rate-limited mapping and translation batching → `cleaning/enrich/_internal/mapping.py`; provider contracts → `cleaning/enrich/providers.py`; cache-key identity → `_internal/keys.py` (shared with enrichment); SQLite persistence → `caching/_storage.py` with cache load/save orchestration in `caching/_persistence.py`; legacy migration → `caching/_migration.py`; profiling computations → `profiling/_internal/`; analytics implementations → `analytics/_insights.py` and `analytics/_internal/`; report models → `profiling/report.py`; analytics public API → `analytics/analyzer.py`. Consumer count is evidence of reuse, **not** proof of ownership; a shared component belongs where its invariants and change reasons are owned. These are existing responsibility-owned modules (ARCH-095), not generic helper collections; `_internal/` is the prescribed generic collection (ARCH-094), and new helper placement follows ARCH-092. Public API modules own their supported contracts and delegate; they are not alternative owners of these implementation responsibilities (ARCH-102–ARCH-103). Where a listed module currently combines a public interface with its implementation, that co-location is an adopted separation target, not a current-fact approval, and no move is authorized by this constitution. |
 | ARCH-021 | Do not use `shared`, `_shared`, `common`, `utils`, or `helpers` as generic internal-helper module or package names at any scope. `_internal` is the only prescribed generic internal-helper name; create it only under ARCH-092–ARCH-094. |
 
 ### 1.4 Dependency direction and private imports
@@ -125,7 +125,7 @@ and `_internal/` responsibilities; they do not authorize further separation or r
 | ARCH-038 | `CacheManager` is the sole public cache facade. It delegates load/save orchestration to `_persistence.py`, SQLite operations to `_storage.py`, and legacy migration to `_migration.py`; the storage layer owns connection lifecycle (one connection per operation, explicit `BEGIN IMMEDIATE`, WAL mode, finite busy timeout, always closed). `CacheManager` retains its public cache operations, baseline/diff behavior, and column deletion, without private migration or quarantine wrappers. |
 | ARCH-039 | `shared_cache_manager` owns the process-wide registry: one manager per resolved absolute cache directory, guarded by a module lock, created on first request, never evicted. |
 | ARCH-040 | `caching` imports no functional package. `_internal/`, `_persistence.py`, `_storage.py`, and `_migration.py` are private; consumers use the public `caching` API except for the documented cache-key helper dependency. |
-| ARCH-041 | Cache-key identity is caching-owned (`caching/_internal/keys.py`). Enrichment consumes it through the enumerated private imports and must not own storage-identity rules. |
+| ARCH-041 | Cache-key identity is owned by the shared `_internal/keys.py`. Caching and enrichment consume it through the enumerated private imports and must not own storage-identity rules. |
 | ARCH-042 | `BaseData` owns its lazily created manager through instance metadata; `BynatAccessor` holds a manager by reference and resolves the shared manager lazily. `with_cache(...)` binds an explicit or shared manager. |
 | ARCH-043 | No global cache singleton without scoping and no resource manager or registry beyond `shared_cache_manager` is introduced. |
 
@@ -283,8 +283,7 @@ bynat/
 ├── _accessors/
 │   ├── __init__.py
 │   ├── _binding.py
-│   ├── dataframe.py
-│   └── dataframe.pyi          # generated by tools/sync_docs.py
+│   └── dataframe.py
 ├── _internal/
 │   ├── __init__.py
 │   └── values.py
@@ -350,7 +349,7 @@ bynat/
     └── report.py
 ```
 
-The current tree is the explicit public-API/private-core/`_internal` organization implemented by commit `946eb16` (`refactor: split packages into public API, private core, and _internal helpers`). Public API modules define supported interfaces and delegate substantive work to private core modules; private core modules own domain implementation; `_internal/` packages contain cohesive private helpers. The public package exports remain narrow; underscore-prefixed modules are private implementation paths. `bynat/_accessors/dataframe.pyi` is generated and excluded from Python source-module counts.
+The current tree is the explicit public-API/private-core/`_internal` organization implemented by commit `946eb16` (`refactor: split packages into public API, private core, and _internal helpers`). Public API modules define supported interfaces and delegate substantive work to private core modules; private core modules own domain implementation; `_internal/` packages contain cohesive private helpers. The public package exports remain narrow; underscore-prefixed modules are private implementation paths. The accessor is implemented in `bynat/_accessors/dataframe.py`; the repository contains no generated type stub.
 
 ### 2.3 Current public API surface
 
@@ -384,7 +383,7 @@ Observed in the current checkout and enforced as the exact private-import invent
 | 5 | `bynat/profiling/_internal/computations.py` | `from bynat._internal import dedupe_key` |
 | 6 | `bynat/_accessors/dataframe.py` | Imports canonical cleaning feature modules `_columns`, `_stats`, `_text`, `io`, and `cleaning.enrich._currency`, `_geocode`, `_nlp`, `_translate` for direct delegation. |
 
-The canonical exports are `cache_value_key`, `cache_has_value`, `cache_lookup_value` in `caching/_internal/keys.py`, and
+The canonical exports are `cache_value_key`, `cache_has_value`, `cache_lookup_value` in `_internal/keys.py`, and
 `is_basedata_type` in `cleaning/_internal/outputs.py`. Importers 1–2 import the canonical names.
 
 The root package's own registration import, `bynat/__init__.py → bynat._accessors`, is separately required by ARCH-006 ("Importing `bynat` registers `df.bynat` through a private
@@ -401,7 +400,7 @@ ARCH-024 exceptions remains exactly five.
 | Function identity | `bynat.read_csv is bynat.cleaning.io.read_csv`; likewise `read_json` | ARCH-010 |
 | `cleaning.io._dedupe_key` | `is bynat._internal.dedupe_key` | ARCH-010 |
 | Accessor wrapped identity | `BynatAccessor.<method>.__wrapped__ is <functional module>.<func>` for `columns`, `text`, `stats` | ARCH-010, ARCH-011 |
-| Generated stub | `bynat/_accessors/dataframe.pyi` synchronized with `dataframe.py` by `tools/sync_docs.py` | ARCH-010, ARCH-075 |
+| Accessor signature and docstring | `functools.wraps` in `bynat/_accessors/_binding.py` preserves `__signature__` and `__doc__` from the shared functions | ARCH-010, ARCH-075 |
 | Documented path | `bynat.cleaning.io` is documented and pinned | ARCH-009 |
 | Package attributes | `from bynat.cleaning import columns, io, stats, text`; `from bynat.cleaning.enrich import providers` | ARCH-011 |
 
@@ -526,13 +525,12 @@ public API.
 | `bynat/_accessors/__init__.py` | Export the accessor class | `BynatAccessor` | `_accessors.dataframe` | Package-internal |
 | `bynat/_accessors/_binding.py` | Wrapper factories for accessor methods | `_method_signature`, `_with_inplace`, `_frame_method`, `_cached_frame_method` | none | Private |
 | `bynat/_accessors/dataframe.py` | Registered `df.bynat` accessor and delegation | `BynatAccessor`, module-level `profile` and analytics adapters | `cleaning`, `analytics`, `caching`, `profiling`, `_binding` | Package-internal |
-| `bynat/_accessors/dataframe.pyi` | Generated typing surface | stub methods | generated | Package-internal |
-| `bynat/_internal/__init__.py` | Export the canonical value helper | `dedupe_key` | `_internal.values` | Private |
-| `bynat/_internal/values.py` | Domain-independent value normalization | `dedupe_key` | none | Private |
+| `bynat/_internal/__init__.py` | Export the canonical shared helpers | `dedupe_key`, `cache_value_key`, `cache_has_value`, `cache_lookup_value`, `is_named_type_from_module` | `_internal.keys`, `_internal.types` | Private |
+| `bynat/_internal/keys.py` | Domain-independent value and cache-key normalization | `dedupe_key`, `cache_value_key`, `cache_has_value`, `cache_lookup_value` | none | Private |
 | `bynat/analytics/__init__.py` | Export `Analyzer` | `Analyzer` | `analytics.analyzer` | Public |
 | `bynat/analytics/analyzer.py` | Public analytics interface | `Analyzer` methods and delegation | `_insights`, analytics `_internal` | Public API |
 | `bynat/caching/__init__.py` | Export cache API | `CacheManager`, constants, `shared_cache_manager` | `caching.manager` | Public |
-| `bynat/caching/_internal/keys.py` | Cache-key normalization and lookup | `cache_value_key`, `cache_has_value`, `cache_lookup_value` | none | Private |
+| `bynat/caching/_internal/` | Caching-specific diff, path, and quarantine helpers | `diff`, `paths`, `quarantine` | none | Private |
 | `bynat/caching/_persistence.py` | Cache load/save orchestration | `load_cache`, `persist_cache` | caching internals | Private |
 | `bynat/caching/_migration.py` | Legacy JSON migration and quarantine | `migrate_legacy_json_cache`, `quarantine_corrupt_cache_file` | `caching._storage` | Private |
 | `bynat/caching/_storage.py` | SQLite persistence | `SQLiteStorage`, `connect_sqlite`, constants | none | Private |
@@ -571,7 +569,7 @@ explicit disposition.
 
 | # | Finding | Disposition |
 |---|---|---|
-| 1 | `_shares_doc` copies functional docstrings onto `BaseData` methods at import time, and `tools/sync_docs.py` mirrors them literally; 1,638 of 2,234 `base.py` lines are docstrings, so every docstring edit touches multiple artifacts. | Behavioral/maintenance cost, not an ownership defect. Retain; drift is caught by doc-sync verification. |
+| 1 | `BaseData` methods carry literal docstrings in `bynat/cleaning/base.py` (1,569 of 2,128 lines), and accessor methods inherit shared-function docstrings through `functools.wraps` in `_accessors/_binding.py`, so docstring edits must keep those two surfaces consistent. | Behavioral/maintenance cost, not an ownership defect. Retain; drift is caught by the doc-contract tests. |
 | 2 | `BaseData._finish_with_stats` and `bynat._accessors._binding._frame_method(stats=True)` (with the accessor methods it generates) independently implement the same `inplace` + statistics return semantics; parity is pinned by tests, but a semantic change could satisfy one side silently. | Parity pinned; a future contract change must update both. Retain (no structural change now). |
 | 3 | `is_basedata_type` identifies `BaseData` by MRO string matching on `__name__ == 'BaseData'` and `__module__ == 'bynat.cleaning.base'`; renaming or relocating the class silently disables `BaseData` profile output adaptation. | Intentional (avoids a lower-level-to-facade import). Retain; recorded as a **relocation hazard**. |
 | 4 | `shared_cache_manager` constructs a throwaway `CacheManager` probe on every call and registers managers by absolute path in a dict with no eviction; long-lived processes accumulate manager instances. | Intentional lifecycle; process-wide registry. Retain. |
@@ -586,8 +584,8 @@ explicit disposition.
 
 **Component assessments marked `Adjust` — decisions.** `BaseData`, `bynat._accessors._binding._frame_method`, and
 `bynat._accessors._binding._cached_frame_method` (dual inplace/stats contract): **Deferred**, no structural change now; if the contract
-changes, extract one shared contract helper and pin parity. `_shares_doc`: **Retain**, drift already fails
-doc-sync verification. `import_optional`: **Deferred** behavioral follow-up. `cache_value_key`,
+changes, extract one shared contract helper and pin parity. `BaseData` literal docstrings and accessor `functools.wraps` doc inheritance: **Retain**, drift already fails
+the doc-contract tests. `import_optional`: **Deferred** behavioral follow-up. `cache_value_key`,
 `cache_has_value`, `cache_lookup_value`: **Implemented**, covered by the alias normalization. `is_basedata_type`:
 **Retain**, documented relocation hazard. `shared_cache_manager`: **Retain**, intentional lifecycle.
 
@@ -856,7 +854,7 @@ with a same-named package; no tree lists both.
 | `cleaning/enrich/providers.py` | `cleaning/enrich/providers/` | `from bynat.cleaning.enrich.providers import ...` | M2 |
 
 No other proposed tree contains a module/package name clash. Each package `__init__.py` re-exports the
-symbols that repository code, tests, and the generated stub access; see §3.8.
+symbols that repository code and tests access; see §3.8.
 
 ### 3.6 Dependency model evolution rules
 
@@ -893,17 +891,17 @@ contract `bynat.read_csv.__module__ == "bynat.cleaning.io"` fails. The contract 
 by the conversion. Option A remains compatible with ARCH-102 when `io/__init__.py` declares the public contract
 (signature, docstring, delegation) and delegates substantive behavior to internal implementation submodules.
 
-| Option | Mechanism | `__module__` | `tools/sync_docs.py` | Introspection / pickling | Verdict |
+| Option | Mechanism | `__module__` | Docstring contract | Introspection / pickling | Verdict |
 |---|---|---|---|---|---|
-| A. Declare/expose the public functions in `io/__init__.py`, delegating substantive behavior to internal implementation submodules (ARCH-102) | `def read_csv(...)` executes in the package `__init__` | `bynat.cleaning.io` (natural) | Works: it parses `io/__init__.py` and finds the top-level `def` | `inspect.getmodule`, `inspect.getsourcefile`, and `pickle` all resolve to `bynat.cleaning.io`; the substantive logic stays in internal modules | **Approved** |
-| B. Define in `io/readers.py`, re-export, and set `__module__ = "bynat.cleaning.io"` on each public function | Metadata mutation | `bynat.cleaning.io` (assigned) | Breaks: `_stub_function` resolves `func.__module__` to `io/__init__.py` and looks for a top-level `def read_csv` there | `inspect.getmodule`/`pickle` resolve via `__module__`; `inspect.getsourcefile` still uses `co_filename` (`readers.py`); `__module__` no longer reflects the defining module | Viable only with a `tools/sync_docs.py` update and explicit approval |
-| C. Define in `io/readers.py` and accept `__module__ == "bynat.cleaning.io.readers"` | No mutation | `bynat.cleaning.io.readers` | Works | Introspection reports the true module | **Rejected**: changes a pinned public contract |
+| A. Declare/expose the public functions in `io/__init__.py`, delegating substantive behavior to internal implementation submodules (ARCH-102) | `def read_csv(...)` executes in the package `__init__` | `bynat.cleaning.io` (natural) | Natural: the public `def` lives in the documented module | `inspect.getmodule`, `inspect.getsourcefile`, and `pickle` all resolve to `bynat.cleaning.io`; the substantive logic stays in internal modules | **Approved** |
+| B. Define in `io/readers.py`, re-export, and set `__module__ = "bynat.cleaning.io"` on each public function | Metadata mutation | `bynat.cleaning.io` (assigned) | Not preserved automatically: `__module__` would be assigned, so `inspect.getmodule` and `pickle` follow the assignment while `inspect.getsourcefile` reflects `readers.py` | `inspect.getmodule`/`pickle` resolve via `__module__`; `inspect.getsourcefile` still uses `co_filename` (`readers.py`); `__module__` no longer reflects the defining module | Viable only with explicit approval and a doc-contract update |
+| C. Define in `io/readers.py` and accept `__module__ == "bynat.cleaning.io.readers"` | No mutation | `bynat.cleaning.io.readers` | Natural | Introspection reports the true module | **Rejected**: changes a pinned public contract |
 
 **Trade-offs.** `io/__init__.py` is no longer a thin re-export module; it owns the public reader/writer
 contract (signatures, docstrings, delegation) while the substantive implementations stay in internal modules
 (ARCH-102). If a thin `__init__` is preferred, Option B is the alternative, but it is **not
 behavior-neutral**: it requires an explicit `__module__` assignment on each public function and a
-`tools/sync_docs.py` change to locate source via `inspect.getsourcefile`/`co_filename`. Option B therefore
+change to the accessor doc-contract tests, which compare generated methods' `__doc__` with the shared functions. Option B therefore
 requires explicit approval; it must not be introduced silently. Option C is rejected because it weakens the
 pinned contract.
 
@@ -911,11 +909,11 @@ pinned contract.
 
 | Module path | Category | Relied on by | Pinned contract | Growth conversion | Preservation requirement |
 |---|---|---|---|---|---|
-| `bynat.cleaning.io` | 4 (documented) | root `__init__`; `base.py` docstrings; `_accessors/dataframe.pyi`; contract checks; `tools/sync_docs.py` | `read_csv.__module__ == "bynat.cleaning.io"`; `read_json.__module__ == "bynat.cleaning.io"`; `io._dedupe_key is _internal.dedupe_key`; `bynat.read_csv is io.read_csv` | M2 → `io/` | `io/__init__.py` declares/exposes `read_csv`, `read_json`, `save_to_json`, `save_to_sql`, `IfExists`, `JsonOrient`, `_dedupe_key` and delegates substantive behavior to internal implementation submodules (ARCH-102); the public functions keep `__module__ == "bynat.cleaning.io"` (§3.7) |
+| `bynat.cleaning.io` | 4 (documented) | root `__init__`; `base.py` docstrings; accessor doc contract; structural contract checks | `read_csv.__module__ == "bynat.cleaning.io"`; `read_json.__module__ == "bynat.cleaning.io"`; `io._dedupe_key is _internal.dedupe_key`; `bynat.read_csv is io.read_csv` | M2 → `io/` | `io/__init__.py` declares/exposes `read_csv`, `read_json`, `save_to_json`, `save_to_sql`, `IfExists`, `JsonOrient`, `_dedupe_key` and delegates substantive behavior to internal implementation submodules (ARCH-102); the public functions keep `__module__ == "bynat.cleaning.io"` (§3.7) |
 | `bynat.cleaning.columns` | 3 | `base.py`; `_accessors/dataframe.py`; property/equivalence checks | `BynatAccessor.<method>.__wrapped__ is columns.<func>`; 9 column functions accessed as attributes | M2 → `columns/` | `columns/__init__.py` re-exports the 9 functions; each submodule has `__all__` |
 | `bynat.cleaning.text` | 3 | `base.py`; `_accessors/dataframe.py`; property/equivalence checks | `BynatAccessor.<method>.__wrapped__ is text.<func>`; 3 text functions | M2 → `text/` | `text/__init__.py` re-exports the 3 functions; each submodule has `__all__` |
 | `bynat.cleaning.stats` | 3 | `base.py`; `_accessors/dataframe.py`; doc-sync; outlier equivalence checks | `BynatAccessor.<method>.__wrapped__ is stats.<func>`; `stats.fill_missing.__doc__` equality; 5 statistics functions | M2 → `stats/` | `stats/__init__.py` re-exports the 5 functions; each submodule has `__all__` |
-| `bynat.cleaning.enrich.providers` | 3 | `base.py`; `enrich/__init__.py`; `_accessors/dataframe.pyi` | `enrich.__all__` re-exports 6 provider symbols; stub imports 3 | M2 → `providers/` | `providers/__init__.py` re-exports the 6 provider symbols; each submodule has `__all__` |
+| `bynat.cleaning.enrich.providers` | 3 | `base.py`; `enrich/__init__.py`; accessor doc contract | `enrich.__all__` re-exports 6 provider symbols; accessor methods expose provider docstrings | M2 → `providers/` | `providers/__init__.py` re-exports the 6 provider symbols; each submodule has `__all__` |
 
 ### 3.9 Deliberately not proposed
 
@@ -934,7 +932,7 @@ These rows preserve earlier decisions and unresolved questions. They do not defi
 
 | ID | Item | Disposition | Revisit trigger |
 |---|---|---|---|
-| AE-Q1 | Should `caching._internal.keys` become a narrow public contract? | Keep private with a documented edge | A second consumer or a user-facing requirement |
+| AE-Q1 | Should `_internal.keys` become a narrow public contract? | Keep private with a documented edge | A second consumer or a user-facing requirement |
 | AE-Q2 | Should `base.py` be split or generated? | Defer | Concrete maintenance pain; docstring-generation cost |
 | AE-Q3 | Should any `Analyzer` operation become an accessor method? | Implemented (supersedes Defer); every public operation is exposed on `df.bynat` and delegates to `Analyzer` | Only if the accessor delegation contract changes |
 | AE-Q4 | How should SQL URL construction be owned? | Resolved by commit `946eb16`: `build_engine_url` lives in `cleaning/_internal/sql.py`; `save_to_sql` remains in `cleaning/io.py` and owns the export flow. No further move is implied. | A separate explicit architecture decision |
@@ -1037,8 +1035,8 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 | # | Conflict | Resolution |
 |---|---|---|
 | 1 | `ARCHITECTURE_RESEARCH.md` Phase 0.2/0.3 describes a four-name root and profiling under `cleaning`; its Phase 3 status update and the current code describe a six-name root and `bynat.profiling`. | The research Phase 0 sections are the historical `b2a5f43` baseline. Phase 1–3 were implemented; the six-name root, `bynat.profiling`, and `bynat/_accessors/` are **Current**. |
-| 2 | Research §7 names obsolete pre-refactor cache-key owners and consumers. | The current owner is `caching._internal.keys`; enrichment consumers are `cleaning.enrich._engine` and `_translate`. The manager does not import cache-key helpers. |
-| 3 | Research §7.1 and the design §3.3 F-7 describe `dedupe_key` ownership. | One canonical implementation exists in `bynat/_internal/values.py`; `cleaning.io` and `profiling._internal.computations` import it. The removed `cleaning._common` path is historical only. |
+| 2 | Research §7 names obsolete pre-refactor cache-key owners and consumers. | The current owner is `_internal.keys`; enrichment consumers are `cleaning.enrich._engine` and `_translate`. The manager does not import cache-key helpers. |
+| 3 | Research §7.1 and the design §3.3 F-7 describe `dedupe_key` ownership. | One canonical implementation exists in `bynat/_internal/keys.py`; `cleaning.io` and `profiling._internal.computations` import it. The removed `cleaning._common` path is historical only. |
 | 4 | Research baseline measurements (10,171 physical LOC) differ from the design baseline (10,317). | Different commits (`b2a5f43` vs `6bf68bd`) and Phase 1–3 implementation. Not a decision conflict; the design baseline is the later one. |
 | 5 | The task referenced `BYNAT_SCALABLE_ARCHITECTURE_EVOLUTION_STRATEGY.md`. | That file does not exist; the actual document is `architecture/BYNAT_ARCHITECTURE_EVOLUTION_STRATEGY.md`, corrected in place and not renamed. |
 | 6 | The design and strategy decide private-alias normalization and dependency-graph enforcement. | Private-alias normalization is implemented by commit `946eb16`; current dependency checks are separately recorded in §2.8. |
@@ -1099,12 +1097,12 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 - [`../pyproject.toml`](../pyproject.toml) — version, dependencies, extras, tool configuration.
 - [`../bynat/__init__.py`](../bynat/__init__.py) — root API and accessor registration.
 - [`../bynat/cleaning/__init__.py`](../bynat/cleaning/__init__.py), [`../bynat/caching/__init__.py`](../bynat/caching/__init__.py), [`../bynat/analytics/__init__.py`](../bynat/analytics/__init__.py), [`../bynat/profiling/__init__.py`](../bynat/profiling/__init__.py) — package exports.
-- [`../bynat/_accessors/dataframe.py`](../bynat/_accessors/dataframe.py), [`../bynat/_accessors/_binding.py`](../bynat/_accessors/_binding.py), [`../bynat/_accessors/dataframe.pyi`](../bynat/_accessors/dataframe.pyi) — private accessor boundary and generated stub.
-- [`../bynat/_internal/values.py`](../bynat/_internal/values.py) — canonical `dedupe_key`.
-- [`../bynat/caching/manager.py`](../bynat/caching/manager.py), [`../bynat/caching/_persistence.py`](../bynat/caching/_persistence.py), [`../bynat/caching/_storage.py`](../bynat/caching/_storage.py), [`../bynat/caching/_migration.py`](../bynat/caching/_migration.py), [`../bynat/caching/_internal/keys.py`](../bynat/caching/_internal/keys.py) — cache boundary.
+- [`../bynat/_accessors/dataframe.py`](../bynat/_accessors/dataframe.py), [`../bynat/_accessors/_binding.py`](../bynat/_accessors/_binding.py) — private accessor boundary.
+- [`../bynat/_internal/keys.py`](../bynat/_internal/keys.py) — canonical `dedupe_key` and cache-key helpers.
+- [`../bynat/caching/manager.py`](../bynat/caching/manager.py), [`../bynat/caching/_persistence.py`](../bynat/caching/_persistence.py), [`../bynat/caching/_storage.py`](../bynat/caching/_storage.py), [`../bynat/caching/_migration.py`](../bynat/caching/_migration.py), [`../bynat/caching/_internal/`](../bynat/caching/_internal/) — cache boundary.
 - [`../bynat/cleaning/_internal/`](../bynat/cleaning/_internal/), [`../bynat/cleaning/enrich/_engine.py`](../bynat/cleaning/enrich/_engine.py), [`../bynat/cleaning/enrich/_internal/`](../bynat/cleaning/enrich/_internal/), [`../bynat/cleaning/enrich/providers.py`](../bynat/cleaning/enrich/providers.py) — cleaning and enrichment core/helper ownership.
 - [`../bynat/analytics/analyzer.py`](../bynat/analytics/analyzer.py), [`../bynat/analytics/_insights.py`](../bynat/analytics/_insights.py), [`../bynat/analytics/_internal/`](../bynat/analytics/_internal/), [`../bynat/profiling/_builders.py`](../bynat/profiling/_builders.py), [`../bynat/profiling/_internal/`](../bynat/profiling/_internal/) — analytics and profiling ownership.
-- [`../tools/sync_docs.py`](../tools/sync_docs.py) — generated stub and docstring synchronization.
+- [`../tools/verify_installed_wheel.py`](../tools/verify_installed_wheel.py) — installed-wheel verification; the former generated-stub and docstring-synchronization tool no longer exists.
 - Current repository boundary-verification artifacts — evidence for the current export, accessor, profiling, and shared-helper boundaries; their testing details remain governed by `docs/TESTING_STANDARDS.md`.
 
 ### 8.5 Source-by-source coverage
@@ -1195,7 +1193,7 @@ reference material; the constitutional rules stand independently.
 | E-7 | A modular monolith keeps one deployable but organizes bounded contexts with explicit public interfaces; GitLab enforces privacy and explicit dependencies with a static analyzer (Packwerk). | Adopt the boundary-enforcement idea; reject multi-service extraction and event buses. |
 | E-8 | NumPy documents three module tiers, computes `numpy.__all__` as a union of submodule `__all__` lists, moved `numpy.core` to private `numpy._core`, and states in NEP 52 the goals of a clear public/private distinction and one canonical location per public function. | Supports a deliberate public `__all__`, a private `_internal` package, and one canonical helper location; does not justify renaming public modules. |
 | E-9 | Synthesis of E-1/E-2: a transformation contract specifies length/order preservation, copy semantics, output container, and stateless vs stateful. | bynat already states index/order preservation, `inplace`, and `output_type`; preserve these and add no stateful estimator layer. |
-| E-10 | Import Linter contract types: `forbidden`, `protected`, `layers`, `independence`, `private_modules` (underscore modules scoped to their parent package), `acyclic_siblings`; configured in `.importlinter`/`setup.cfg`/`pyproject.toml`; `ignore_imports` exempts an edge. | Recommended enforcement mechanism; a `protected` contract on `bynat.caching._internal.keys` with an allow-list is more precise than a blanket `private_modules` exception. |
+| E-10 | Import Linter contract types: `forbidden`, `protected`, `layers`, `independence`, `private_modules` (underscore modules scoped to their parent package), `acyclic_siblings`; configured in `.importlinter`/`setup.cfg`/`pyproject.toml`; `ignore_imports` exempts an edge. | Recommended enforcement mechanism; a `protected` contract on `bynat._internal.keys` with an allow-list is more precise than a blanket `private_modules` exception. |
 | E-11 | PyPA documents naming-convention, namespace-package, and entry-point plugin discovery; entry points are justified when multiple independently distributed plugins implement one interface, unjustified when all implementations ship in one distribution. | No third-party plugin requirement; reject entry-point discovery and registries. |
 | E-12 | Importing a package executes its `__init__.py`; `__all__` controls `from package import *` and signals the public surface. | Explicit root/package imports and exact `__all__` are the correct mechanism; incidental import-order attributes are not API. |
 | E-13 | PEP 621 `optional-dependencies` maps each extra to `Requires-Dist` entries guarded by the extra name. | Extras are correctly declared; no change. |

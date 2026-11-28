@@ -2,12 +2,15 @@
 
 import logging
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 
 from ._readers import load_json_payload, normalize_records, read_csv_records
 from ._writers import IfExists, JsonOrient, write_json, write_sql
+
+if TYPE_CHECKING:
+    from bynat.pandas_typing import DataFrame as TypedDataFrame
 
 __all__ = [
     "IfExists",
@@ -24,7 +27,7 @@ logger = logging.getLogger(__name__)
 def read_json(
     json_file_path: str | os.PathLike,
     key: str | None = None,
-) -> pd.DataFrame:
+) -> 'TypedDataFrame':
     """Read a JSON file into a plain `pandas.DataFrame`.
 
     The payload is flattened with `pandas.json_normalize`, as `JsonFile`
@@ -67,10 +70,10 @@ def read_json(
 
         raw_data = raw_data[key]
 
-    return normalize_records(raw_data)
+    return cast('TypedDataFrame', normalize_records(raw_data))
 
 
-def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFrame:
+def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> 'TypedDataFrame':
     """Read a CSV file into a plain `pandas.DataFrame`.
 
     Args:
@@ -96,7 +99,7 @@ def read_csv(csv_file_path: str | os.PathLike, **read_kwargs: Any) -> pd.DataFra
     if not os.path.isfile(path):
         raise FileNotFoundError(f"CSV file not found: {path}")
 
-    return read_csv_records(path, **read_kwargs)
+    return cast('TypedDataFrame', read_csv_records(path, **read_kwargs))
 
 
 def save_to_json(

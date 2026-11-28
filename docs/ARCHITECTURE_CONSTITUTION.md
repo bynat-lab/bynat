@@ -191,7 +191,7 @@ These are **Conditional** rules. Each phase is opened only when its trigger fire
 
 | ID | Rule |
 |---|---|
-| ARCH-075 | Architecture enforcement must cover: exact public exports; the public API/private core/helper ownership boundaries established by commit `946eb16` (ARCH-102–ARCH-104); helper placement, cohesion, and `_internal` naming where those rules apply (ARCH-092–ARCH-097); permitted and prohibited dependency directions; the enumerated private-import exceptions; `_internal` independence; accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment; the prohibition on row-wise data-path iteration; and the discoverability/analyzability expectations in ARCH-101. Enforcement must not impose additional facade or relocation rules beyond the implemented architecture. |
+| ARCH-075 | Architecture enforcement must cover: exact public exports; the public API/private core/helper ownership boundaries established by commit `946eb16` (ARCH-102–ARCH-104); helper placement, cohesion, and `_internal` naming where those rules apply (ARCH-092–ARCH-097); permitted and prohibited dependency directions; the enumerated private-import exceptions; `_internal` independence; accessor delegation-only ownership; profiling and analytics independence; absence of cycles; module export declarations; public signature/docstring/stub alignment including generated-stub freshness; the prohibition on row-wise data-path iteration; and the discoverability/analyzability expectations in ARCH-101. Enforcement must not impose additional facade or relocation rules beyond the implemented architecture. |
 | ARCH-101 | **Human discoverability and machine analyzability.** A reviewer should be able to infer a module's responsibility and owner from its name, location, and nearby package boundaries without tracing unrelated code or relying on undocumented tribal knowledge. Related components and their permitted dependencies should be findable through clear ownership and explicit exports/imports; avoid intermediate modules or layers that add indirection without a concrete boundary benefit. A machine-assisted analysis should be able to identify package/module ownership, dependency edges, public/private boundaries, and documented exceptions from repository artifacts and explicit rules rather than guessing from naming similarity or directory shape alone. Do not force identical file layouts to achieve this: use the narrowest clear organization that fits each responsibility. Automate objective checks where practical; assess semantic clarity, cohesion, and whether indirection adds value through human review. |
 | ARCH-076 | The enforcement mechanism MAY be a repository-native static or structural check, a dedicated dependency-analysis tool, or another reviewable mechanism selected for the repository. The mechanism MUST represent all five private-import exceptions precisely and MUST NOT require a runtime dependency merely to describe the architecture. |
 | ARCH-077 | A new **module** has one responsibility, the correct owner under the implemented architecture, no unapproved cross-package private import, an explicit export boundary, and placement consistent with the committed package boundaries. Do not add a facade or relocate an existing responsibility merely to enforce a generalized interface/implementation template. A new **subpackage** requires an explicit architectural decision, curates `__init__`, adds no cycle, inherits the parent's dependency budget, and changes no public API. A new **domain package** requires an explicit architectural decision, its own public contract, ≥2–3 operations, no dependency on functional internals, and an explicit extension to the dependency matrix. |
@@ -280,10 +280,12 @@ This section records the architecture as observed in the current checkout. It is
 bynat/
 ├── __init__.py
 ├── py.typed
+├── pandas_typing.py
 ├── _accessors/
 │   ├── __init__.py
 │   ├── _binding.py
-│   └── dataframe.py
+│   ├── dataframe.py
+│   └── dataframe.pyi
 ├── _internal/
 │   ├── __init__.py
 │   └── values.py
@@ -349,7 +351,7 @@ bynat/
     └── report.py
 ```
 
-The current tree is the explicit public-API/private-core/`_internal` organization implemented by commit `946eb16` (`refactor: split packages into public API, private core, and _internal helpers`). Public API modules define supported interfaces and delegate substantive work to private core modules; private core modules own domain implementation; `_internal/` packages contain cohesive private helpers. The public package exports remain narrow; underscore-prefixed modules are private implementation paths. The accessor is implemented in `bynat/_accessors/dataframe.py`; the repository contains no generated type stub.
+The current tree is the explicit public-API/private-core/`_internal` organization implemented by commit `946eb16` (`refactor: split packages into public API, private core, and _internal helpers`). Public API modules define supported interfaces and delegate substantive work to private core modules; private core modules own domain implementation; `_internal/` packages contain cohesive private helpers. The public package exports remain narrow; underscore-prefixed modules are private implementation paths. The accessor is implemented in `bynat/_accessors/dataframe.py`; its typing-only stub is generated in `bynat/_accessors/dataframe.pyi` by `tools/gen_accessor_stub.py`, and `bynat/pandas_typing.py` is a `TYPE_CHECKING` bridge whose runtime alias is `pd.DataFrame`.
 
 ### 2.3 Current public API surface
 
@@ -363,6 +365,7 @@ The current tree is the explicit public-API/private-core/`_internal` organizatio
 | `bynat.cleaning.enrich` | `Translator`, `Geocoder`, `RateSource`, `GoogleTranslatorProvider`, `NominatimGeocoder`, `YFinanceRateSource` |
 | `bynat._internal` | `dedupe_key` |
 | `bynat._accessors` | `BynatAccessor` |
+| `bynat.pandas_typing` | `DataFrame` |
 
 Importing `bynat` registers `df.bynat`. `BaseData`, `CsvFile`, `JsonFile`, `BynatAccessor`, `ProfileReport`, and `profile` are **not** root attributes. All 31 `.py` modules declare `__all__`.
 
@@ -1102,7 +1105,7 @@ require a boundary to be verifiable, but they do not prescribe how that verifica
 - [`../bynat/caching/manager.py`](../bynat/caching/manager.py), [`../bynat/caching/_persistence.py`](../bynat/caching/_persistence.py), [`../bynat/caching/_storage.py`](../bynat/caching/_storage.py), [`../bynat/caching/_migration.py`](../bynat/caching/_migration.py), [`../bynat/caching/_internal/`](../bynat/caching/_internal/) — cache boundary.
 - [`../bynat/cleaning/_internal/`](../bynat/cleaning/_internal/), [`../bynat/cleaning/enrich/_engine.py`](../bynat/cleaning/enrich/_engine.py), [`../bynat/cleaning/enrich/_internal/`](../bynat/cleaning/enrich/_internal/), [`../bynat/cleaning/enrich/providers.py`](../bynat/cleaning/enrich/providers.py) — cleaning and enrichment core/helper ownership.
 - [`../bynat/analytics/analyzer.py`](../bynat/analytics/analyzer.py), [`../bynat/analytics/_insights.py`](../bynat/analytics/_insights.py), [`../bynat/analytics/_internal/`](../bynat/analytics/_internal/), [`../bynat/profiling/_builders.py`](../bynat/profiling/_builders.py), [`../bynat/profiling/_internal/`](../bynat/profiling/_internal/) — analytics and profiling ownership.
-- [`../tools/verify_installed_wheel.py`](../tools/verify_installed_wheel.py) — installed-wheel verification; the former generated-stub and docstring-synchronization tool no longer exists.
+- [`../tools/verify_installed_wheel.py`](../tools/verify_installed_wheel.py) — installed-wheel verification. [`../bynat/_accessors/dataframe.pyi`](../bynat/_accessors/dataframe.pyi), [`../bynat/pandas_typing.py`](../bynat/pandas_typing.py), and [`../tools/gen_accessor_stub.py`](../tools/gen_accessor_stub.py) are the generated-stub and typing surface.
 - Current repository boundary-verification artifacts — evidence for the current export, accessor, profiling, and shared-helper boundaries; their testing details remain governed by `docs/TESTING_STANDARDS.md`.
 
 ### 8.5 Source-by-source coverage

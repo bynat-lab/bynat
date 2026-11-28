@@ -62,6 +62,7 @@ include = ["bynat*"]
 
 [tool.setuptools.package-data]
 bynat = ["py.typed"]
+"bynat._accessors" = ["*.pyi"]
 
 [tool.ruff]
 target-version = "py311"
@@ -81,6 +82,9 @@ convention = "google"
 "tests/**" = ["D", "DOC"]
 "tools/**" = ["D", "DOC"]
 "benchmarks/**" = ["D", "DOC"]
+# Generated .pyi docstrings mirror source docstrings verbatim; they are not a second
+# documentation source, so source-only formatting rules do not apply to them.
+"*.pyi" = ["D200", "D212", "D417"]
 
 [tool.interrogate]
 ignore-init-method = false
@@ -102,7 +106,7 @@ python_version = "3.11"
 files = [
     "bynat/_accessors/__init__.py",
     "bynat/_accessors/_binding.py",
-    "bynat/_accessors/dataframe.py",
+    "bynat/_accessors/dataframe.pyi",
     "bynat/_internal/__init__.py",
     "bynat/_internal/keys.py",
     "bynat/_internal/types.py",
@@ -120,6 +124,7 @@ files = [
     "bynat/cleaning/io.py",
     "bynat/cleaning/_stats.py",
     "bynat/cleaning/_text.py",
+    "bynat/pandas_typing.py",
     "bynat/profiling/__init__.py",
     "bynat/profiling/profile.py",
     "bynat/profiling/report.py",

@@ -948,6 +948,8 @@ Use this table to find where things live if you want to read the source or impor
 | --- | --- | --- |
 | `bynat.cleaning.base` | The class-based API | `BaseData`, `JsonFile`, `CsvFile` |
 | `bynat._accessors.dataframe` | The `df.bynat` entry point (private integration boundary) | The `df.bynat` accessor |
+| `bynat._accessors.dataframe.pyi` | Generated typing-only stub for the accessor | Typed `df.bynat` method signatures |
+| `bynat.pandas_typing` | Typing bridge for `df.bynat` | `DataFrame`, the same object as `pandas.DataFrame` at runtime |
 | `bynat.cleaning._stats` | Outliers, gaps, and group statistics | `handle_outliers`, `drop_outliers`, `fill_missing`, `fill_missing_from`, `get_hierarchical_stats` |
 | `bynat.cleaning.enrich` | Adding information from outside the table | `_translate`, `_geocode`, `_currency`, `_nlp`, the shared cached-lookup `_engine`, and `providers` |
 | `bynat.profiling` | Data quality profiling | `profile`, `ProfileReport`, `DatasetProfile`, `ColumnProfile` |
@@ -1020,6 +1022,7 @@ python -m pytest -q
 python -m compileall -q bynat
 ruff check bynat tests benchmarks
 python -m mypy
+python tools/gen_accessor_stub.py --check
 ```
 
 To also run the tests that use the real `pyahocorasick` and SQLAlchemy/SQLite, install `".[categorization,sql]"`. Those tests are skipped otherwise.
@@ -1029,6 +1032,23 @@ CI runs the suite on Ubuntu and Windows with Python 3.11 and 3.13, plus Ruff, my
 ### Type checking
 
 Type checking is gradual. `python -m mypy` reads its scope from `[tool.mypy]` in `pyproject.toml`. That scope covers the cache manager and cache internals, the cleaning core, `_internal` helpers, I/O and enrichment packages, the analytics API, the accessor boundary (`_accessors`), and the profiling API, checked against `pandas-stubs`. The supported classes in `bynat/cleaning/base.py` remain a separate gradual-typing boundary.
+
+For typed `df.bynat` signatures, construct or annotate frames with `bynat.pandas_typing.DataFrame`, which is backed by a generated typing-only stub (`bynat/_accessors/dataframe.pyi`):
+
+```python
+from typing import cast
+
+import pandas as pd
+from bynat.pandas_typing import DataFrame
+
+df = DataFrame({"value": [1, 2]})
+df.bynat.drop_by_substring("unused")
+
+existing_df = pd.DataFrame({"value": [1, 2]})
+typed_df = cast(DataFrame, existing_df)
+```
+
+At runtime `DataFrame` is `pandas.DataFrame`, so behavior is unchanged. A bare `pd.DataFrame` still resolves `df.bynat` as `Series[Any]` because pandas-stubs declares `DataFrame.__getattr__` that way; use `cast(DataFrame, existing_df)` as shown above.
 
 To bring a module into scope:
 

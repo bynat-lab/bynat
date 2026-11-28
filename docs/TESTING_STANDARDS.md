@@ -458,9 +458,9 @@ The following requirements apply to all public frame-to-frame transformations ac
   3. Row count preservation (except documented explodes/drops).
   4. Output schema and dtype stability.
   5. Determinism across repeated executions with identical seeds. [BP]
-- **BYNAT-TOOL-1: Installed-Wheel Clean Virtualenv Verification.** `tools/verify_installed_wheel.py` builds a wheel in an isolated directory, installs it in a clean temporary virtualenv, and runs the test suite against the installed distribution to guarantee that packaging metadata (`py.typed`) and package files are complete. [BP]
+- **BYNAT-TOOL-1: Installed-Wheel Clean Virtualenv Verification.** `tools/verify_installed_wheel.py` builds a wheel in an isolated directory, installs it in a clean temporary virtualenv, and runs the test suite against the installed distribution to guarantee that packaging metadata (`py.typed`) and package files, including `bynat/_accessors/dataframe.pyi`, are complete. [BP]
 - **BYNAT-TOOL-2: Performance Benchmarking Suite.** Scripts under `benchmarks/` measure performance against 0.3.0 baseline reference implementations. Benchmarks MUST NOT import test files. [BP]
-- **BYNAT-TOOL-3: Documentation Synchronization Verification.** Shared docstrings and signatures are verified against the `bynat/_accessors/dataframe.py` implementation by `tests/contracts/api/test_docstring_and_signature_drift.py`. [BP]
+- **BYNAT-TOOL-3: Documentation Synchronization Verification.** Shared docstrings and signatures are verified against the `bynat/_accessors/dataframe.py` implementation by `tests/contracts/api/test_docstring_and_signature_drift.py`; generated-stub freshness and stub-vs-runtime signatures are verified by `tests/contracts/api/test_accessor_stub.py`, with regeneration via `python tools/gen_accessor_stub.py --check`. [BP]
 
 ---
 
@@ -517,6 +517,7 @@ Developers and automated agents can reproduce the exact CI verification pipeline
 ```bash
 ruff check bynat tests benchmarks
 python -m mypy
+python tools/gen_accessor_stub.py --check
 python -m pytest -q
 python -m pytest -m extras -rs
 python tools/verify_installed_wheel.py

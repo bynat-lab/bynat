@@ -19,9 +19,10 @@ script makes that check reproducible and offline:
    full suite, the four target verification files, and an installed-
    distribution smoke test against the installed wheel.
 
-The installed wheel is checked for its ``bynat/py.typed`` marker and its
-accessor package files, which must resolve from the venv site-packages
-rather than any source tree.
+The installed wheel is checked for its ``bynat/py.typed`` marker, its
+``bynat/_accessors/dataframe.pyi`` typing stub, and its accessor package
+files, which must resolve from the venv site-packages rather than any
+source tree.
 
 Usage:
     python tools/verify_installed_wheel.py [--python PATH] [--keep]
@@ -70,14 +71,15 @@ TOP_LEVEL_EXPORTS = {
     "read_json",
 }
 CLEANING_EXPORTS = {"BaseData", "CsvFile", "JsonFile"}
-PACKAGE_DATA = ("bynat/py.typed",)
+PACKAGE_DATA = ("bynat/py.typed", "bynat/_accessors/dataframe.pyi")
 ACCESSOR_PACKAGE_FILES = (
     "bynat/_accessors/__init__.py",
     "bynat/_accessors/_binding.py",
     "bynat/_accessors/dataframe.py",
+    "bynat/_accessors/dataframe.pyi",
 )
 
-TEST_TOOLING = ("benchmarks/reference_impls.py",)
+TEST_TOOLING = ("tools/gen_accessor_stub.py", "benchmarks/reference_impls.py")
 
 SOURCE_COPY_IGNORE = shutil.ignore_patterns(
     ".git",
